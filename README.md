@@ -13,7 +13,7 @@ to produce the effective potentials and compute the bands of the effective Hamil
 ## Organization of the code
 
 ### Scripts to compute the monolayer functions
-**graphene.jl** computes the potentials and Dirac eigenfunctions of the monolayer graphene, and the KS potential of the shifted bilayer
+**graphene.jl** computes the potentials and Dirac eigenfunctions of the monolayer graphene, and the KS potential of the shifted bilayer  
 **apply_graphene.jl** applies the previous
 
 ### Scripts to compute effective potentials and bands
