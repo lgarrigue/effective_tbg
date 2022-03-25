@@ -13,4 +13,8 @@ Open Julia, call
 ```
 include("apply_graphene.jl")
 ```
-to produce the monolayer functions and Vint, and then include("apply_effpot_and_bands.jl") to produce the effective potentials and compute the bands of the effective Hamiltonian
+to produce the monolayer functions and Vint, and then call
+```
+include("apply_effpot_and_bands.jl")
+```
+to produce the effective potentials and compute the bands of the effective Hamiltonian
