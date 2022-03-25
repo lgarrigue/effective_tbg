@@ -19,7 +19,7 @@ to produce the effective potentials and compute the bands of the effective Hamil
 ### Scripts to compute effective potentials and bands
 **effective_potentials.jl** computes the effective potentials  
 **band_diagrams_bm_like.jl** computes the band diagrams  
-**apply_effpot_and_bands.jl** applies one of the previous two scripts with definite parameters. Applying **effective_potentials.jl** will create the plots of the potentials in cartesian coordinates while applying **band_diagrams_bm_like.jl** will compute the band diagrams
+**apply_effpot_and_bands.jl** applies one of the previous two scripts with definite parameters. Applying *effective_potentials.jl* will create the plots of the potentials in cartesian coordinates while applying *band_diagrams_bm_like.jl* will compute the band diagrams
 
 ### Secondary scripts
 **misc/lobpcg.jl** is the LOBPCG solver taken from DFTK  
