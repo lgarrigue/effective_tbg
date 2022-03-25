@@ -22,7 +22,7 @@ mutable struct Params
 
 	# Dirac point quantities
 	K_coords_red; K_coords_cart; K_kpt # Dirac point in sevral formats
-	shift_K   
+	shift_K 
 
 	# Monolayer functions
 	i_state # index of first valence state
