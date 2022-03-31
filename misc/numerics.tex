@@ -50,13 +50,47 @@
 \newcommand{\ketbra}[2]{\left| #1 \right> \left< #2 \right|}
 \newcommand{\bbV}{\mathbb{V}}
 
+
+\newcommand{\db}[1]{\left(\!\left( #1 \right)\!\right)}
+\def\bX{{\mathbf X}}
+\def\bG{{\mathbf G}}
+\def\ba{{\mathbf a}}
+\def\bb{{\mathbf b}}
+\def\be{{\mathbf e}}
+\def\bk{{\mathbf k}}
+\def\bp{{\mathbf p}}
+\def\bq{{\mathbf q}}
+\def\br{{\mathbf r}}
+\def\bx{{\mathbf x}}
+\def\bmm{{\mathbf m}}
+\def\by{{\mathbf y}}
+\def\bn{{\mathbf n}}
+\def\bA{{\mathbf A}}
+\def\bH{{\mathbf H}}
+\def\bK{{\mathbf K}}
+\def\bR{{\mathbf R}}
+\def\bS{{\mathbf S}}
+\def\gR{{\mathfrak R}}
+
+\def\bbI{{\mathbb I}}
+\def\bbV{{\mathbb V}}
+\def\bbW{{\mathbb W}}
+\def\bbA{{\mathbb A}}
+\def\bbB{{\mathbb B}}
+\def\1{{\mathds{1}}}
+
+\newcommand{\dd}{\tfrac{d}{2}}
+
+\def\lAngle{\langle\!\langle}
+\def\rAngle{\rangle\!\rangle}
+
 %%%%%%%%%%%%%%%%%%%% End macros
 
-\title[]{}
-\author[L. Garrigue]{Louis Garrigue}
-\address{CERMICS, \'Ecole des ponts ParisTech, 6 and 8 av. Pascal, 77455 Marne-la-Vallée, France} 
-\email{louis.garrigue@enpc.fr}
-\date{\today}
+\title[Numerics effective TBG]{Numerical computations for an effective model of twisted bilayer graphene}
+\author[É. Cancès, D. Gontier and L. Garrigue]{Éric Cancès, David Gontier and Louis Garrigue}
+% \address{CERMICS, \'Ecole des ponts ParisTech, 6 and 8 av. Pascal, 77455 Marne-la-Vallée, France} 
+% \email{louis.garrigue@enpc.fr}
+% \date{\today}
 \begin{document}
 \maketitle
 
@@ -77,6 +111,24 @@ and
 \begin{align*}
 	2\pi \pa{\cM^{-1}}^* = \mat{a_1^* & a_2^*} = \f{2\pi}a \mat{\f{1}{\sqrt 3} & \f{1}{\sqrt 3} \\ 1 & -1} =: S
 \end{align*}
+
+\subsection{Fourier conventions}%
+\label{sub:fourier_conventions}
+
+We will manipulate functions which are $\Omega$-periodic in $\bx$, but not in $z$, our Fourier transform conventions will be
+\begin{align*}
+	\pa{\cF f}_G(k_z) := \f{1}{2\pi \ab{\Omega}} \int_{\Omega\times\R} e^{-i\pa{k \bx + k_z z}} f(\bx,z) \d \bx \d z
+\end{align*}
+hence any function can be decomposed as
+\begin{align*}
+f(\bx,z) = \sum_{\bG \in \L^*} \int_\R e^{i\pa{\bG\bx + k_z z}} f_\bG(k_z) \d k_z
+\end{align*}
+We also recall that $\int_\R e^{ipz} \d z = 2\pi \delta(p)$.
+
+\subsection{Rotation action}%
+\label{sub:rotation_action}
+
+
 We know that $R_{\f{2\pi}3} \pa{ma^* } = \pa{R_{\f{2\pi}3}^{\text{red}} m} a^*$ where
 \begin{align*}
 	R_{\f{2\pi}3}^{\text{red}} = S^{-1} R_{\f{2\pi}3} S =  \cM^* R_{\f{2\pi}3} \pa{\cM^*}^{-1} = \mat{-1 & 1 \\ -1 & 0}, \qquad R_{-\f{2\pi}3}^{\text{red}} = \mat{0 & -1 \\ 1 & -1}
@@ -86,16 +138,117 @@ and
 \cR_{\f{2\pi}3} f(x) = \sum_m f_m e^{i \pa{R_{\f{2\pi}3}^{\text{red}} m} a^* \cdot x} = \sum_m f_{R_{-\f{2\pi}3}^{\text{red}} m} e^{im a^* \cdot x}
 \end{align*}
 
-\section{Rotated monolayer, by $\f{\pi}2$}%
-\label{sec:rotated_monolayer_by_pi2_}
-We define $J := \mat{0 & -1 \\ 1 & 0} = R_{\f{\pi}2}$, and then the rotated vectors are $\widetilde{a}_j = J a_j$ so
+
+
+\section{Effective potentials}%
+\label{sec:effective_potentials}
+
+We defined
 \begin{align*}
-	\widetilde{a}_1 = a \mat{-\f 12 \\ \f{\sqrt{3}}{2}}, \qquad \widetilde{a}_2 = a \mat{\f 12 \\ \f{\sqrt{3}}{2}}, \qquad \widetilde{a}_1^* =\f{2\pi}{a} \mat{-1 \\ \f{1}{\sqrt 3}}, \qquad \widetilde{a}_2^* =\f{2\pi}{a} \mat{1 \\ \f{1}{\sqrt 3}}
+	\db{ f, g}^{\eta,\eta'}(\bX) &:=  \f{1}{\ab{\Omega}} \int_{\Omega \times \R} \overline{f}\pa{x -\eta J\bX,z- \eta\dd} g\pa{x - \eta' J \bX, z- \eta'\dd} \d \bx \d z \\
+	\lAngle f, g \rAngle^{\eta,\eta'}(\bX) &:=  \f{e^{i\pa{\eta-\eta'} \bK \cdot J \bX}}{\ab{\Omega}} \int_{\Omega \times \R} \overline{f}\pa{x -\eta J\bX,z-\eta \dd} g\pa{x -\eta' J \bX, z-\eta'\dd} \d \bx \d z
+\end{align*}
+so $\lAngle f, g \rAngle^{\eta,\eta'} = e^{i\pa{\eta-\eta'} \bK \cdot J \bX}\db{ f, g}^{\eta,\eta'}$. Now we make the approximation
+\begin{align*}
+\int_{\Omega\times\R} \simeq \int_{\Omega\times \seg{-\f L2,\f L2}} = \int_{\Omega\times \seg{0,L}}
+\end{align*}
+and consider that $f$ and $g$ are $L$-periodic in $z$,
+\begin{align*}
+f(\bx,z) = \sum_{\bG,G_z} e^{i\pa{\bG \bx + G_z z}} \widehat{f}_{\bG,G_z}= \sum_{\bmm,m_z} e^{i\pa{\bmm \ba^* \cdot \bx + m_z \f{2\pi}L z}} \widehat{f}_{\bmm,m_z}
+\end{align*}
+
+The situation is drawn on Figure \ref{fig:z_drawing}. Numerically the functions are defined on $[-L/2,L/2]$ but we need to integrate on the common segment, which is $[-\f{L-d}{2},\f{L-d}{2}]$, so on $[-L/2,L/2]$ to recover the initial domain.
+
+\begin{figure}
+\begin{center}
+\includegraphics[width=10cm,trim={0cm 0cm 0 10cm},clip]{common.jpeg}
+\label{fig:z_drawing}\caption{Situation on the $z$ coordinate}
+\end{center}
+\end{figure}
+
+
+Firstly,
+\begin{align*}
+	\db{f,g}^{\eta,\eta'} &= L \sum_{G} e^{i\pa{\eta-\eta'} G \cdot J \bX} \sum_{G_z} e^{i\pa{\eta-\eta'} G_z \f{d}{2}} \overline{\widehat{f}_{G,G_z}} \widehat{g}_{G,G_z} \\
+& = L \sum_{\bmm \in \Z^2} e^{i\pa{\eta-\eta'} ma^* \cdot J \bX} \sum_{m_z \in \Z} e^{i\pa{\eta-\eta'} \f{2\pi}{L} m_z \f{d}{2}} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}\\
+& = \sum_{\bmm \in \Z^2} e^{i\pa{\eta-\eta'} ma^* \cdot J \bX} C_\bmm
+\end{align*}
+where
+\begin{align*}
+\boxed{C_\bmm := L \sum_{m_z \in \Z} e^{i\pa{\eta-\eta'} \f{d\pi}{L} m_z} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}}
+\end{align*}
+Then,
+\begin{align*}
+\lAngle f,g \rAngle ^{\eta,\eta'} = e^{i\pa{\eta-\eta'} \bK \cdot J \bX}\db{f,g}^{\eta,\eta'} =  \sum_{\bmm \in \Z^2} e^{i\pa{\eta-\eta'} \pa{m+m_K}a^* \cdot J \bX} C_\bmm
+\end{align*}
+
+
+Hence
+\begin{align*}
+	\db{f,g}^{+-}\pa{-\tfrac{3}{2} J \bX} &=  \sum_{\bmm \in \Z^2} e^{i 3 ma^* \cdot \bX} C_\bmm=  \sum_{\bmm \in \Z^2} e^{i m a^* \cdot \bX} C_{\f{\bmm}{3}}, \\
+\lAngle f,g \rAngle^{+-}\pa{-\tfrac{3}{2} J\bX} &=  \sum_{\bmm \in \Z^2} e^{i 3 \pa{m+m_k}a^* \cdot \bX} C_\bmm =  \sum_{\bmm \in \Z^2} e^{i m a^* \cdot \bX} C_{\f{\bmm-3\bmm_K}{3}}
+\end{align*}
+where $C_{\f{\bmm}{n}} :=  0$ if $n$ does not divide $m_1$ and $m_2$. 
+
+For the potentials, we finally need to implement
+\begin{align*}
+\bbW_{j,j'} = \db{V, \overline{u}_j u_{j'}}^{+-}, \qquad \bbV_{j,j'} = \lAngle \pa{V+V\ind{int}} u_j , u_{j'} \rAngle^{+-}
+\end{align*}
+
+As for he magnetic term, we have
+\begin{align*}
+\pa{-i\na_\bx + \bK} g = \sum_{\bmm,m_z} \pa{\bmm + \bmm_K} \ba^* e^{i\pa{\bmm \ba^* \cdot \bx + m_z \f{2\pi}L z}} \widehat{f}_{\bmm,m_z}
 \end{align*}
 so
 \begin{align*}
-	\widetilde{\cM} =  \f a2 \mat{-1 & 1 \\ \sqrt 3 & \sqrt 3}, \qquad  \widetilde{\cM}^{-1} = \f 1a \mat{-1 & \f{1}{\sqrt 3} \\ 1 & \f{1}{\sqrt 3}}
+	\lAngle &f, (-i\nabla_\bx+\bK) g \rAngle^{+-}(\bX) =  \sum_{\bmm \in \Z^2} \pa{\bmm + \bmm_K}\ba^* \; C_\bmm e^{2i \pa{\bmm + \bmm_K} \ba^* \cdot J\bX} 
 \end{align*}
+and
+\begin{align*}
+	\lAngle f, (-i\nabla_\bx+\bK) g \rAngle^{+-}\pa{-\tfrac{3}{2}J\bX} &=  \sum_{\bmm \in \Z^2} \pa{\bmm + \bmm_K}\ba^* \; C_\bmm e^{i 3 \pa{\bmm + \bmm_K} \ba^* \cdot \bX} \\
+		& = \f {2}3 \sum_{\bmm \in \Z^2} \bmm \ba^* \; C_{\f{\bmm - 3\bmm_K}{3}} e^{i \bmm \ba^* \cdot \bX} 
+\end{align*}
+so we can implement
+\begin{align*}
+\bm{\cA}_{j,j'}\pa{-\tfrac{3}{2}J\bX} = \lAngle u_j, (-i\nabla_\bx+\bK) u_{j'} \rAngle^{+-}\pa{-\tfrac{3}{2}J\bX}
+\end{align*}
+
+\subsection{$\bbW$'s $V\ind{int}$ term}%
+\label{sub:_bbw_s_vint_term}
+We write $V\ind{int}(z) = \sum_{M_z \in \Z} \widehat{V}\ind{int}^{M_z} e^{i \f{2\pi}L M_z z}$ hence
+\begin{align*}
+	\ps{u_j, V\ind{int} u_{j'}} &= \sum_{\substack{\bmm \in \Z^2 \\ m_z,m_z',M_z \in \Z}} \pa{\overline{\widehat{u}}_j}_{\bmm,m_z} \pa{\widehat{u}_{j'}}_{\bmm,m_z'}\pa{\widehat{V\ind{int}}}_{M_z} \int_z e^{iz \f{2\pi}{L} \pa{M_z + m_z'-m_z}} \\
+& = L \sum_{\substack{\bmm \in \Z^2 \\ m_z,m_z' \in \Z}} \pa{\overline{\widehat{u}}_j}_{\bmm,m_z} \pa{\widehat{u}_{j'}}_{\bmm,m_z'}\pa{\widehat{V\ind{int}}}_{m_z-m_z'} 
+\end{align*}
+and the matrix $M_{j,j'} := \ps{u_j, V\ind{int} u_{j'}}$ is such that $M^* = M$ and $M_{11} = M_{22}$.
+
+
+\begin{align*}
+j^{\ell} \na \Phi_\ell(x) = \na \cR_{\f{2\pi}3} \Phi_\ell(x) = R_{\f{2\pi}3} \cR_{\f{2\pi}3} \na \Phi_\ell
+\end{align*}
+hence
+\begin{align*}
+\cR_{\f{2\pi}3} \pa{\na \Phi_\ell} = j^\ell R_{-\f{2\pi}3} \pa{\na \Phi_\ell}
+\end{align*}
+and with
+\begin{align*}
+\db{f,g}^{\eta,\eta'} := \ab{\Omega}^{-1} \int_{\Omega\times\R} \overline{f}\pa{x-\eta JX,z - \eta \dd} g\pa{x-\eta'JX,z-\eta'\dd}
+\end{align*}
+\begin{align*}
+\cR_{\f{2\pi}3} \db{ \Phi_\ell,\na \Phi_{\ell'} }^{\eta,\eta'} = j^{\ell'-\ell}R_{-\f{2\pi}3} \db{  \Phi_\ell,\na \Phi_{\ell'}}^{\eta,\eta'}
+\end{align*}
+and hence
+\begin{align*}
+\cR_{\f{2\pi}3} \bm{\cA} = R_{-\f{2\pi}3} : U \bm{\cA} U^*
+\end{align*}
+
+If $f(z) = \ep f(-z)$, then $\widehat{f}_{-m_z} = \ep \widehat{f}_{m_z}$, from this we see that $\overline{C_\bmm^{u_{j'},u_{j}}} = C_\bmm^{u_{j},u_{j'}}$ and hence $\bbV(-X)^* = \bbV(X)$
+
+
+
+
+
+
 
 \section{BM configuration}%
 \label{sec:bm_configuration}
