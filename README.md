@@ -12,7 +12,8 @@ to produce the monolayer functions u1, u2, V and Vint. Call
 include("apply_effpot_and_bands.jl")
 ```
 to produce the effective potentials and compute the bands of the effective Hamiltonian.  
-Computation of Vint and band diagrams production are the two steps requiring more ressources, hence they are paralellized with Threads.@threads on the CPU. COMPUTATION OF Vint IS NOT YET PARALLELIZED BECAUSE OF A PROBLEM IN PARALELLIZATION OF DFTK SCF's
+Computation of Vint and band diagrams production are the two steps requiring more ressources, hence they are paralellized with Threads.@threads on the CPU.  
+COMPUTATION OF Vint IS NOT YET PARALLELIZED BECAUSE OF A PROBLEM IN PARALELLIZATION OF DFTK SCF's
 
 ## Organization of the code
 

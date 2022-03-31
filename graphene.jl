@@ -7,9 +7,6 @@ px = println
 import Base.+  
 +(f::Function, g::Function) = (x...) -> f(x...) + g(x...)  
 
-# Creates a dictionary which inverts an array, for instance [5,4,1] will give Dict(5 => 1, 2 => 4, 3 => 1)
-inverse_dict_from_array(a) = Dict(value => key for (key, value) in Dict(zip((1:length(a)), a)))
-
 mutable struct Params
 	### Common parameters
 	a; a1; a2; a1_star; a2_star
@@ -24,9 +21,7 @@ mutable struct Params
 	n_fball # size of the Fermi ball ∈ ℕ
 	x_axis_red; z_axis_red
 
-
 	### Particular parameters
-
 	M3d # M = (a1,a2), M3d = (a1,a2,L*e3) is the lattice
 
 	# Dirac point quantities
@@ -63,7 +58,6 @@ end
 function init_params(p)
 	init_cell_vectors(p)
 	# Bilayer parameter
-
 	p.M3d = [vcat(p.a1,[0]) vcat(p.a2,[0]) [0;0;p.L]]
 	p.recip_lattice = DFTK.compute_recip_lattice(p.M3d)
 	p.recip_lattice_inv = inv(p.recip_lattice)
@@ -73,7 +67,7 @@ function init_params(p)
 	p.K_coords_cart = k_red2cart(p.K_red_3d,p)
 	p.shift_K = [-1;0;0] # (1-R_{2π/3})K = -a_1^*, shift of this vector
 
-
+	# Paths
 	p.root_path = "graphene/"
 	p.path_exports = string(p.root_path,"exported_functions/")
 	p.path_plots = string(p.root_path,"plots/")
@@ -200,6 +194,7 @@ k_red2cart(k_red,p) = p.recip_lattice*k_red
 # coords in cartesian to coords in reduced
 k_cart2red(k_cart,p) = p.recip_lattice_inv*k_cart
 
+# Obtains u0, u1 and u2 at the Dirac point
 function get_dirac_eigenmodes(p)
 	(Es_K,us_K,basis,ham) = diag_monolayer_at_k(p.K_red_3d,p)
 	p.basis = basis
@@ -278,11 +273,11 @@ function hat_V_bilayer_Xs(p) # hat(V)^{bil,Xs}_{0,M}
 	V = zeros(ComplexF64,p.N,p.N,p.Nz)
 	print("Step : ")
 	grid = [[sx,sy] for sx=1:p.N, sy=1:p.N]
-	# Threads.@threads for s=1:p.N^2
-	Threads.@threads for s=1:p.N^2
-		sm = grid[s]; sx = sm[1]; sy = sm[2]
+	# Threads.@threads for s=1:p.N^2 # multi-threading blocks because of a problem in the parallelization of DFTK's diagonalization
+	for si=1:p.N^2
+		s = grid[si]; sx = s[1]; sy = s[2]
 		print(s," ")
-		v = scf_graphene_bilayer([sx,sy],p)
+		v = scf_graphene_bilayer(s,p)
 		V[sx,sy,:] = fft([sum(v[:,:,z])/p.N^2 for z=1:p.Nz])
 	end
 	print("\n")

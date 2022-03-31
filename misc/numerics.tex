@@ -1,0 +1,298 @@
+\documentclass[11pt,a4paper,reqno,french,tikz]{amsart}
+\usepackage[utf8]{inputenc} \usepackage[T1]{fontenc}
+%\usepackage{babel} % français \usepackage[latin1]{inputenc}
+\usepackage{amsthm,amsmath,amsfonts,amssymb,amsxtra,appendix,bookmark,dsfont,bm,mathrsfs,amstext,amsopn,mathrsfs,mathtools,comment,cite,hyperref,color,xcolor,cite}
+
+%%%%%%%%%%%%%%%%%%%% Standard macros
+% Environments
+\newtheorem{theorem}{Theorem}[section]\newtheorem{definition}[theorem]{Definition}\newtheorem{lemma}[theorem]{Lemma}\newtheorem{example}[theorem]{Example}\newtheorem{proposition}[theorem]{Proposition}\newtheorem{corollary}[theorem]{Corollary}\newtheorem{conjecture}[theorem]{Conjecture}\newtheorem{remark}[theorem]{Remark}
+
+% Mathbb
+\let\C\relax\newcommand{\C}{\mathbb{C}}\newcommand{\Z}{\mathbb{Z}}\newcommand{\R}{\mathbb{R}}\newcommand{\N}{\mathbb{N}}\newcommand{\Q}{\mathbb{Q}}
+
+% Mathcal
+\newcommand\cA{\mathcal{A}}\newcommand\cB{\mathcal{B}}\newcommand\cC{\mathcal{C}}\newcommand\cD{\mathcal{D}}\newcommand\cE{\mathcal{E}}\newcommand\cF{\mathcal{F}}\newcommand\cG{\mathcal{G}}\newcommand\cH{\mathcal{H}}\newcommand\cI{\mathcal{I}}\newcommand\cJ{\mathcal{J}}\newcommand\cK{\mathcal{K}}\newcommand\cL{\mathcal{L}}\newcommand\cM{\mathcal{M}}\newcommand\cN{\mathcal{N}}\newcommand\cO{\mathcal{O}}\newcommand\cP{\mathcal{P}}\newcommand\cQ{\mathcal{Q}}\newcommand\cR{\mathcal{R}}\newcommand\cS{\mathcal{S}}\newcommand\cT{\mathcal{T}}\newcommand\cU{\mathcal{U}}\newcommand\cV{\mathcal{V}}\newcommand\cW{\mathcal{W}}\newcommand\cX{\mathcal{X}}\newcommand\cY{\mathcal{Y}}\newcommand\cZ{\mathcal{Z}}
+
+% Math operators
+\DeclareMathOperator{\tr}{Tr}\DeclareMathOperator{\ran}{Ran}\DeclareMathOperator{\Span}{Span}\DeclareMathOperator{\Ker}{Ker}\DeclareMathOperator{\re}{Re}\DeclareMathOperator{\id}{id}\DeclareMathOperator{\im}{Im}\DeclareMathOperator{\dist}{dist}\let\div\relax\DeclareMathOperator{\div}{div}
+\def\d{{\rm d}}
+
+% Others
+\renewcommand{\ge}{\geqslant}\renewcommand{\le}{\leqslant}
+
+%%%%%%%%%%%%%%%%%%%% Macros Louis
+% Delimiters
+\newcommand{\pa}[1]{\left( #1 \right)} % ()
+\newcommand{\acs}[1]{\left\{ #1 \right\}} % {}
+\newcommand{\seg}[1]{\left[ #1 \right]} % []
+\newcommand{\ab}[1]{\left|#1\right|} % ||
+\newcommand{\ps}[1]{\left< #1 \right>} % <>
+\newcommand{\proj}[1]{\big| #1 \big> \big< #1 \big|} % |u><u|
+\newcommand{\nor}[2]{ \left| \! \left| #1 \right| \! \right|_{#2} } % ||.||
+
+% Greek letters shortcuts
+\newcommand\vp{\varphi} % φ
+\def\eps{\varepsilon}\newcommand{\ep}{\varepsilon} % ε
+\let\p\relax\newcommand{\p}{\psi} % ψ
+\newcommand{\na}{\nabla} % ∇
+
+% Others
+\newcommand{\f}[2]{\frac{#1}{#2}} % fraction
+\newcommand{\bul}{$\bullet$ \hspace{0.1cm}} % •
+\newcommand{\mymax}[1]{\underset{\substack{#1}}{\text{\normalfont{max}}}\quad} % max
+\newcommand{\mymin}[1]{\underset{\substack{#1}}{\text{\normalfont{min}}}\quad} % min
+\newcommand{\mysup}[1]{\underset{\substack{#1}}{\text{\normalfont{sup}}}\quad} % sup
+\newcommand{\myinf}[1]{\underset{\substack{#1}}{\text{\normalfont{inf}}}\quad} % inf
+\newcommand{\ind}[1]{_{\textup{#1}}} % indice
+\newcommand{\apo}[1]{#1''} % apostrophes "..."
+\newcommand{\mat}[1]{\begin{pmatrix} #1 \end{pmatrix}} % matrices
+\def\1{{\mathds{1}}}
+\newcommand{\ketbra}[2]{\left| #1 \right> \left< #2 \right|}
+\newcommand{\bbV}{\mathbb{V}}
+
+%%%%%%%%%%%%%%%%%%%% End macros
+
+\title[]{}
+\author[L. Garrigue]{Louis Garrigue}
+\address{CERMICS, \'Ecole des ponts ParisTech, 6 and 8 av. Pascal, 77455 Marne-la-Vallée, France} 
+\email{louis.garrigue@enpc.fr}
+\date{\today}
+\begin{document}
+\maketitle
+
+\section{Standard monolayer}%
+\label{sec:standard_monolayer}
+
+We recall that 
+\begin{multline*}
+a_1 = a \mat{ \f{\sqrt 3}2 \\ \f 12}, \qquad a_2 = a \mat{ \f{\sqrt 3}2 \\ -\f 12} \qquad a^*_1 = \f{2\pi}{a} \mat{ \f{1}{\sqrt 3} \\ 1}, \qquad a^*_2 = \f{2\pi}{a} \mat{ \f{1}{\sqrt 3} \\ -1}
+\end{multline*}
+
+In reduced coordinates, with 
+\begin{multline*}
+	\cM : \mathbb{T}^2 \simeq [0,1]^2 \rightarrow \Omega, \\
+	\cM :=  \f a2 \mat{\sqrt{3} & \sqrt{3} \\ 1 & -1} = \mat{a_1 & a_2}, \qquad  \cM^{-1} = \f 1a \mat{\f 1{\sqrt 3} & 1 \\ \f 1{\sqrt 3} & -1}
+\end{multline*}
+and
+\begin{align*}
+	2\pi \pa{\cM^{-1}}^* = \mat{a_1^* & a_2^*} = \f{2\pi}a \mat{\f{1}{\sqrt 3} & \f{1}{\sqrt 3} \\ 1 & -1} =: S
+\end{align*}
+We know that $R_{\f{2\pi}3} \pa{ma^* } = \pa{R_{\f{2\pi}3}^{\text{red}} m} a^*$ where
+\begin{align*}
+	R_{\f{2\pi}3}^{\text{red}} = S^{-1} R_{\f{2\pi}3} S =  \cM^* R_{\f{2\pi}3} \pa{\cM^*}^{-1} = \mat{-1 & 1 \\ -1 & 0}, \qquad R_{-\f{2\pi}3}^{\text{red}} = \mat{0 & -1 \\ 1 & -1}
+\end{align*}
+and
+\begin{align*}
+\cR_{\f{2\pi}3} f(x) = \sum_m f_m e^{i \pa{R_{\f{2\pi}3}^{\text{red}} m} a^* \cdot x} = \sum_m f_{R_{-\f{2\pi}3}^{\text{red}} m} e^{im a^* \cdot x}
+\end{align*}
+
+\section{Rotated monolayer, by $\f{\pi}2$}%
+\label{sec:rotated_monolayer_by_pi2_}
+We define $J := \mat{0 & -1 \\ 1 & 0} = R_{\f{\pi}2}$, and then the rotated vectors are $\widetilde{a}_j = J a_j$ so
+\begin{align*}
+	\widetilde{a}_1 = a \mat{-\f 12 \\ \f{\sqrt{3}}{2}}, \qquad \widetilde{a}_2 = a \mat{\f 12 \\ \f{\sqrt{3}}{2}}, \qquad \widetilde{a}_1^* =\f{2\pi}{a} \mat{-1 \\ \f{1}{\sqrt 3}}, \qquad \widetilde{a}_2^* =\f{2\pi}{a} \mat{1 \\ \f{1}{\sqrt 3}}
+\end{align*}
+so
+\begin{align*}
+	\widetilde{\cM} =  \f a2 \mat{-1 & 1 \\ \sqrt 3 & \sqrt 3}, \qquad  \widetilde{\cM}^{-1} = \f 1a \mat{-1 & \f{1}{\sqrt 3} \\ 1 & \f{1}{\sqrt 3}}
+\end{align*}
+
+\section{BM configuration}%
+\label{sec:bm_configuration}
+
+
+From \cite{BecEmbWitZwo21}, the BM Hamiltonian is
+\begin{align*}
+	H = \mat{-i\sigma \na & T^c(x) \\ T^c(x)^* & -i \sigma \na},
+\end{align*}
+where
+\begin{align*}
+\boxed{T_1 = \mat{w_0 & w_1 \\ w_1 & w_0}, \quad  T_2 = \mat{w_0 &  w_1e^{-i\phi} \\  w_1e^{i\phi} & w_0}, \quad T_3 = \mat{w_0 &  w_1e^{-i\overline{\phi}} \\  w_1e^{i\overline{\phi}} & w_0}}
+\end{align*}
+and where, for $x \in \R^2$,
+\begin{align*}
+T^c(x) := \sum_{j=1}^3 T_j e^{-iq^c_j \cdot x}, \qquad \widehat{T}_p = \sum_{j=1}^{3} T_j \delta_{p,q_j}
+\end{align*}
+
+\section{Rotation of $\f{\pi}2$}%
+\label{sec:rotation_of_q_}
+
+From \cite{BecEmbWitZwo21}, we have vectors (in the reference, without the factor $\f{4\pi}{a\sqrt 3}$)
+\begin{align*}
+	\widetilde{q}^c_1 = \f{4\pi}{a\sqrt 3} \mat{0 \\ -1}, \qquad \widetilde{q}^c_{2,3} =\f{4\pi}{a\sqrt 3} \mat{\pm \f{\sqrt{3}}2 \\ \f 12}  = \f{2\pi}a \mat{\pm 1 \\ \f{1}{\sqrt 3}}
+\end{align*}
+For them to be adapted to our lattice, we turn them and define $q^c_j := R_{-\f{\pi}2} \widetilde{q}^c_j$, so that
+\begin{align*}
+q^c_2 = a_2^*,\qquad q^c_3 = a_1^*,\qquad q^c_1 = \f{4\pi}{a\sqrt 3} \mat{-1 \\ 0}
+\end{align*}
+so after a rotation of $-\f{\pi}2$, we have
+\begin{align*}
+T^c(x) = T_1 e^{-i q_1^c \cdot x} + T_2 e^{-i a_2^* \cdot x} + T_3 e^{-i a_1^* \cdot x}
+\end{align*}
+On reduced coordinates, we have
+\begin{align*}
+T(x) = T^c(\cM x) = \sum_{j=1}^3 T_j e^{-i x \cdot \cM^* q^c_j} = \sum_{j=1}^3 T_j e^{i 2\pi x \cdot q_j}
+\end{align*}
+where $q_j :=  -\cM^* q^c_j / 2\pi$, so
+\begin{align*}
+q_2 = \mat{0 \\ -1}, q_3 = \mat{-1 \\ 0}, q_1 = \mat{1 \\ -1}
+\end{align*}
+
+Writing a drawing and placing the $q_i$'s, we have
+\begin{align*}
+R_{\f{2\pi}3} q_1 = q_2, \qquad R_{\f{2\pi}3} q_2 = q_3, \qquad R_{\f{2\pi}3} q_3 = q_1
+\end{align*}
+so 
+\begin{align*}
+\cR_{\f{2\pi}3} T (x) = T_1 e^{-i q_2 x} + T_2 e^{-i q_3 x} + T_3 e^{-iq_1 x}
+\end{align*}
+We don't have $\cR_{\f{2\pi}3} T = T$ but this is true for the diagonal elements and for the off-diagonal, there exists $X$ such that $\cR_{\f{2\pi}3} \pa{\tau_X T} = \tau_X T$.
+
+
+\section{Without rotation}%
+
+Without rotation, we have $q_j := -\widetilde{\cM}^* \widetilde{q}^c_j /2\pi$ so
+\begin{align*}
+T(x) = T^c(\widetilde{\cM} x) = \sum_{j=1}^3 T_j e^{-ix\cdot \widetilde{\cM}^* \widetilde{q}_j^c}= \sum_{j=1}^3 T_j e^{i2\pi x\cdot \widetilde{q}_j}
+\end{align*}
+\begin{align*}
+\boxed{q_1 = \mat{1 \\ 1}, \qquad q_{2} = \mat{0 \\ -1}, \qquad q_{3} = \mat{-1 \\ 0}}
+\end{align*}
+Or
+\begin{align*}
+\boxed{T(x) = \sum_{j=1}^3 T_j e^{i q_j a^* \cdot x}}
+\end{align*}
+
+Since $T_j^* = T_j$, then $T(-x)^* = T(x)$
+
+\subsection{Basis}%
+\label{sub:basis}
+
+We define $e_m := \f{1}{\sqrt{\ab{\Omega}}} e^{i m a^* \cdot x}$, and
+\begin{align*}
+e_{\alpha,m} := e_\alpha \otimes e_m = e_\alpha \f{e^{ima^*\cdot x}}{\sqrt{\ab{\Omega}}}, \qquad \text{where } e_1 := \mat{1 \\ 0 \\ 0 \\ 0},\dots
+\end{align*}
+
+
+\section{Operators in basis}%
+\label{sec:operators_in_basis}
+
+
+
+For a general $W = \sum_{k} W^{ik a^* \cdot x}$, we have
+\begin{align*}
+	M_{IJ} & := \ps{e_{\alpha,n}, \mat{0 & W \\ W^* & 0} e_{\beta,m}} \\
+	       &= \sum_{k} \pa{\delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}} \delta_{m+k-n} \ps{e_{\alpha_1},W_k e_{\beta_2}} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}}\delta_{m-k-n} \ps{e_{\alpha_2},W_k^* e_{\beta_1}}} \\
+	       &=   \delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}}\ps{e_{\alpha_1},W_{n-m} e_{\beta_2}} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}}\ps{e_{\alpha_2},W_{m-n}^* e_{\beta_1}} \\
+	       &=     \delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}}\pa{W_{n-m}}_{\alpha_1 \beta_2} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}} \overline{\pa{W_{m-n}}_{\beta_1\alpha_2} }
+\end{align*}
+and $M$ is also Hermitian.
+
+For a general $V = \sum_{k} V^{ik a^* \cdot x}$, we have
+\begin{align*}
+	\ps{e_{\alpha,n},\mat{V & 0 \\ 0 & V} e_{\beta,m}} = \delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{1,2}}\pa{V_{n-m}}_{\alpha_1 \beta_1} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{3,4}}\pa{V_{n-m}}_{\alpha_2 \beta_2}
+\end{align*}
+
+For a general $A = \mat{A_1 \\ A_2}$, $A_j = \sum_k \pa{A_j}_k e^{ika^*\cdot x}$, we compute
+\begin{multline*}
+\ps{e_{\alpha,n}, \mat{0 & A \cdot \pa{-i\na} \\A^* \cdot \pa{-i\na}  & 0} e_{\beta,m}} \\
+= \delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}} \pa{ \pa{ma^*}_1 \pa{\pa{A_1}_{n-m}}_{\alpha_1 \beta_2} + \pa{ma^*}_2 \pa{\pa{A_2}_{n-m}}_{\alpha_1 \beta_2}}\\
++ \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}} \pa{ \pa{ma^*}_1 \overline{\pa{\pa{A_1}_{m-n}}_{\beta_1 \alpha_2}} + \pa{ma^*}_2 \overline{\pa{\pa{A_2}_{m-n}}_{\beta_1 \alpha_2}}}
+\end{multline*}
+
+
+\section{Symmetries}%
+\label{sec:symmetries}
+
+
+
+
+
+\subsection{Particle-hole}%
+\label{sub:particle_hole}
+
+we have
+\begin{align*}
+\cS \mat{0 & \bbV \\ \bbV^* & 0} \cS = -\mat{0 & \bbV^*(-x) \\ \bbV(-x) & 0} = - \mat{0 & \bbV \\ \bbV^* & 0}
+\end{align*}
+we also have, for any operator $A$,
+\begin{align*}
+	\cS \mat{A & 0 \\ 0 & A} \cS = P \mat{A & 0 \\ 0 & A} P
+\end{align*}
+where $Pu(x) := u(-x)$. Hence
+\begin{align*}
+	\cS \mat{\sigma \cdot \na & 0 \\ 0 & \sigma \cdot \na} \cS = - \mat{\sigma \cdot \na & 0 \\ 0 & \sigma \cdot \na}
+\end{align*}
+but since $P \sigma \cdot k P = \sigma \cdot k$, 
+\begin{align*}
+	\cS \mat{\sigma \cdot \pa{-i\na + k} & 0 \\ 0 & \sigma \cdot \pa{-i\na + k}} \cS = \mat{\sigma \cdot \pa{-i\na -k} & 0 \\ 0 & \sigma \cdot \pa{-i\na -k}} 
+\end{align*}
+so it is not $\cS$ symmetric ! We have $T(-x)^* = T(x)$ hence defining
+\begin{align*}
+\cS u(x) := i \mat{0 & -\1_{2\times 2} \\ \1_{2\times 2} & 0} u(-x)
+\end{align*}
+we should have that
+\begin{align*}
+\cS H \cS = - H
+\end{align*}
+
+We compute
+\begin{align*}
+	\cS_{IJ} &= \ps{e_{\alpha,n},\cS e_{\beta,n}} = i \ps{e_{\alpha,n}, \mat{-e_{\beta_2,-m} \\ e_{\beta_1,-m}}} \\
+&= i \delta_{m+n} \pa{\delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}} \delta_{\beta_1-\alpha_2} -\delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}}\delta_{\beta_2-\alpha_1}}
+\end{align*}
+
+\section{Numerics}%
+\label{sec:numerics}
+
+We have 
+\begin{align*}
+	\sigma \cdot \pa{-i\na + k} &= \sigma_1 \pa{-i\partial_1 + k_1} + \sigma_2 \pa{-i\partial_2 + k_2} \\
+				    & = \mat{0 & -i\pa{\partial_1 -i\partial_2} + \overline{k_\C} \\ -i\pa{\partial_1 +i\partial_2} + k_\C & 0}
+\end{align*}
+ where
+\begin{align*}
+	\sigma_1 = \mat{0 & 1 \\ 1 & 0} \qquad \sigma_2 = \mat{0 & -i \\ i & 0}
+\end{align*}
+so, with $k_\C := k_1 +ik_2$,
+\begin{align*}
+\sigma \cdot \pa{-i\na + k} \mat{1 \\ 0} e_m = \pa{ma^* + k}_\C \mat{0 \\ 1} e_m \\
+\sigma \cdot \pa{-i\na + k} \mat{0 \\ 1} e_m = \overline{\pa{ma^* + k}_\C} \mat{1 \\ 0} e_m
+\end{align*}
+
+
+Then
+\begin{align*}
+	\mat{\sigma \cdot \pa{-i\na + k} & 0 \\ 0 & \sigma \cdot \pa{-i\na + k}} e_{1,m} &= \pa{ma^* + k}_\C  e_{2,m} \\
+	\mat{\sigma \cdot \pa{-i\na + k} & 0 \\ 0 & \sigma \cdot \pa{-i\na + k}} e_{2,m} &= \overline{\pa{ma^* + k}_\C}  e_{1,m} \\
+	\mat{\sigma \cdot \pa{-i\na + k} & 0 \\ 0 & \sigma \cdot \pa{-i\na + k}} e_{3,m} &= \pa{ma^* + k}_\C  e_{4,m} \\
+	\mat{\sigma \cdot \pa{-i\na + k} & 0 \\ 0 & \sigma \cdot \pa{-i\na + k}} e_{4,m} &= \overline{\pa{ma^* + k}_\C}  e_{3,m}
+\end{align*}
+and for $V_{ij} := E_{ij} v_{ij}$ where $v_{ij}$ is a potential in $\R^2$ and $E_{ij} := \ketbra{e_i}{e_j}$ being the $4 \times 4$ matrix having a one at line $i$ and column $j$,
+\begin{align*}
+V_{\gamma,\eta} e_{\alpha,m} = \delta_{\eta,\alpha} e_\gamma \otimes v_{\gamma,\eta} e_m
+\end{align*}
+
+and we recall that $v e_m = \sum_k v_k e_{k+m}$ hence
+\begin{align*}
+\ps{e_n,ve_m} = v_{n-m}
+\end{align*}
+and
+\begin{align*}
+\ps{e_{\beta,n}, V_{\gamma,\eta} e_{\alpha,m}} = \delta_{\eta,\alpha} \delta_{\beta,\gamma} \ps{e_n, v_{\gamma,\eta} e_m} =  \delta_{\eta,\alpha} \delta_{\beta,\gamma} \pa{v_{\gamma,\eta}}_{n-m}
+\end{align*}
+
+\section{Eigenvalue equation}%
+\label{sec:eigenvalue_equation}
+
+We have $H \p = E S \p$ is equivalent to $S^*H \p = E S^*S \p$ and
+\begin{align*}
+\pa{S^* S}^{-\f 12} S^* H \pa{S^* S}^{-\f 12} \p = E \p
+\end{align*}
+and in the code we define $S_2 := \pa{S^* S}^{-\f 12} S^*$ and $S_1 = \pa{S^* S}^{-\f 12}$
+
+
+
+\bibliographystyle{siam}
+\bibliography{../biblio}
+\end{document}

@@ -7,19 +7,15 @@ rotM(θ) = [cos(θ) -sin(θ);sin(θ) cos(θ)]
 scale_fun2d(f,λ) = (x,y) -> f(λ*x,λ*y) # x -> f(λx)
 scale_fun3d(f,λ) = (x,y,z) -> f(λ*x,λ*y,λ*z)
 
+
+# Creates a dictionary which inverts an array, for instance [5,4,1] will give Dict(5 => 1, 2 => 4, 3 => 1)
+inverse_dict_from_array(a) = Dict(value => key for (key, value) in Dict(zip((1:length(a)), a)))
+
 function inverse_dict_from_2d_array(a)
 	direct = Dict(zip((1:length(a)), a))
 	Ci = CartesianIndices(a)
 	Dict(value => (Ci[key][1],Ci[key][2]) for (key, value) in direct)
 end
-
-# Creates a dictionary which inverts an array, for instance [5,4,1] will give Dict(5 => 1, 2 => 4, 3 => 1)
-# function inverse_dict_from_array(a) # PEUT AVOIR CREE UN PB !!!
-	# direct = Dict(zip((1:length(a)), a))
-	# Ci = CartesianIndices(a)
-	# Dict(value => Ci[key] for (key, value) in direct)
-# end
-
 
 function init_cell_infinitesimals(p) # needs a, N, Nz
 	cell_area = sqrt(3)*0.5*p.a^2 
