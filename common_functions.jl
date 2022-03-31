@@ -14,17 +14,26 @@ function inverse_dict_from_2d_array(a)
 end
 
 # Creates a dictionary which inverts an array, for instance [5,4,1] will give Dict(5 => 1, 2 => 4, 3 => 1)
-function inverse_dict_from_array(a) # PEUT AVOIR CREE UN PB !!!
-	direct = Dict(zip((1:length(a)), a))
-	Ci = CartesianIndices(a)
-	Dict(value => Ci[key] for (key, value) in direct)
-end
+# function inverse_dict_from_array(a) # PEUT AVOIR CREE UN PB !!!
+	# direct = Dict(zip((1:length(a)), a))
+	# Ci = CartesianIndices(a)
+	# Dict(value => Ci[key] for (key, value) in direct)
+# end
+
 
 function init_cell_infinitesimals(p) # needs a, N, Nz
 	cell_area = sqrt(3)*0.5*p.a^2 
+	p.dx = p.a/p.N
 	p.dS = cell_area/p.N^2
+	p.k_axis = Int.(fftfreq(p.N)*p.N)
+	p.k_grid = axis2grid(p.k_axis)
+	p.x_axis_cart = (0:p.N-1)*p.dx
+	p.N2d = p.N^2; p.N3d = p.N2d*p.Nz
+
+	# z-dim quantities
 	p.dz = p.L/p.Nz
 	p.dv = p.dS*p.dz
+	p.kz_axis = Int.(fftfreq(p.Nz)*p.Nz)
 end
 
 function init_cell_vectors(p) # needs a
@@ -32,8 +41,12 @@ function init_cell_vectors(p) # needs a
 	a2_unit = [sqrt(3)/2;-1/2]
 	a1s0 = [-1; 1/sqrt(3)]
 	a2s0 = [ 1; 1/sqrt(3)]
-	p.a1 = p.a*a1_unit; p.a2 = p.a*a2_unit
-	p.a1_star = (2π/p.a)*a1s0; p.a2_star = (2π/p.a)*a2s0
+	p.a1 = p.a*a1_unit
+	p.a2 = p.a*a2_unit
+	p.a1_star = (2π/p.a)*a1s0
+	p.a2_star = (2π/p.a)*a2s0
+
+	p.K_red = [-1/3;1/3]
 end
 
 fill2d(x,n) = [copy(x) for i=1:n, j=1:n]
@@ -62,37 +75,54 @@ norms3d(ϕ,p,four=true) = sqrt(norm2_3d(ϕ,p,four))
 axis2grid_ar(ax) = [[ax[i],ax[j]] for i=1:length(ax), j=1:length(ax)]
 
 # from [k,l] which are momentums in reduced coordinates, ∈ ℤ^2, gives the label [ki,kl] so that C^D_{ki,li} (stored in numerics) = C_{k,l} (true coefficient of computations)
-function inverse_k(k,l,p) 
-	(k1,l1) = (ks2ks(k,p.N),ks2ks(l,p.N))
-	p.k_grid_inv[(k1,l1)]
-end
 
-# same function but in the z axis
-inverse_kz(k,p) = p.kz_axis_inv[ks2ks(k,p.Nz)]
+k_inv_1d(k,N) = Int(mod(k,N))+1 # from k in reduced Fourier coordinate to ki such that f^D[ki] = f_k, where f_k = int e^{-ikx} f(x) dx and f^D is the array storing the coefficients f_k, k = fftfreq[ki] so k_inv_1d inverts fftfreq
+k_inv(k,l,p) = (k_inv_1d(k,p.N),k_inv_1d(l,p.N))
+kz_inv(k,p) = k_inv_1d(k,p.Nz)
 
 # tests whether u(-z) = ε u(z)
-test_z_parity(u,ε,p;name="function") = px("Test ",name,"(-z) = ",ε==-1 ? "-" : "",name,"(z) :",norm2_3d(u.- ε*parity_z(u,p),p)/norm2_3d(u,p))
 
 function ∇(f_four,p) # returns (∂1 f,∂2 f, ∂3 f)
 	g1 = similar(f_four); g2 = similar(f_four); g3 = similar(f_four)
-	dt = det(p.M)
 	for m=1:p.N
 		for n=1:p.N
 			# Under cart-to-red change, ∇ calK^{-1} = calK^{-1} (K^*)^{-1} ∇
-			a = p.M_star_inv*[p.k_grid[m,n]...]
+			(m0,n0) = p.k_grid[m,n]
+			k = m0*p.a1_star .+ n0*p.a2_star
 			# px("GRID ",p.k_grid[m,n]," ",a)
-			g1[m,n,:] = im*2π*f_four[m,n,:]*a[1]
-			g2[m,n,:] = im*2π*f_four[m,n,:]*a[2]
+			g1[m,n,:] = im*2π*f_four[m,n,:]*k[1]
+			g2[m,n,:] = im*2π*f_four[m,n,:]*k[2]
 			g3[m,n,:] = im*2π*f_four[m,n,:] .* p.kz_axis
 		end
 	end
-	(dt*g1,dt*g2,p.L*g3)
+	(g1,g2,p.L*g3)
 end
 
 function Kinetic(u_four,p) # kinetic energy of u
 	(∂1u,∂2u,∂3u) = ∇(u_four,p)
 	norm2_3d(∂1u,p)+norm2_3d(∂2u,p)+norm2_3d(∂3u,p)
 end
+
+####################################### Operations on functions in Fourier space
+
+R_four(B,p) = apply_map_four(X -> [0 -1;1 -1]*X,B,p) # rotation of 2π/3, in Fourier space
+parity_four(B,p) = apply_map_four(X -> -X,B,p)
+
+function apply_map_four(L,u,p) 
+	a = similar(u)
+	# a = zeros(ComplexF64,p.N,p.N)
+	for K=1:p.N
+		for P=1:p.N
+			k0 = p.k_axis[K]; p0 = p.k_axis[P]
+			c = L([k0,p0]); k1 = c[1]; p1 = c[2]
+			(k2,p2) = k_inv(k1,p1,p)
+			a[K,P] = u[k2,p2]
+		end
+	end
+	a
+end
+
+####################################### Operations on functions in direct space
 
 function apply_coordinates_operation_direct(M,p) # (Op f)(x) = f(Mx), 2d or 3d
 	function f(ϕ,p)
@@ -130,12 +160,22 @@ end
 
 R(ϕ,p)             = apply_coordinates_operation_direct(X -> p.mat_R*X,p)(ϕ,p)
 translation(ϕ,v,p) = apply_coordinates_operation_direct(X -> X.-v,p)(ϕ,p)
-P(ϕ,p)             = apply_coordinates_operation_direct(X -> -X,p)(ϕ,p)
+parity_x(ϕ,p)      = apply_coordinates_operation_direct(X -> -X,p)(ϕ,p)
 
-parity_z(u,p) = [u[x,y,mod1(2-z,p.Nz)] for x=1:p.N, y=1:p.N, z=1:p.Nz]
+translation2d(u,a,p) = [u[mod1(x-a[1],p.N),mod1(y-a[2],p.N)] for x=1:p.N, y=1:p.N]
+
+function parity_z(u,p)
+	dim = length(size(u))
+	if dim == 3
+		return [u[x,y,mod1(2-z,p.Nz)] for x=1:p.N, y=1:p.N, z=1:p.Nz]
+	else
+		return [u[mod1(2-z,p.Nz)] for z=1:p.Nz]
+	end
+end
 
 # P(ϕ,p) = [ϕ[p.parity_axis[x],p.parity_axis[y]] for x=1:p.N, y=1:p.N] # Pf(x) = f(-x)
 
+# Applies coordinates transformation M and does a Bloch transform
 # (Op B f)(x) = (Op ∘ exp)(x) * (Op ∘ f)(x) = exp(Mx) * f(Mx)
 function apply_Op_B(M,k,p) 
 	function f(u,k,p)
@@ -156,6 +196,23 @@ function apply_Op_B(M,k,p)
 	end
 	f
 end
+
+######################## Symmetry tests
+
+function test_hermitianity(M,name="")
+	n = size(M,1)
+	@assert size(M) == (n,n)
+	s = sum(abs.(M))
+	x = s < 1e-10 ? 0 : sum(abs.((M'.-M)/2))/s
+	px(string("Test Hermitianity ",name," : "),x)
+end
+
+function test_x_parity(u,p;name="") # Tests u(-x) = u(x) (or u(-x,z) = u(x,z)), where u is in direct space
+	c = sum(abs.(parity_x(u,p) .- u))/sum(abs.(u))
+	px("Test ",name,"(-x) = ",name,"(x) : ",c)
+end
+
+test_z_parity(u,ε,p;name="function") = px("Test ",name,"(-z) = ",ε==-1 ? "-" : "",name,"(z) :",norm2_3d(u.- ε*parity_z(u,p),p)/norm2_3d(u,p))
 
 # Bloch transform and Rotation, RBu = Rexp(...) * Ru. We obtain (RBu)(x,y) for (x,y) ∈ x_grid_red
 RB(u,k,p) = apply_Op_B(X -> p.mat_R*X,k,p)(u,k,p)
@@ -219,21 +276,6 @@ function mat_on_ki(Q,ki,p)
 	fun2d(k_nat2ki,Q*k,p.N)
 end
 
-function create_dir(path) # if the directory path doesn't exist, it creates it, otherwise does nothing
-	if !isdir(path)
-		mkdir(path)
-	end
-end
-
-function test_hermitianity(M,name="")
-	n = size(M,1)
-	@assert size(M) == (n,n)
-	s = sum(abs.(M))
-	x = s < 1e-10 ? 0 : sum(abs.((M'.-M)/2))/s
-	px(string("Test Hermitianity ",name," : "),x)
-end
-
-
 ######################## Plot
 
 function plot2d(f,p;axis=nothing,size=(100,200))
@@ -270,7 +312,6 @@ function plotVbm(Vbm,Vbm_dir,p,f=real)
 	savefig(pl,"Vbm.png")
 end
 
-
 function plot_H(H,f,b)
 	A = fill2d(zeros(ComplexF64,b.N,b.N),4)
 	for i=1:4
@@ -289,3 +330,8 @@ function plot_H(H,f,b)
 	pl = plotVeff(A,f,b)
 	savefig(pl,"H.png")
 end
+
+######################## Misc
+
+# if the directory path doesn't exist, it creates it, otherwise does nothing
+create_dir(path) = if !isdir(path) mkdir(path) end

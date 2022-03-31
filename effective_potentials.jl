@@ -6,16 +6,15 @@ include("misc/create_bm_pot.jl")
 import Base.+  
 +(f::Function, g::Function) = (x...) -> f(x...) + g(x...)  
 
+################## Imports graphene.jl quantities (u1, u2, V, Vint) and produces effective potentials without plotting and tests
 
-################## Does all the job of imports - computations - exports
-
-function import_computes(N,Nz,build_Vint)
+function import_and_computes(N,Nz)
 	p = EffPotentials()
-	import_monolayer_infos(N,Nz,p)
+	import_u1_u2_V(N,Nz,p)
+	import_Vint(p)
 	init_EffPot(p)
-	build_blocks_potentials_without_Vint(p)
+	build_blocks_potentials(p)
 	build_block_𝔸(p)
-	exports(p,build_Vint)
 	p
 end
 
@@ -24,19 +23,21 @@ end
 mutable struct EffPotentials
 	# Cell
 	a; a1; a2; a1_star; a2_star
-	dS; dz; dv
+	x_axis_cart
+	dx; dS; dz; dv
+	k_axis; k_grid
+	kz_axis
+	K_red
+	N2d; N3d
+	N; Nz; L; interlayer_distance
 
-	dd; N; Nz; L; dsL; red2cart; cart2red
-	dx; x_axis; k_axis; kz_axis; kz_axis_inv; k_grid; k_grid_inv
+	# Quantities computed and exported by graphene.jl
 	v_f; u1_f; u2_f; u1v_f; u2v_f; prods_f; Vint_f
 	v; u1; u2; u1v; u2v; prods; Vint
-	N2d; N3d
-	K
-	d
-	τ
 
+	# Effective potentials
 	Σ # Σ = <<u_j, u_{j'}>>^+-
-	𝕍_V; 𝕍_Vint; 𝕍 # 𝕍_V = <<u_j, V u_{j'}>>^+-, 𝕍_Vint = <<u_j, Vint u_{j'}>>^+-, 𝕍 = 𝕍_V+𝕍_Vint
+	𝕍_V; 𝕍_Vint; 𝕍 # 𝕍_V = <<u_j, V u_{j'}>>^+-, 𝕍_Vint = <<u_j, Vint u_{j'}>>^+-, 𝕍 = 𝕍_V + 𝕍_Vint
 	Wplus; W_Vint_matrix; W # Wplus = <<V, u_j u_{j'}>>^++, W_Vint_matrix = <u_j,Vint u_{j'}>, W = Wplus + W_Vint_matrix
 	𝔸1; 𝔸2; 𝔹1; 𝔹2
 
@@ -53,48 +54,24 @@ mutable struct EffPotentials
 end
 
 function init_EffPot(p)
-	p.K = [-1/3;1/3]
-	p.N2d = p.N^2
-	p.N3d = p.N^2*p.Nz
-
-	p.dx = 1/p.N
-	p.x_axis = (0:p.N-1)*p.dx
-	p.k_axis = Int.(fftfreq(p.N)*p.N)
-	p.k_grid = axis2grid(p.k_axis)
-	p.k_grid_inv = inverse_dict_from_2d_array(p.k_grid)
-	# p.k_grid_inv_positive_space = inverse_dict_from_2d_array([mod1(p.k_grid[j],p.N) for j=1:p.N])
-
-	p.dz = p.L/p.N
-	p.kz_axis = Int.(fftfreq(p.Nz)*p.Nz)
-	p.kz_axis_inv = inverse_dict_from_array(p.kz_axis)
-	p.d = 3.46
-	p.dsL = p.d/p.L
-
 	init_cell_vectors(p)
 	init_cell_infinitesimals(p)
-
-	p.red2cart = hcat(p.a1,p.a2)
-	p.cart2red = inv(p.red2cart)
-	p.τ = cis(2π/3)
-
 	p.root_path = "effective_potentials/"
-	if !isdir(p.root_path) mkdir(p.root_path) end
+	create_dir(p.root_path)
 end
-
 
 ################## Core: computation of effective potentials
 
-# builds the Fourier coefficients 
-# C^D_m = ∑_M conj(hat(g))_{m,M} hat(f)_{m,M} e^{i2π dη q_M (d/2L)}, 
-# where dη = η-η'
+# Builds the Fourier coefficients 
+# C_m = ∑_M conj(hat(g))_{m,M} hat(f)_{m,M} e^{i d q_M 2π/L}
 function build_Cm(g,f,p) 
 	C = zeros(ComplexF64,p.N,p.N)
-	app(M) = cis(2π*p.dsL*M)
+	app(kz) = cis(p.interlayer_distance*kz*2π/p.L)
 	expo = app.(p.kz_axis)
 	[sum(conj.(g[m,n,:]).*f[m,n,:].*expo) for m=1:p.N, n=1:p.N]*p.dv
 end
 
-function div_three(m,n,p) # test whether [m;n] is in 3ℤ^2, returns [m;n]/3 if yes
+function div_three(m,n,p) # Test whether [m;n] is in 3ℤ^2, returns [m;n]/3 if yes
 	Q = 3
 	A = mod(m,Q); B = mod(n,Q)
 	bool = (A == 0 && B == 0)
@@ -110,7 +87,7 @@ function build_potential(g,f,p;magnetic="no",transl=true)
 	C = build_Cm(g,f,p)
 	P = zeros(ComplexF64,p.N,p.N)
 	# Fills P_n^D = C^D_{F^{-1} J^{*,-1} F(n)}
-	(m3K,n3K) = Tuple(Int.(3*p.K))
+	(m3K,n3K) = Tuple(Int.(3*p.K_red))
 	for m=1:p.N
 		for n=1:p.N
 			# px("TYPE ",p.k_grid)
@@ -122,7 +99,7 @@ function build_potential(g,f,p;magnetic="no",transl=true)
 			else
 				K = m0*p.a1_star .+ n0*p.a2_star
 				magn_fact = magnetic == "no" ? 1 : (2/3)*(magnetic == "1" ? K[1] : K[2])
-				(m3,n3) = p.k_grid_inv[(m2,n2)]
+				(m3,n3) = k_inv(m2,n2,p)
 				P[m,n] = magn_fact*C[m3,n3]
 			end
 		end
@@ -130,25 +107,43 @@ function build_potential(g,f,p;magnetic="no",transl=true)
 	return p.L*P
 end
 
-################## Core: computation of blocks
+function compute_W_Vint_term(p) # matrix <u_j, Vint u_{j'}>
+	M = zeros(ComplexF64,2,2)
+	for mx=1:p.N
+		for my=1:p.N
+			for nz1=1:p.N
+				for nz2=1:p.N
+		dmz = kz_inv(nz1-nz2,p)
+		M[1,1] += conj(p.u1_f[mx,my,nz1])*p.u1_f[mx,my,nz2]*p.Vint_f[dmz]
+		M[1,2] += conj(p.u1_f[mx,my,nz1])*p.u2_f[mx,my,nz2]*p.Vint_f[dmz]
+		M[2,1] += conj(p.u2_f[mx,my,nz1])*p.u1_f[mx,my,nz2]*p.Vint_f[dmz]
+		M[2,2] += conj(p.u2_f[mx,my,nz1])*p.u2_f[mx,my,nz2]*p.Vint_f[dmz]
+				end
+			end
+		end
+	end
+	p.W_Vint_matrix = M*p.dv/p.N^2
+end
+
+################## Computation of blocks
 
 function build_block_𝔸(p)
 	p.𝔸1 = [build_potential(p.u1_f,p.u1_f,p;magnetic="1"), build_potential(p.u1_f,p.u2_f,p;magnetic="1"),
 		build_potential(p.u2_f,p.u1_f,p;magnetic="1"), build_potential(p.u2_f,p.u2_f,p;magnetic="1")]
 	p.𝔸2 = [build_potential(p.u1_f,p.u1_f,p;magnetic="2"), build_potential(p.u1_f,p.u2_f,p;magnetic="2"),
 		build_potential(p.u2_f,p.u1_f,p;magnetic="2"), build_potential(p.u2_f,p.u2_f,p;magnetic="2")]
-	K = p.K[1]*p.a1_star.+p.K[2]*p.a2_star
+	K = p.K_red[1]*p.a1_star.+p.K_red[2]*p.a2_star
 	p.𝔹1 = p.𝔸1 .- K[1]*p.Σ
 	p.𝔹2 = p.𝔸2 .- K[2]*p.Σ
 end
 
-function build_blocks_potentials_without_Vint(p)
+function build_blocks_potentials(p)
 	# Computes blocks without Vint
 	p.𝕍_V = [build_potential(p.u1v_f,p.u1_f,p), build_potential(p.u1v_f,p.u2_f,p),
 		 build_potential(p.u2v_f,p.u1_f,p), build_potential(p.u2v_f,p.u2_f,p)]
 	p.Wplus = [build_potential(p.v_f,p.prods_f[1],p;transl=false), build_potential(p.v_f,p.prods_f[2],p;transl=false),
 		   build_potential(p.v_f,p.prods_f[3],p;transl=false), build_potential(p.v_f,p.prods_f[4],p;transl=false)]
-	# p.V_moins = [build_potential(p.prods_f[1],p.v_f,p;η=-1,transl=false), build_potential(p.prods_f[2],p.v_f,p;η=-1,transl=false),
+	# p.W_moins = [build_potential(p.prods_f[1],p.v_f,p;η=-1,transl=false), build_potential(p.prods_f[2],p.v_f,p;η=-1,transl=false),
 	# build_potential(p.prods_f[3],p.v_f,p;η=-1,transl=false), build_potential(p.prods_f[4],p.v_f,p;η=-1,transl=false)]
 	p.Σ = [build_potential(p.u1_f,p.u1_f,p), build_potential(p.u1_f,p.u2_f,p),
 	       build_potential(p.u2_f,p.u1_f,p), build_potential(p.u2_f,p.u2_f,p)]
@@ -165,24 +160,6 @@ function build_blocks_potentials_without_Vint(p)
 	p.W = add_cst_block(p.Wplus,p.W_Vint_matrix,p)
 end
 
-function compute_W_Vint_term(p) # matrix <u_j, Vint u_{j'}>
-	M = zeros(ComplexF64,2,2)
-	for mx=1:p.N
-		for my=1:p.N
-			for nz1=1:p.N
-				for nz2=1:p.N
-		dmz = inverse_kz(nz1-nz2,p)
-		M[1,1] += conj(p.u1_f[mx,my,nz1])*p.u1_f[mx,my,nz2]*p.Vint_f[dmz]
-		M[1,2] += conj(p.u1_f[mx,my,nz1])*p.u2_f[mx,my,nz2]*p.Vint_f[dmz]
-		M[2,1] += conj(p.u2_f[mx,my,nz1])*p.u1_f[mx,my,nz2]*p.Vint_f[dmz]
-		M[2,2] += conj(p.u2_f[mx,my,nz1])*p.u2_f[mx,my,nz2]*p.Vint_f[dmz]
-				end
-			end
-		end
-	end
-	p.W_Vint_matrix = M*p.dv/p.N^2
-end
-
 function add_cst_block(B,cB,p) # B in Fourier so needs to add to the first component
 	nB = copy(B)
 	for j=1:4
@@ -193,31 +170,6 @@ end
 
 ################## Operations on functions
 
-translation2d(u,a,p) = [u[mod1(x-a[1],p.N),mod1(y-a[2],p.N)] for x=1:p.N, y=1:p.N]
-
-function parity2d(u,p)
-	vec = Int.(floor.([p.N/1,p.N/1]))
-	a = translation2d(u,vec,p)
-	c = [a[mod1(2-x,p.N),mod1(2-y,p.N)] for x=1:p.N, y=1:p.N]
-	translation2d(c,vec,p)
-end
-
-R_four(B,p) = apply_map_four(X -> [0 -1;1 -1]*X,B,p) # rotation of 2π/3, in Fourier space
-parity_four(B,p) = apply_map_four(X -> -X,B,p)
-
-function apply_map_four(L,u,p) 
-	a = similar(u)
-	# a = zeros(ComplexF64,p.N,p.N)
-	for K=1:p.N
-		for P=1:p.N
-			k0 = p.k_axis[K]; p0 = p.k_axis[P]
-			c = L([k0,p0]); k1 = c[1]; p1 = c[2]
-			(k2,p2) = inverse_k(k1,p1,p)
-			a[K,P] = u[k2,p2]
-		end
-	end
-	a
-end
 
 function mirror2d(u,p)
 	vec = Int.(floor.([0,p.N/1]))
@@ -296,7 +248,7 @@ end
 function test_PT_block(B,p;name="B")
 	B_direct = ifft.(B)
 	σ1Bσ1 = σ1_B_σ1(B_direct)
-	symB = conj.(app_block(parity2d,σ1Bσ1,p))
+	symB = conj.(app_block(parity_x,σ1Bσ1,p))
 	px("Test σ1 conj(",name,")(-x) σ1 = ",name,"(x) ",relative_distance_blocks(B_direct,symB))
 end
 
@@ -333,7 +285,7 @@ function test_build_potential_direct(g,f,p) # by P(x)= = ∑_m Cm e^{i2πxJ^*m},
 	calJ_m = [calJ_star*[p.k_grid[m,n][1];p.k_grid[m,n][2]] for m=1:p.N, n=1:p.N]
 	for x=1:p.N
 		for y=1:p.N
-			expos = [exp(im*2π*(p.x_axis[x]*calJ_m[m1,m2][1]+p.x_axis[y]*calJ_m[m1,m2][2])) for m1=1:p.N, m2=1:p.N]
+			expos = [exp(im*2π*(p.x_axis_cart[x]*calJ_m[m1,m2][1]+p.x_axis_cart[y]*calJ_m[m1,m2][2])) for m1=1:p.N, m2=1:p.N]
 			P[x,y] = sum(C.*expos)
 		end
 	end
@@ -381,10 +333,10 @@ end
 
 ################## Import functions
 
-function import_monolayer_infos(N,Nz,p)
+function import_u1_u2_V(N,Nz,p)
 	p.N = N; p.Nz = Nz
-	path = "monolayer_functions/"
-	f = string(path,"N",N,"_Nz",Nz,".jld")
+	path = "graphene/exported_functions/"
+	f = string(path,"N",N,"_Nz",Nz,"_u1_u2_V.jld")
 
 	p.a = load(f,"a"); p.L = load(f,"L")
 	init_cell_infinitesimals(p)
@@ -405,9 +357,11 @@ function import_monolayer_infos(N,Nz,p)
 end
 
 function import_Vint(p)
-	path = "Vint/"
-	f = string(path,"Vint_N",p.N,"_Nz",p.Nz,".jld")
+	path = "graphene/exported_functions/"
+	f = string(path,"N",p.N,"_Nz",p.Nz,"_Vint.jld")
 	Vint = load(f,"Vint")
+	p.interlayer_distance = load(f,"interlayer_distance")
+	a = load(f,"a"); L = load(f,"L"); @assert a==p.a && L==p.L
 	p.Vint = [Vint[z] for x=1:p.N, y=1:p.N, z=1:p.Nz]
 	p.Vint_f = fft(p.Vint)
 end
@@ -434,8 +388,9 @@ end
 
 # from function in reduced direct space to function in cartesian direct space
 function red2cart_function(f,p)
+	cart2red = inv(hcat(p.a1,p.a2))
 	function g(x,y)
-		v = p.cart2red*[x,y]
+		v = cart2red*[x,y]
 		f(v[1],v[2])
 	end
 	g
@@ -456,7 +411,7 @@ end
 # from array of Fourier coefficients to plot in direct cartesian space
 function plot_block_cart(B_four,p;title="plot_full") 
 	path = string(p.root_path,"plots_potentials_cartesian/")
-	if !isdir(path) mkdir(path) end
+	create_dir(path)
 	funs = [real,imag,abs]; titles = ["real","imag","abs"]
 	for I=1:3
 		h = []
@@ -477,7 +432,7 @@ end
 function plot_magnetic_block_cart(B1_four,B2_four,p;title="plot_full") 
 	h = []
 	path = string(p.root_path,"plots_potentials_cartesian/")
-	if !isdir(path) mkdir(path) end
+	create_dir(path)
 	for m=1:4
 		ψ_ar = eval_fun_to_plot(B1_four[m],abs2,p.plots_n_motifs,p.plots_res,p)
 		ψ_ar .+= eval_fun_to_plot(B2_four[m],abs2,p.plots_n_motifs,p.plots_res,p)
@@ -495,7 +450,7 @@ function plot_block_reduced(B,p;title="plot_full")
 	four = [true,false]
 	funs = [real,imag,abs]; titles = ["real","imag","abs"]
 	path = string(p.root_path,"plots_potentials_reduced/")
-	if !isdir(path) mkdir(path) end
+	create_dir(path)
 	for fo=1:2
 		for I=1:3
 			h = []

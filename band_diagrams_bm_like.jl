@@ -1,15 +1,22 @@
 include("misc/lobpcg.jl")
 include("common_functions.jl")
-include("create_bm_pot.jl")
-include("misc/plot.jl")
+include("misc/create_bm_pot.jl")
+# include("misc/plot.jl")
 include("effective_potentials.jl")
 using LinearAlgebra, JLD, FFTW
 
 mutable struct Basis
 	# Parameters of the 2d cell
-	N; k_axis
 	a; a1; a2; a1_star; a2_star
-	K_dirac_red
+	x_axis_cart
+	dx; dS; dv
+	k_axis; k_grid
+	K_red
+	N
+
+	# Useless parameters
+	Nz; L; dz
+	kz_axis
 
 	# Parameters for the 4×4 matrix
 	σ1; σ2 # Pauli matrices
@@ -23,9 +30,10 @@ mutable struct Basis
 	Iα; Iβ
 
 	# Parameters for plots
-	root_path = "band_diagrams_bm_like/"
+	root_path
 	energy_center; energy_scale
-	folder
+	folder_plots_bands
+	resolution_bands
 	function Basis()
 		p = new()
 		p
@@ -34,11 +42,11 @@ end
 
 function init_basis(p)
 	### Parameters of the 2d cell
-	p.K_dirac_red = [-1/3;1/3]
 	p.k_axis = Int.(fftfreq(p.N)*p.N)
-
+	p.root_path = "band_diagrams_bm_like/"
+	create_dir(p.root_path)
 	init_cell_vectors(p)
-
+	init_cell_infinitesimals(p)
 	p.S = nothing
 
 	### Parameters for the 4×4 matrix
@@ -49,7 +57,6 @@ function init_basis(p)
 	p.Li_tot = LinearIndices(ref);    p.Li_k = LinearIndices(ref_k)
 	p.Ci_tot = CartesianIndices(ref); p.Ci_k = CartesianIndices(ref_k)
 	init_klist2(p)
-
 
 	p.H0 = create_H0(p)
 	p.Ssv = -1 # matrix (1+Σ)^(-1/2)
@@ -67,7 +74,7 @@ end
 
 ######################### Main functions, to plot band diagrams
 
-function plot_band_structure(Hv,name,p;resolution=3)
+function plot_band_structure(Hv,name,p)
 	K = [0.0,0.0]
 	K0 = [2/3,1/3]
 	Γ = K.-K0
@@ -78,9 +85,9 @@ function plot_band_structure(Hv,name,p;resolution=3)
 	Klist_names = ["Γ","K","M"]
 
 	# @time (σ_on_path,pl) = spectrum_on_a_path(Klist,Klist_names,p,Hv,resolution)
-	(σ_on_path,pl) = spectrum_on_a_path(Klist,Klist_names,p,Hv,resolution)
-	path = string(p.root_path,p.folder)
-	if !isdir(path) mkdir(path) end
+	(σ_on_path,pl) = spectrum_on_a_path(Klist,Klist_names,p,Hv)
+	path = string(p.root_path,p.folder_plots_bands)
+	create_dir(path)
 	savefig(pl,string(path,"/band_struct_",name,".png"))
 end
 
@@ -116,7 +123,7 @@ vec2C(k) = k[1]+im*k[2]
 
 # pix,piy is a 2d moment (the labels) in reduced coords
 coords_ik2full_i(mi1,mi2,p) = (p.Li_tot[1,mi1,mi2],p.Li_tot[2,mi1,mi2],p.Li_tot[3,mi1,mi2],p.Li_tot[4,mi1,mi2])
-k_inv(m,p) = Int(mod(m,p.N))+1
+# k_inv(m,p) = Int(mod(m,p.N))+1
 
 ######################### Functions coordinates change
 
@@ -188,8 +195,8 @@ function V_offdiag_matrix(v,p) # v = [v1,v2,v3,v4] = mat(v1 & v2 \\ v3 & v4), Fo
 			(m1,m2) = k_axis(mi1,mi2,p)
 
 			c = 0
-			Pi1 = k_inv(n1-m1,p); Pi2 = k_inv(n2-m2,p)
-			Ki1 = k_inv(-n1+m1,p); Ki2 = k_inv(-n2+m2,p)
+			Pi1,Pi2 = k_inv(n1-m1,  n2-m2,p)
+			Ki1,Ki2 = k_inv(-n1+m1,-n2+m2,p)
 
 			if α ≥ 3 && β ≤ 2
 				c = conj(v[β,α-2][Ki1,Ki2])
@@ -220,7 +227,7 @@ function V_ondiag_matrix(v,p)
 			(m1,m2) = k_axis(mi1,mi2,p)
 
 			c = 0
-			Pi1 = k_inv(n1-m1,p); Pi2 = k_inv(n2-m2,p)
+			Pi1,Pi2 = k_inv(n1-m1,n2-m2,p)
 			if α ≤ 2 && β ≤ 2
 				c = v[α,β][Pi1,Pi2]
 			elseif α ≥ 3 && β ≥ 3
@@ -249,8 +256,8 @@ function A_offdiag_matrix(A1,A2,p)
 			(m1,m2) = k_axis(mi1,mi2,p)
 
 			c = 0
-			Pi1 = k_inv(n1-m1,p); Pi2 = k_inv(n2-m2,p)
-			Ki1 = k_inv(-n1+m1,p); Ki2 = k_inv(-n2+m2,p)
+			Pi1,Pi2 = k_inv(n1-m2,  n2-m2,p)
+			Ki1,Ki2 = k_inv(-n1+m1,-n2+m2,p)
 
 			if α ≥ 3 && β ≤ 2
 				c = (m1*p.a1_star[1]+m2*p.a2_star[1])*conj(A1[β,α-2][Ki1,Ki2])
@@ -335,7 +342,10 @@ end
 
 ######################### Computes the band diagram
 
-function spectrum_on_a_path(Klist,names,p,Hv,res = 5) # plots spectrum for eigenvalues between l1 and l2
+# plots spectrum for eigenvalues between l1 and l2
+# It is paralellized
+function spectrum_on_a_path(Klist,names,p,Hv) 
+	res = p.resolution_bands
 	n = length(Klist)
 	T = [i/res for i=0:res-1]; Nt = res
 	n_path_points = res*n
@@ -384,7 +394,7 @@ function part_hole_matrix(p)
 			(β,mi1,mi2) = lin2coord(m_lin,p)
 			(m1,m2) = k_axis(mi1,mi2,p)
 
-			Pi1 = k_inv(n1+m1,p); Pi2 = k_inv(n2+m2,p)
+			Pi1,Pi2 = k_inv(n1+m1,n2+m2,p)
 			c = 0
 			if Pi1 == 1 && Pi2 == 1
 				if α ≥ 3 && β ≤ 2 && α == β+2

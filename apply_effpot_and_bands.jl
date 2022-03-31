@@ -2,9 +2,10 @@ include("band_diagrams_bm_like.jl")
 
 #################### Second step : compute the effective potentials 𝕍, 𝕎, 𝔸, etc. Very rapid
 
-function computes_effective_potentials()
+function computes_and_plots_effective_potentials()
 	# Parameters
 	N = 8; Nz = 27
+	# N = 9; Nz = 36
 	# N = 12; Nz = 45
 	# N = 15; Nz = 50
 	p = EffPotentials()
@@ -15,7 +16,8 @@ function computes_effective_potentials()
 	produce_plots = true
 
 	# Initializations
-	import_monolayer_infos(N,Nz,p)
+	import_u1_u2_V(N,Nz,p)
+	import_Vint(p)
 	init_EffPot(p)
 	px("Test norm ",norms3d(p.u1,p,false)," and in Fourier ",norms3d(p.u1_f,p))
 
@@ -45,7 +47,7 @@ function computes_effective_potentials()
 	c1 = 2im*sca3d(p.u1_f,∂1_u2_f,p,true)
 	c2 = 2im*sca3d(p.u1_f,∂2_u2_f,p,true)
 	# c3 = 2im*sca3d(p.u1_f,∂3_u2_f,p,true)
-	px("2i<u1,∇r u2> = [",c1,",",c2,"] ; ratio ",c1/c2," ; |c1|=",abs(c1)," ; |c2|=",abs(c2)," ; should be 1.25")
+	px("2i<u1,∇r u2> = [",c1,",",c2,"] ; ratio ",c1/c2," ; |c1|=",abs(c1)," ; |c2|=",abs(c2)," ; should be 0.42")
 
 	test_z_parity(p.u1,-1,p;name="u1")
 	test_z_parity(p.u2,-1,p;name="u2")
@@ -60,7 +62,6 @@ function computes_effective_potentials()
 		W = p.W
 		V = p.𝕍
 	end
-
 
 	# Particle-hole
 	px("\nTests particle-hole symmetry")
@@ -138,15 +139,16 @@ end
 
 function explore_band_structure_BM()
 	p = Basis()
-	p.N = 8; p.a = 4.66
+	p.N = 8;
+	p.a = 4.66
 	p.l = 6 # number of eigenvalues we compute
 	init_basis(p)
-	α = 0.
-	resolution = 5
+	α = 0.0
+	p.resolution_bands = 5
 
 	Vmat0 = V_offdiag_matrix(T_BM_four(p.N,p.a,1,1),p)
 
-	p.folder = "bands_BM"
+	p.folder_plots_bands = "bands_BM"
 	p.energy_center = 0
 	p.energy_scale = 2
 	for β in vcat((0:0.05:6),(1.2:0.001:1.25))
@@ -157,7 +159,7 @@ function explore_band_structure_BM()
 		# px("mass V ",sum(abs.(Vmat)))
 		# test_hermitianity(Hv)
 		s = string(β,"00000000000")
-		plot_band_structure(Hv,s[1:min(6,length(s))],p;resolution=resolution)
+		plot_band_structure(Hv,s[1:min(6,length(s))],p)
 	end
 	p
 end
@@ -165,7 +167,9 @@ end
 function explore_band_structure_Heff()
 	N = 8; Nz = 27
 	sc = 1.5*1e3
-	EffV = import_and_build_potentials(N,Nz)
+
+	# Imports u1, u2, V, Vint and computes the effective potentials
+	EffV = import_and_computes(N,Nz)
 
 	p = Basis()
 	p.N = N; p.a = EffV.a
@@ -193,10 +197,10 @@ function explore_band_structure_Heff()
 	p.solver=="Exact"
 	H1 = p.H0 + 0*V + A∇
 
-	p.folder = "bands_eff_avec_V_A_Sigma_αeg1"
+	p.folder_plots_bands = "bands_eff_avec_V_A_Sigma_alpha_egal_1"
 	p.energy_center = -0.5
 	p.energy_scale = 2
-	resolution = 5
+	p.resolution_bands = 5
 	for β in (0:1:2)
 	# Threads.@threads for β in (0:1:10)
 		print(" ",β)
@@ -205,10 +209,10 @@ function explore_band_structure_Heff()
 		Hv = p.Ssv*(H1 + W)*p.Ssv
 		# test_hermitianity(Hv); test_part_hole_sym_matrix(W,p,"W")
 		s = string(β,"00000000000")
-		plot_band_structure(Hv,s[1:min(6,length(s))],p;resolution=resolution)
+		plot_band_structure(Hv,s[1:min(6,length(s))],p)
 	end
 end
 
-computes_and_plots_effective_potentials()
-# explore_band_structure_Heff()
+# computes_and_plots_effective_potentials()
+explore_band_structure_Heff()
 # explore_band_structure_BM()

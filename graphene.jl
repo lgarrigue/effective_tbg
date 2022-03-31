@@ -1,5 +1,5 @@
 include("common_functions.jl")
-using Plots, DFTK, LinearAlgebra, FFTW, JLD
+using DFTK, LinearAlgebra, FFTW, JLD
 # setup_threading()
 px = println
 
@@ -7,46 +7,52 @@ px = println
 import Base.+  
 +(f::Function, g::Function) = (x...) -> f(x...) + g(x...)  
 
+# Creates a dictionary which inverts an array, for instance [5,4,1] will give Dict(5 => 1, 2 => 4, 3 => 1)
 inverse_dict_from_array(a) = Dict(value => key for (key, value) in Dict(zip((1:length(a)), a)))
 
 mutable struct Params
-	# Monolayer parameters
+	### Common parameters
 	a; a1; a2; a1_star; a2_star
+	x_axis_cart
+	dx; dS; dz; dv
+	k_axis; k_grid
+	kz_axis
+	K_red
 	L # physical length of periodicity for the computations for a monolayer
-	L_star
-	dS; dz; dv
 
-	N; Nz; N3d
+	N; Nz; N2d; N3d
 	n_fball # size of the Fermi ball ∈ ℕ
 	x_axis_red; z_axis_red
 
+
+	### Particular parameters
+
+	M3d # M = (a1,a2), M3d = (a1,a2,L*e3) is the lattice
+
 	# Dirac point quantities
-	K_coords_red; K_coords_cart; K_kpt # Dirac point in sevral formats
+	K_red_3d; K_coords_cart; K_kpt # Dirac point in several formats
 	shift_K 
 
 	# Monolayer functions
 	i_state # index of first valence state
 	u0; u1; u2 # in the Fourier ball
 	u0_dir; u1_dir; u2_dir # in direct space
-	v_monolayer # in the Fourier cube
-	v_0_M # hat{v_monolayer}_{0,M}
+	v_monolayer_dir # in direct space
+	v_0_M # hat{v_monolayer_dir}_{0,M}
 
 	# Bilayer parameters
-	Ds2 # physical distance between two layers /2
+	interlayer_distance # physical distance between two layers /2
 
 	# DFTK quantities
 	ecut; scfres; basis
 	kgrid
-	M3d # M = (a1,a2), M3d = (a1,a2,L*e3) is the lattice
 	Gvectors; Gvectors_cart; Gvectors_inv; Gplusk_vectors; Gplusk_vectors_cart # Gplusk is used to plot the e^{iKx} u(x) for instance
 	recip_lattice; recip_lattice_inv # from k in reduced coords to a k in cartesian ones
 	tol_scf
-	shift_v; 
 
 	# Misc
-	τ # e^{i2π/3)
 	ref_gauge # reference for fixing the phasis gauge freedom
-	cutoff_plots
+	plots_cutoff
 	root_path; path_exports; path_plots # paths
 	function Params()
 		p = new()
@@ -54,34 +60,26 @@ mutable struct Params
 	end
 end
 
-function init_params()
-	p = Params()
-	p.τ = cis(2π/3)
-
-	p.shift_v = true
-	p.a = 4.66
-	p.L = 20; p.L_star = 2π/p.L
+function init_params(p)
 	init_cell_vectors(p)
-
 	# Bilayer parameter
-	p.Ds2 = 6.45/2
 
 	p.M3d = [vcat(p.a1,[0]) vcat(p.a2,[0]) [0;0;p.L]]
 	p.recip_lattice = DFTK.compute_recip_lattice(p.M3d)
 	p.recip_lattice_inv = inv(p.recip_lattice)
 
 	# Dirac point
-	p.K_coords_red = [-1/3,1/3,0]
-	p.K_coords_cart = k_red2cart(p.K_coords_red,p)
+	p.K_red_3d = vcat(p.K_red,[0])
+	p.K_coords_cart = k_red2cart(p.K_red_3d,p)
 	p.shift_K = [-1;0;0] # (1-R_{2π/3})K = -a_1^*, shift of this vector
 
 
 	p.root_path = "graphene/"
 	p.path_exports = string(p.root_path,"exported_functions/")
 	p.path_plots = string(p.root_path,"plots/")
-	if !isdir(p.root_path) mkdir(p.root_path) end
-	if !isdir(p.path_exports) mkdir(p.path_exports) end
-	if !isdir(p.path_plots) mkdir(p.path_plots) end
+	create_dir(p.root_path)
+	create_dir(p.path_exports)
+	create_dir(p.path_plots)
 	p
 end
 
@@ -97,7 +95,9 @@ end
 
 ######################### Operations on functions
 
-function OpL(u, p, L)
+# Generates U_m := U_{L m}
+# L is an action on the reduced Fourier space
+function OpL(u, p, L) 
 	Lu = zero(u)
 	for iG=1:p.n_fball
 		FiG = p.Gvectors[iG]
@@ -112,7 +112,7 @@ function OpL(u, p, L)
 	Lu
 end
 
-function R(u,p) # (Ru)_G = u_{R' G} or (Ru)^D_m = u^D_{F^{-1} R' F(m)}. 
+function R(u,p) # (Ru)_G = u_{M G} or (Ru)^D_m = u^D_{F^{-1} M F(m)}. 
 	M = [0 -1 0;1 -1 0; 0 0 1]
 	L(G) = M*G
 	OpL(u,p,L)
@@ -130,8 +130,7 @@ r_translation(a,s,p) = [a[mod1(x-s[1],p.N),mod1(y-s[2],p.N),z] for x=1:p.N, y=1:
 # Obtain the Kohn-Sham potential
 function scf_graphene_monolayer(p)
 	C = ElementPsp(:C, psp=load_psp("hgh/pbe/c-q4"))
-	p.shift_v = true # HAS TO BE TRUE FOR THE ROTATIONS TO BE OK. WHEN FALSE, THEY ARE STILL SEEN (Rψ=ψ) IN THE PLOT OF Rψ-ψ WHICH IS HALF ZERO
-	c1 = [1/3,1/3,0.0]; c2 = (p.shift_v ? -1 : 0)*c1
+	c1 = [1/3,1/3,0.0]; c2 = -c1
 	atoms = [C => [c1,c2]]
 	model = model_PBE(p.M3d, atoms; temperature=1e-3, smearing=Smearing.Gaussian())
 	basis = PlaneWaveBasis(model; Ecut=p.ecut, p.kgrid)
@@ -146,8 +145,8 @@ function scf_graphene_monolayer(p)
 
 	# Run SCF
 	p.scfres = self_consistent_field(basis)
-	p.v_monolayer = DFTK.total_local_potential(p.scfres.ham)[:,:,:,1]
-	p.v_0_M = fft([sum(p.v_monolayer[:,:,z])/p.N^2 for z=1:p.Nz])
+	p.v_monolayer_dir = DFTK.total_local_potential(p.scfres.ham)[:,:,:,1]
+	p.v_0_M = fft([sum(p.v_monolayer_dir[:,:,z])/p.N^2 for z=1:p.Nz])
 end
 
 # Compute the band structure at momentum k
@@ -176,8 +175,8 @@ function scf_graphene_bilayer(stacking_shift,p)
 	sf[2] = p.x_axis_red[mod1(stacking_shift[2]+1,p.N)]
 	total_shift = vcat(sf,[0.0])
 	base = [1/3,1/3] # shift base
-	s = (p.shift_v ? -1 : 0)*base
-	D = p.Ds2/p.L
+	s = -base
+	D = p.interlayer_distance/(p.L*2)
 	# px("D = ",D)
 	c1_plus =  [1/3,1/3, D]; c2_plus = vcat(s,[D])
 	c1_moins = [1/3,1/3,-D] .+ total_shift; c2_moins = vcat(s,[-D]) .+ total_shift
@@ -188,10 +187,10 @@ function scf_graphene_bilayer(stacking_shift,p)
 	model = model_PBE(p.M3d, atoms; temperature=1e-3, smearing=Smearing.Gaussian())
 	basis = PlaneWaveBasis(model; Ecut=p.ecut, kgrid=p.kgrid)
 	@assert (p.N,p.N,p.Nz) == basis.fft_size
-	@assert p.dv == basis.dvol
-	@assert p.x_axis_red == first.(DFTK.r_vectors(basis))[:,1,1] # verify
+	@assert abs(p.dv - basis.dvol) < 1e-10
+	@assert p.x_axis_red == first.(DFTK.r_vectors(basis))[:,1,1]
 
-	scfres = self_consistent_field(basis;tol=p.tol_scf,n_ep_extra=n_extra_states,eigensolver=lobpcg_hyper,maxiter=100)
+	scfres = self_consistent_field(basis;tol=p.tol_scf,n_ep_extra=n_extra_states,eigensolver=lobpcg_hyper,maxiter=100,callback=x->nothing)
 	Vks = DFTK.total_local_potential(scfres.ham)[:,:,:,1] # select first spin component
 	Vks
 end
@@ -202,7 +201,7 @@ k_red2cart(k_red,p) = p.recip_lattice*k_red
 k_cart2red(k_cart,p) = p.recip_lattice_inv*k_cart
 
 function get_dirac_eigenmodes(p)
-	(Es_K,us_K,basis,ham) = diag_monolayer_at_k(p.K_coords_red,p)
+	(Es_K,us_K,basis,ham) = diag_monolayer_at_k(p.K_red_3d,p)
 	p.basis = basis
 	p.K_kpt = basis.kpoints[1]
 	K_norm_cart = 4π/(3*p.a)
@@ -218,6 +217,7 @@ function get_dirac_eigenmodes(p)
 	n_eigenmodes = length(Es_K)
 	p.n_fball = size(us_K[:,1])[1] # size of the Fourier ball
 	px("Size of Fourier ball: ",p.n_fball)
+	px("Size of Fourier cube: ",p.N,"×",p.N,"×",p.Nz)
 
 	# Fixes the gauges
 	ref_vec = ones(p.N,p.N,p.Nz)
@@ -232,26 +232,26 @@ function get_dirac_eigenmodes(p)
 	end
 
 	# Extracts relevant states
-	u0 = us_K[:,p.i_state-1]
-	u1 = us_K[:,p.i_state]
-	u2 = us_K[:,p.i_state+1]
+	p.u0 = us_K[:,p.i_state-1]
+	p.u0_dir = G_to_r(p.basis,p.K_kpt,p.u0)
+	p.u1 = us_K[:,p.i_state]
+	p.u2 = us_K[:,p.i_state+1]
 	H_K_dirac = ham.blocks[1]; Hmat = Array(H_K_dirac)
 
 	# Verifications
-	res = norm(H_K_dirac * u1 - dot(u1, H_K_dirac * u1) * u1)
-	# println("Residual norm ",res," eigenvalues (u1,u2) ",real(dot(u1, H_K_dirac * u1)),",",real(dot(u2, H_K_dirac * u2))," shoul equal ",real(Es_K[p.i_state]),",",real(Es_K[p.i_state+1])," Norm u1 ",norm(u1))
-
-	# Fills p
-	p.u0 = u0; p.u1 = u1; p.u2 = u2
+	# res = norm(H_K_dirac * p.u1 - dot(p.u1, H_K_dirac * p.u1) * p.u1)
+	# println("Verification residual norm ",res," eigenvalues (p.u1,p.u2) ",real(dot(p.u1, H_K_dirac * p.u1)),",",real(dot(p.u2, H_K_dirac * p.u2))," shoul equal ",real(Es_K[p.i_state]),",",real(Es_K[p.i_state+1])," Norm p.u1 ",norm(p.u1))
+	nothing
 end
 
 
 ######################### Obtain the good orthonormal basis for the periodic Bloch functions at Dirac points u1 and u2
 
 function rotate_u1_and_u2(p)
+	τau = cis(2π/3)
 	(Ru1,Tu1) = (R(p.u1,p),τ(p.u1,p.shift_K,p))
 	(Ru2,Tu2) = (R(p.u2,p),τ(p.u2,p.shift_K,p))
-	d1 = Ru1.-p.τ*Tu1; d2 = Ru2.-p.τ*Tu2
+	d1 = Ru1.-τau*Tu1; d2 = Ru2.-τau*Tu2
 	
 	c = (norm(d1))^2
 	s = d1'*d2
@@ -263,7 +263,7 @@ function rotate_u1_and_u2(p)
 	(RU,TU) = (R(U,p),τ(U,p.shift_K,p))
 	(RV,TV) = (R(V,p),τ(V,p.shift_K,p))
 
-	I = argmin([norm(RU.-p.τ *TU),norm(RV.-p.τ *TV)])
+	I = argmin([norm(RU.-τau *TU),norm(RV.-τau *TV)])
 	p.u1 = I == 1 ? U : V
 	p.u2 = conj.(p.u1) # conj ∘ parity is conj in Fourier
 
@@ -273,14 +273,19 @@ end
 
 ######################### Vint
 
-function hat_V_bilayer_Xs(p) #hat(V)^{bil,Xs}_{0,M}
+# Long step, computation of a Kohn-Sham potential for each disregistry
+function hat_V_bilayer_Xs(p) # hat(V)^{bil,Xs}_{0,M}
 	V = zeros(ComplexF64,p.N,p.N,p.Nz)
-	for sx=1:p.N
-		for sy=1:p.N
-			v = scf_graphene_bilayer([sx,sy],p)
-			V[sx,sy,:] = fft([sum(v[:,:,z])/p.N^2 for z=1:p.Nz])
-		end
+	print("Step : ")
+	grid = [[sx,sy] for sx=1:p.N, sy=1:p.N]
+	# Threads.@threads for s=1:p.N^2
+	Threads.@threads for s=1:p.N^2
+		sm = grid[s]; sx = sm[1]; sy = sm[2]
+		print(s," ")
+		v = scf_graphene_bilayer([sx,sy],p)
+		V[sx,sy,:] = fft([sum(v[:,:,z])/p.N^2 for z=1:p.Nz])
 	end
+	print("\n")
 	V
 end
 
@@ -289,18 +294,18 @@ function compute_Vint_Xs(V_bil_Xs,p) # in direct space, used just to verify that
 	for sx=1:p.N
 		for sy=1:p.N
 			for z=1:p.Nz
-				Vint_Xs[sx,sy,z] = sum([cis(M*p.L_star*p.z_axis_red[z])*(V_bil_Xs[sx,sy,M] -2*p.v_0_M[M]*cos(M*p.L_star*p.Ds2)) for M=1:p.Nz])
+				Vint_Xs[sx,sy,z] = sum([cis(M*(2π/p.L)*p.z_axis_red[z])*(V_bil_Xs[sx,sy,M] -2*p.v_0_M[M]*cos(M*(2π/p.L)*p.interlayer_distance/2)) for M=1:p.Nz])
 			end
 		end
 	end
 	Vint_Xs
 end
 
-function compute_Vint(V_bil_Xs,p) # computes the Fourier transform
+function form_Vint_from_Vint_Xs(V_bil_Xs,p) # computes the Fourier transform
 	mean_V_bil_Xs = [sum([V_bil_Xs[sx,sy,M] for sx=1:p.N, sy=1:p.N])/p.N^2 for M=1:p.Nz]
 	Vint_f = zeros(ComplexF64,p.Nz)
 	for M=1:p.Nz
-		Vint_f[M] = mean_V_bil_Xs[M] - 2*p.v_0_M[M]*cos(M*p.L_star*p.Ds2)
+		Vint_f[M] = mean_V_bil_Xs[M] - 2*p.v_0_M[M]*cos(M*(2π/p.L)*p.interlayer_distance/2)
 	end
 	Vint_f
 end
@@ -314,8 +319,8 @@ end
 
 function export_Vint(Vint_f,p)
 	filename = string(p.path_exports,"N",p.N,"_Nz",p.Nz,"_Vint.jld")
-	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"ds2",p.Ds2,"Vint",Vint_f)
-	px("Vint with N=",p.N,", Nz=",p.Nz," exported")
+	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"interlayer_distance",p.interlayer_distance,"Vint",Vint_f)
+	px("Exported : Vint for N=",p.N,", Nz=",p.Nz)
 end
 
 ######################### Computes the Fermi velocity
@@ -393,7 +398,7 @@ end
 ######################### Exports
 
 function exports_v_u1_u2(p)
-	v = p.v_monolayer
+	v = p.v_monolayer_dir
 	v_f = fft(v)
 	vu1_f = fft(v.*p.u1_dir)
 	vu2_f = fft(v.*p.u2_dir)
@@ -403,7 +408,7 @@ function exports_v_u1_u2(p)
 
 	filename = string(p.path_exports,"N",p.N,"_Nz",p.Nz,"_u1_u2_V.jld")
 	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"v_f",v_f,"vu1_f",vu1_f,"vu2_f",vu2_f,"u1_f",u1_f,"u2_f",u2_f,"prods_f",prods_f)
-	px("N=",p.N,", Nz=",p.Nz," exported")
+	px("Exported : V, u1, u2 functions for N=",p.N,", Nz=",p.Nz)
 end
 
 ######################### Test symmetries
@@ -414,9 +419,10 @@ function test_rot_sym(p)
 	(RW,TW) = (R(p.u2,p),τ(p.u2,p.shift_K,p))
 	(Ru0,Tu0) = (R(p.u0,p),τ(p.u0,p.shift_K,p))
 
+	τau = cis(2π/3)
 	px("Test R φ0 = φ0 ",norm(Ru0.-Tu0)/norm(Ru0))
-	px("Test R φ1 = τ   φ1 ",norm(RS.-p.τ*TS)/norm(RS))
-	px("Test R φ2 = τ^2 φ2 ",norm(RW.-p.τ^2*TW)/norm(RW))
+	px("Test R φ1 = τ   φ1 ",norm(RS.-τau*TS)/norm(RS))
+	px("Test R φ2 = τ^2 φ2 ",norm(RW.-τau^2*TW)/norm(RW))
 end
 
 ######################### Plot functions
@@ -427,24 +433,24 @@ function arr2fun(u,p;bloch_trsf=true) # u in the Fourier ball, to function in ca
 	f(x,y,z) = 0
 	for iG=1:length(Gs)
 		g(x,y,z) = u[iG]*cis(Gs[iG]⋅[x,y,z])
-		if norm(p.Gvectors[iG]) < p.cutoff_plots
+		if norm(p.Gvectors[iG]) < p.plots_cutoff
 			f = f + g
 		end
 	end
 	f
 end
 
-function simple_plot(u,fun,Z,p;n_motifs=3,res=5,bloch_trsf=true)
+function simple_plot(u,fun,Z,p;n_motifs=3,bloch_trsf=true,res=25)
 	f = arr2fun(u,p;bloch_trsf=bloch_trsf)
 	g = scale_fun3d(f,n_motifs)
 	a = fun.([g(i/res,j/res,Z) for i=0:res-1, j=0:res-1])
 	heatmap(a,size=(1000,1000))
 end
 
-function rapid_plot(u,p;n_motifs=5,res=20,name="rapidplot",bloch_trsf=true)
+function rapid_plot(u,p;n_motifs=5,name="rapidplot",bloch_trsf=true,res=25)
 	Z = 0
 	funs = [abs,real,imag]
-	hm = [simple_plot(u,fun,Z,p;n_motifs=n_motifs,res=res,bloch_trsf=bloch_trsf) for fun in funs]
+	hm = [simple_plot(u,fun,Z,p;n_motifs=n_motifs,bloch_trsf=bloch_trsf,res=res) for fun in funs]
 	size = 600
 	r = length(funs)
 	pl = plot(hm...,layout=(1,r),size=(r*size,size-200),legend=false)
