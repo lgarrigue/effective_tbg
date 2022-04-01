@@ -36,7 +36,7 @@ mutable struct EffPotentials
 	# Effective potentials
 	Σ # Σ = <<u_j, u_{j'}>>^+-
 	𝕍_V; 𝕍_Vint; 𝕍 # 𝕍_V = <<u_j, V u_{j'}>>^+-, 𝕍_Vint = <<u_j, Vint u_{j'}>>^+-, 𝕍 = 𝕍_V + 𝕍_Vint
-	Wplus; W_Vint_matrix; W # Wplus = <<V, u_j u_{j'}>>^++, W_Vint_matrix = <u_j,Vint u_{j'}>, W = Wplus + W_Vint_matrix
+	Wplus; Wmoins; W_Vint_matrix; W # Wplus = <<V, u_j u_{j'}>>^++, Wmoins = <<V, u_j u_{j'}>>^--, W_Vint_matrix = <u_j,Vint u_{j'}>, W = Wplus + W_Vint_matrix
 	𝔸1; 𝔸2; 𝔹1; 𝔹2
 
 	# Plots
@@ -44,6 +44,7 @@ mutable struct EffPotentials
 	plots_res # resolution, plots_res × plots_res
 	plots_n_motifs # roughly the number of periods we see on plots
 	root_path
+	plots_x_axis_cart
 	
 	function EffPotentials()
 		p = new()
@@ -56,15 +57,18 @@ function init_EffPot(p)
 	init_cell_infinitesimals(p)
 	p.root_path = "effective_potentials/"
 	create_dir(p.root_path)
+	plots_L = p.L*p.plots_n_motifs
+	plots_dx = plots_L/p.plots_res
+	p.plots_x_axis_cart = (0:plots_dx:plots_L)
 end
 
 ################## Core: computation of effective potentials
 
 # Builds the Fourier coefficients 
-# C_m = ∑_M conj(hat(g))_{m,M} hat(f)_{m,M} e^{i d q_M 2π/L}
-function build_Cm(g,f,p) 
+# C_m = ∑_M conj(hat(g))_{m,M} hat(f)_{m,M} e^{i η d q_M 2π/L}, η ∈ {-1,1}
+function build_Cm(g,f,p;η=1) 
 	C = zeros(ComplexF64,p.N,p.N)
-	app(kz) = cis(2*p.interlayer_distance*kz*π/p.L)
+	app(kz) = cis(2*η*p.interlayer_distance*kz*π/p.L)
 	expo = app.(p.kz_axis)
 	p.L*[sum(conj.(g[m,n,:]).*f[m,n,:].*expo) for m=1:p.N, n=1:p.N]
 end
@@ -81,8 +85,8 @@ function div_three(m,n,p) # Test whether [m;n] is in 3ℤ^2, returns [m;n]/3 if 
 end
 
 # 2 × 2 matrix, magnetic ∈ {"no","1","2"}, f and g are in Fourier. transl is for diagonal blocks
-function build_potential(g,f,p;magnetic="no",transl=true) 
-	C = build_Cm(g,f,p)
+function build_potential(g,f,p;magnetic="no",transl=true,η=1) 
+	C = build_Cm(g,f,p;η=1)
 	P = zeros(ComplexF64,p.N,p.N)
 	# Fills P_n^D = C^D_{F^{-1} J^{*,-1} F(n)}
 	(m3K,n3K) = Tuple(Int.(3*p.K_red))
@@ -120,7 +124,7 @@ function compute_W_Vint_term(p) # matrix <u_j, Vint u_{j'}>
 			end
 		end
 	end
-	p.W_Vint_matrix = M*p.dv/p.N^2
+	p.W_Vint_matrix = M
 end
 
 ################## Computation of blocks
@@ -141,6 +145,8 @@ function build_blocks_potentials(p)
 		 build_potential(p.u2v_f,p.u1_f,p), build_potential(p.u2v_f,p.u2_f,p)]
 	p.Wplus = [build_potential(p.v_f,p.prods_f[1],p;transl=false), build_potential(p.v_f,p.prods_f[2],p;transl=false),
 		   build_potential(p.v_f,p.prods_f[3],p;transl=false), build_potential(p.v_f,p.prods_f[4],p;transl=false)]
+	p.Wmoins = [build_potential(p.v_f,p.prods_f[1],p;transl=false,η=-1), build_potential(p.v_f,p.prods_f[2],p;transl=false,η=-1),
+		    build_potential(p.v_f,p.prods_f[3],p;transl=false,η=-1), build_potential(p.v_f,p.prods_f[4],p;transl=false,η=-1)]
 	# p.W_moins = [build_potential(p.prods_f[1],p.v_f,p;η=-1,transl=false), build_potential(p.prods_f[2],p.v_f,p;η=-1,transl=false),
 	# build_potential(p.prods_f[3],p.v_f,p;η=-1,transl=false), build_potential(p.prods_f[4],p.v_f,p;η=-1,transl=false)]
 	p.Σ = [build_potential(p.u1_f,p.u1_f,p), build_potential(p.u1_f,p.u2_f,p),
@@ -398,7 +404,7 @@ function plot_block_cart(B_four,p;title="plot_full")
 		h = []
 		for m=1:4
 			ψ_ar = eval_fun_to_plot(B_four[m],funs[I],p.plots_n_motifs,p.plots_res,p)
-			hm = heatmap(ψ_ar,size=(300,200))
+			hm = heatmap(p.plots_x_axis_cart,p.plots_x_axis_cart,ψ_ar,size=(300,200))
 			# hm = heatmap(ψ_ar,aspect_ratio=:equal)
 			push!(h,hm)
 		end
@@ -417,13 +423,14 @@ function plot_magnetic_block_cart(B1_four,B2_four,p;title="plot_full")
 	for m=1:4
 		ψ_ar = eval_fun_to_plot(B1_four[m],abs2,p.plots_n_motifs,p.plots_res,p)
 		ψ_ar .+= eval_fun_to_plot(B2_four[m],abs2,p.plots_n_motifs,p.plots_res,p)
-		hm = heatmap(ψ_ar,size=(300,200))
+		ψ_ar = sqrt.(ψ_ar)
+		hm = heatmap(p.plots_x_axis_cart,p.plots_x_axis_cart,ψ_ar,size=(300,200))
 		# hm = heatmap(ψ_ar,aspect_ratio=:equal)
 		push!(h,hm)
 	end
 	size = 1000
 	pl = plot(h...,layout=(2,2),size=(1300,1000),legend=false)
-	savefig(pl,string(path,"abs2_",title,"_cart.png"))
+	savefig(pl,string(path,"abs_",title,"_cart.png"))
 	px("Plot of |",title,"|^2 in cartesian coords, done")
 end
 

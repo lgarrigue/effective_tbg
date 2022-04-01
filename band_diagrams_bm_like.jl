@@ -25,7 +25,7 @@ mutable struct Basis
 	H0
 	S # part_hole matrix
 	l; l1; l2; n_l
-	Ssv
+	ISΣ
 	solver
 	Iα; Iβ
 
@@ -58,7 +58,7 @@ function init_basis(p)
 	init_klist2(p)
 
 	p.H0 = create_H0(p)
-	p.Ssv = -1 # matrix (1+Σ)^(-1/2)
+	p.ISΣ = -1 # matrix (1+Σ)^(-1/2)
 	p.solver = "LOBPCG"
 
 	# Matrices to apply weights
@@ -322,8 +322,8 @@ function solve_one(Hv,K,p,X0=-1) # l is the number of eigenvalues we want
 		X = X0
 	end
 	shiftK = shift_κ(K,p)
-	if p.Ssv != -1
-		shiftK = p.Ssv*shiftK*p.Ssv
+	if p.ISΣ != -1
+		shiftK = p.ISΣ*shiftK*p.ISΣ
 	end
 	Hk = Hermitian(Hv .+ shiftK)
 

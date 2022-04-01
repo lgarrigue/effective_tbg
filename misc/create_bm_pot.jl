@@ -24,6 +24,8 @@ function build_BM_objects(a,α,β)
 	# Another orientation
 	q1 = [0 -1]; q2 = [sqrt(3)/2 1/2]; q3 = [-sqrt(3)/2 1/2]
 	q = (4π/(a*sqrt(3)))*[q1,q2,q3]
+	J = [0 -1;1 0]
+	# q = [J*q[i] for i=1:3]
 
 	Tcart(r) = T1*cis(-q[1]⋅r) + T2*cis(-q[2]⋅r) + T3*cis(-q[3]⋅r) # in cartesian coordinates
 	Tred(r) = Tcart(red2cart*r) # in reduced coordinates

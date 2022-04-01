@@ -15,6 +15,12 @@ to produce the effective potentials and compute the bands of the effective Hamil
 Computation of Vint and band diagrams production are the two steps requiring more ressources, hence they are paralellized with Threads.@threads on the CPU.  
 COMPUTATION OF Vint IS NOT YET PARALLELIZED BECAUSE OF A PROBLEM IN PARALELLIZATION OF DFTK SCF's
 
+### Download
+The download command is
+```
+git clone https://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@github.com/lgarrigue/effective_tbg.git
+```
+
 ## Organization of the code
 
 ### Scripts to compute the monolayer functions

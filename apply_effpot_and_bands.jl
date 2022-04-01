@@ -11,7 +11,7 @@ function computes_and_plots_effective_potentials()
 	p = EffPotentials()
 	p.plots_cutoff = 7
 	p.plots_res = 50
-	p.plots_n_motifs = 4
+	p.plots_n_motifs = 10
 	take_Vint_into_account = false
 	produce_plots = true
 
@@ -36,6 +36,9 @@ function computes_and_plots_effective_potentials()
 	build_blocks_potentials(p) # computes Wplus, 𝕍_V and Σ
 	build_block_𝔸(p) # computes 𝔸
 	to_test = p.Wplus[1,1]
+
+
+	px("\nW_Vint matrix\n",p.W_Vint_matrix,"\n")
 
 	px("|<u1,u2>| = ",abs(sca3d(p.u1_dir,p.u2_dir,p,false)))
 	(∂1_u2_f,∂2_u2_f,∂3_u2_f) = ∇(p.u2_f,p)
@@ -79,11 +82,16 @@ function computes_and_plots_effective_potentials()
 	# Mirror
 	px("\nTests mirror symmetry")
 	test_mirror_block(T,p;name="T",herm=true)
+	test_mirror_block(W,p;name="W",herm=true)
 	test_mirror_block(W,p;name="W",herm=false)
 	test_mirror_block(V,p;name="V",herm=true)
+	test_mirror_block(V,p;name="V",herm=false)
 	test_mirror_block(p.𝔸1,p;name="A1",herm=true)
+	test_mirror_block(p.𝔸1,p;name="A1",herm=false)
 	test_mirror_block(p.𝔸2,p;name="A2",herm=true)
+	test_mirror_block(p.𝔸2,p;name="A2",herm=false)
 	test_mirror_block(p.Σ,p;name="Σ",herm=true)
+	test_mirror_block(p.Σ,p;name="Σ",herm=false)
 
 	# R
 	px("\nTests R symmetry")
@@ -108,10 +116,22 @@ function computes_and_plots_effective_potentials()
 	test_block_hermitianity(W,p;name="W")
 
 	if produce_plots
+		# Plots in reduced coordinates
+		plot_block_reduced(W,p;title="W")
+		plot_block_reduced(V,p;title="V")
+		plot_block_reduced(p.Wplus,p;title="W_plus")
+		plot_block_reduced(p.Wmoins,p;title="W_moins")
+		plot_block_reduced(p.Σ,p;title="Σ")
+		plot_block_reduced(p.𝔸1,p;title="A1")
+		plot_block_reduced(p.𝔸2,p;title="A2")
+
 		# Plots in cartesian coordinates
 		plot_block_cart(T,p;title="T")
-		plot_block_cart(p.Wplus,p;title="Wplus")
+		plot_block_cart(p.Wplus,p;title="W_plus")
+		plot_block_cart(p.Wmoins,p;title="W_moins")
+		plot_block_cart(p.𝕍,p;title="V")
 		plot_block_cart(p.𝕍_V,p;title="V_V")
+		plot_block_cart(p.𝕍_Vint,p;title="V_Vint")
 		plot_block_cart(p.Σ,p;title="Σ")
 		plot_magnetic_block_cart(p.𝔸1,p.𝔸2,p;title="A") 
 		# plot_magnetic_block_cart(p.𝔹1,p.𝔹2,p;title="B") 
@@ -165,13 +185,12 @@ function explore_band_structure_Heff()
 	p.N = N; p.a = EffV.a
 	p.l = 12 # number of eigenvalues we compute
 	init_basis(p)
-	α = 1.0
 
 	######## Base Hamiltonian
 	# Mass matrix
 	SΣ = V_offdiag_matrix(lin2mat(EffV.Σ),p)/sc
 	S = Hermitian(I + 1*SΣ)
-	p.Ssv = Hermitian(inv(sqrt(S)))
+	p.ISΣ = Hermitian(inv(sqrt(S)))
 	# test_hermitianity(S,"S"); test_part_hole_sym_matrix(S,p,"S")
 	
 	# On-diagonal potential
@@ -181,29 +200,51 @@ function explore_band_structure_Heff()
 	A∇ = A_offdiag_matrix(lin2mat(EffV.𝔸1),lin2mat(EffV.𝔸2),p)/sc
 
 	# Off-diagonal potential
-	W0 = V_offdiag_matrix(lin2mat(EffV.Wplus),p)/sc
+	W = V_offdiag_matrix(lin2mat(EffV.Wplus),p)/sc
 
 	# Other parameters
 	p.solver=="Exact"
-	H1 = p.H0 + 0*V + A∇
 
 	p.folder_plots_bands = "bands_eff_avec_V_A_Sigma_alpha_egal_1"
 	p.energy_center = -0.5
 	p.energy_scale = 2
 	p.resolution_bands = 5
-	for β in (0:1:2)
-	# Threads.@threads for β in (0:1:10)
-		print(" ",β)
-		W = weights_off_diag_matrix(W0,α,β,p)
-		# px("mass W ",sum(abs.(W)))
-		Hv = p.Ssv*(H1 + W)*p.Ssv
-		# test_hermitianity(Hv); test_part_hole_sym_matrix(W,p,"W")
-		s = string(β,"00000000000")
-		plot_band_structure(Hv,s[1:min(6,length(s))],p)
+
+	method = "natural" # ∈ ["weight","natural"]
+	if method=="natural"
+		for θ in (0.005:0.001:0.04) # 1° × 2π/360 = 0.017 rad
+			cθ = cos(θ/2); εθ = sin(θ/2)
+			Hv = p.ISΣ*( cθ*(p.H0 + A∇) + (1/εθ)*(V+0*W) )*p.ISΣ
+			print(" ",θ)
+			# px("mass W ",sum(abs.(W)))
+			# test_hermitianity(Hv); test_part_hole_sym_matrix(W,p,"W")
+			s = string(θ,"00000000000")
+			title = s[1:min(6,length(s))]
+			title = string(θ)
+			plot_band_structure(Hv,title,p)
+		end
+	else
+		H1 = p.H0 + 0*V + A∇
+		α = 1.0
+		for β in (0:1:2)
+			print(" ",β)
+			W_weighted = weights_off_diag_matrix(W0,α,β,p)
+			# px("mass W ",sum(abs.(W)))
+			Hv = p.ISΣ*(H1 + W_weighted)*p.ISΣ
+			# test_hermitianity(Hv); test_part_hole_sym_matrix(W,p,"W")
+			s = string(β,"00000000000")
+			plot_band_structure(Hv,s[1:min(6,length(s))],p)
+		end
 	end
 end
 
-computes_and_plots_effective_potentials()
-# explore_band_structure_Heff()
+# computes_and_plots_effective_potentials()
+explore_band_structure_Heff()
 # explore_band_structure_BM()
-# LE POT BM EST CENSE RESTER LA SYM MIRROIR !!!
+#
+
+#### Todo
+# chemin prop sur diag bandes
+# Wplus =? Wmoins
+# régler pb W trop grand
+# cube Fourier pour plus de symétrie
