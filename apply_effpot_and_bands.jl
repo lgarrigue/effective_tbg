@@ -38,7 +38,7 @@ function computes_and_plots_effective_potentials()
 		display(Cm)
 	end
 
-	build_blocks_potentials_without_Vint(p) # computes Wplus, 𝕍_V and Σ
+	build_blocks_potentials(p) # computes Wplus, 𝕍_V and Σ
 	build_block_𝔸(p) # computes 𝔸
 	to_test = p.Wplus[1,1]
 
@@ -110,12 +110,7 @@ function computes_and_plots_effective_potentials()
 
 	# Hermitianity
 	px("\nTests hermitianity")
-	test_block_hermitianity(T,p;name="T")
 	test_block_hermitianity(W,p;name="W")
-	test_block_hermitianity(V,p;name="V")
-	test_block_hermitianity(p.Σ,p;name="Σ")
-	test_block_hermitianity(p.𝔸1,p;name="A1")
-	test_block_hermitianity(p.𝔸2,p;name="A2")
 
 	if produce_plots
 		# Plots in cartesian coordinates
@@ -139,7 +134,7 @@ end
 
 function explore_band_structure_BM()
 	p = Basis()
-	p.N = 8;
+	p.N = 8
 	p.a = 4.66
 	p.l = 6 # number of eigenvalues we compute
 	init_basis(p)
@@ -213,6 +208,6 @@ function explore_band_structure_Heff()
 	end
 end
 
-# computes_and_plots_effective_potentials()
-explore_band_structure_Heff()
+computes_and_plots_effective_potentials()
+# explore_band_structure_Heff()
 # explore_band_structure_BM()

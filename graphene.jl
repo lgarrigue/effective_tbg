@@ -3,10 +3,6 @@ using DFTK, LinearAlgebra, FFTW, JLD
 # setup_threading()
 px = println
 
-# + of functions
-import Base.+  
-+(f::Function, g::Function) = (x...) -> f(x...) + g(x...)  
-
 mutable struct Params
 	### Common parameters
 	a; a1; a2; a1_star; a2_star
@@ -19,7 +15,7 @@ mutable struct Params
 
 	N; Nz; N2d; N3d
 	n_fball # size of the Fermi ball ∈ ℕ
-	x_axis_red; z_axis_red
+	x_axis_red; z_axis_red; z_axis_cart
 
 	### Particular parameters
 	M3d # M = (a1,a2), M3d = (a1,a2,L*e3) is the lattice
@@ -35,8 +31,9 @@ mutable struct Params
 	v_monolayer_dir # in direct space
 	v_0_M # hat{v_monolayer_dir}_{0,M}
 
-	# Bilayer parameters
+	# Bilayer quantities
 	interlayer_distance # physical distance between two layers /2
+	Vint_f
 
 	# DFTK quantities
 	ecut; scfres; basis
@@ -133,12 +130,15 @@ function scf_graphene_monolayer(p)
 	p.N3d = p.N^2*p.Nz
 	p.x_axis_red = ((0:p.N-1))/p.N
 	p.z_axis_red = ((0:p.Nz-1))/p.Nz
+	p.z_axis_cart = p.z_axis_red*p.L
 
 	init_cell_infinitesimals(p)
 	@assert abs(p.dv - basis.dvol) < 1e-10
 
 	# Run SCF
 	p.scfres = self_consistent_field(basis)
+	px("Energies")
+	px(p.scfres.energies)
 	p.v_monolayer_dir = DFTK.total_local_potential(p.scfres.ham)[:,:,:,1]
 	p.v_0_M = fft([sum(p.v_monolayer_dir[:,:,z])/p.N^2 for z=1:p.Nz])
 end
@@ -185,8 +185,8 @@ function scf_graphene_bilayer(stacking_shift,p)
 	@assert p.x_axis_red == first.(DFTK.r_vectors(basis))[:,1,1]
 
 	scfres = self_consistent_field(basis;tol=p.tol_scf,n_ep_extra=n_extra_states,eigensolver=lobpcg_hyper,maxiter=100,callback=x->nothing)
-	Vks = DFTK.total_local_potential(scfres.ham)[:,:,:,1] # select first spin component
-	Vks
+	Vks_dir = DFTK.total_local_potential(scfres.ham)[:,:,:,1] # select first spin component
+	fft(Vks_dir)
 end
 
 # coords in reduced to coords in cartesian
@@ -266,56 +266,46 @@ function rotate_u1_and_u2(p)
 	p.u2_dir = G_to_r(p.basis,p.K_kpt,p.u2)
 end
 
-######################### Vint
+######################### Computation of Vint
 
 # Long step, computation of a Kohn-Sham potential for each disregistry
-function hat_V_bilayer_Xs(p) # hat(V)^{bil,Xs}_{0,M}
+function V_bilayer_Xs(p) # hat(V)^{bilayer,s}_{0,M}
 	V = zeros(ComplexF64,p.N,p.N,p.Nz)
 	print("Step : ")
 	grid = [[sx,sy] for sx=1:p.N, sy=1:p.N]
 	# Threads.@threads for s=1:p.N^2 # multi-threading blocks because of a problem in the parallelization of DFTK's diagonalization
 	for si=1:p.N^2
 		s = grid[si]; sx = s[1]; sy = s[2]
-		print(s," ")
-		v = scf_graphene_bilayer(s,p)
-		V[sx,sy,:] = fft([sum(v[:,:,z])/p.N^2 for z=1:p.Nz])
+		print(si," ")
+		v_fc = scf_graphene_bilayer(s,p)
+		V[sx,sy,:] = v_fc[1,1,:]
 	end
 	print("\n")
 	V
 end
 
-function compute_Vint_Xs(V_bil_Xs,p) # in direct space, used just to verify that is does not depend too much on Xs
+# Computes Vint_Xs
+function compute_Vint_Xs(V_bil_Xs_fc,p)
 	Vint_Xs = zeros(ComplexF64,p.N,p.N,p.Nz)
+	app(mz) = 2*cos(mz*π*p.interlayer_distance/p.L)
+	app_k = app.(p.kz_axis)
+	[V_bil_Xs_fc[sx,sy,mz] - app_k[mz] for sx=1:p.N, sy=1:p.N, mz=1:p.Nz]
+end
+
+# Computes Vint
+form_Vint_from_Vint_Xs(V_bil_Xs_fc,p) = [sum(V_bil_Xs_fc[:,:,miz])/p.N^2 for miz=1:p.Nz]
+
+# Computes the dependency of Vint_Xs on Xs
+function computes_δ_Vint(Vint_Xs_fc,Vint_f,p)
+	c = 0
 	for sx=1:p.N
 		for sy=1:p.N
-			for z=1:p.Nz
-				Vint_Xs[sx,sy,z] = sum([cis(M*(2π/p.L)*p.z_axis_red[z])*(V_bil_Xs[sx,sy,M] -2*p.v_0_M[M]*cos(M*(2π/p.L)*p.interlayer_distance/2)) for M=1:p.Nz])
+			for mz=1:p.Nz
+				c += abs2(Vint_Xs_fc[sx,sy,mz] - Vint_f[mz])
 			end
 		end
 	end
-	Vint_Xs
-end
-
-function form_Vint_from_Vint_Xs(V_bil_Xs,p) # computes the Fourier transform
-	mean_V_bil_Xs = [sum([V_bil_Xs[sx,sy,M] for sx=1:p.N, sy=1:p.N])/p.N^2 for M=1:p.Nz]
-	Vint_f = zeros(ComplexF64,p.Nz)
-	for M=1:p.Nz
-		Vint_f[M] = mean_V_bil_Xs[M] - 2*p.v_0_M[M]*cos(M*(2π/p.L)*p.interlayer_distance/2)
-	end
-	Vint_f
-end
-
-function plot_VintXs_Vint(Vint_Xs,Vint_f,p)
-	Vint_Xs_without_Z = [Vint_Xs[x,y,z] - sum(Vint_Xs[:,:,z])/p.N^2 for x=1:p.N, y=1:p.N, z=1:p.Nz]
-	px("Vint dependency in XY ",sum(abs.(Vint_Xs_without_Z))/sum(abs.(Vint_Xs)))
-	plr = plot(heatmap(real.(intZ(Vint_Xs,p))),plot(real.(ifft(Vint_f))))
-	savefig(plr,string(p.path_plots,"Vint.png"))
-end
-
-function export_Vint(Vint_f,p)
-	filename = string(p.path_exports,"N",p.N,"_Nz",p.Nz,"_Vint.jld")
-	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"interlayer_distance",p.interlayer_distance,"Vint",Vint_f)
-	px("Exported : Vint for N=",p.N,", Nz=",p.Nz)
+	px("Dependency of Vint_Xs on Xs, δ_Vint= ",c/(p.N^2*sum(abs2.(Vint_f))))
 end
 
 ######################### Computes the Fermi velocity
@@ -406,6 +396,12 @@ function exports_v_u1_u2(p)
 	px("Exported : V, u1, u2 functions for N=",p.N,", Nz=",p.Nz)
 end
 
+function export_Vint(p)
+	filename = string(p.path_exports,"N",p.N,"_Nz",p.Nz,"_Vint.jld")
+	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"interlayer_distance",p.interlayer_distance,"Vint",p.Vint_f)
+	px("Exported : Vint for N=",p.N,", Nz=",p.Nz)
+end
+
 ######################### Test symmetries
 
 function test_rot_sym(p)
@@ -450,4 +446,12 @@ function rapid_plot(u,p;n_motifs=5,name="rapidplot",bloch_trsf=true,res=25)
 	r = length(funs)
 	pl = plot(hm...,layout=(1,r),size=(r*size,size-200),legend=false)
 	savefig(pl,string(p.path_plots,name,".png"))
+end
+
+function plot_Vint(Vint,p)
+	# Vint_Xs = Vint_Xs_fc
+	# Vint_Xs_without_Z = [Vint_Xs[x,y,z] - sum(Vint_Xs[:,:,z])/p.N^2 for x=1:p.N, y=1:p.N, z=1:p.Nz]
+	# plr = plot(heatmap(real.(intZ(Vint_Xs,p))),plot(Vint))
+	plr = plot(p.z_axis_cart,Vint)
+	savefig(plr,string(p.path_plots,"Vint.png"))
 end

@@ -3,6 +3,8 @@
 %\usepackage{babel} % français \usepackage[latin1]{inputenc}
 \usepackage{amsthm,amsmath,amsfonts,amssymb,amsxtra,appendix,bookmark,dsfont,bm,mathrsfs,amstext,amsopn,mathrsfs,mathtools,comment,cite,hyperref,color,xcolor,cite}
 
+\usepackage{stmaryrd}
+
 %%%%%%%%%%%%%%%%%%%% Standard macros
 % Environments
 \newtheorem{theorem}{Theorem}[section]\newtheorem{definition}[theorem]{Definition}\newtheorem{lemma}[theorem]{Lemma}\newtheorem{example}[theorem]{Example}\newtheorem{proposition}[theorem]{Proposition}\newtheorem{corollary}[theorem]{Corollary}\newtheorem{conjecture}[theorem]{Conjecture}\newtheorem{remark}[theorem]{Remark}
@@ -19,6 +21,8 @@
 
 % Others
 \renewcommand{\ge}{\geqslant}\renewcommand{\le}{\leqslant}
+
+\newcommand{\intent}[1]{\llbracket #1 \rrbracket}
 
 %%%%%%%%%%%%%%%%%%%% Macros Louis
 % Delimiters
@@ -63,6 +67,8 @@
 \def\br{{\mathbf r}}
 \def\bx{{\mathbf x}}
 \def\bmm{{\mathbf m}}
+\def\bv{{\mathbf v}}
+\def\bs{{\mathbf s}}
 \def\by{{\mathbf y}}
 \def\bn{{\mathbf n}}
 \def\bA{{\mathbf A}}
@@ -125,6 +131,25 @@ f(\bx,z) = \sum_{\bG \in \L^*} \int_\R e^{i\pa{\bG\bx + k_z z}} f_\bG(k_z) \d k_
 \end{align*}
 We also recall that $\int_\R e^{ipz} \d z = 2\pi \delta(p)$.
 
+
+Now we consider that $f$ and $g$ are $L$-periodic in $z$,
+\begin{align*}
+f(\bx,z) = \sum_{\bG,G_z} e^{i\pa{\bG \bx + G_z z}} \widehat{f}_{\bG,G_z}
+\end{align*}
+or, in reduced coordinates,
+\begin{align}\label{eq:dec_four}
+\boxed{f(\bx,z) =  \sum_{\substack{\bmm \in \Z^2 \\ m_z \in \Z}}  e^{i\pa{\bmm \ba^* \cdot \bx + m_z \f{2\pi}L z}} \widehat{f}_{\bmm,m_z}}
+\end{align}
+We define the scalar product
+\begin{align*}
+\ps{f,g} := \int_{\Omega\times [0,L]} \overline{f}g
+\end{align*}
+and compute Plancherel's formula
+\begin{align}\label{eq:plancherel}
+\ps{f,g} = L\ab{\Omega} \sum_{\substack{\bmm \in \Z^2 \\ m_z \in \Z}} \overline{\widehat{f}_{\bmm,m_z}} \widehat{g}_{\bmm,m_z}.
+\end{align}
+Hence, as a verification, we test that the normalization of the $\widehat{u_j}$'s is the right one by checking that $\nor{u_j}{L^2}^2 = 1$ via \eqref{eq:plancherel}.
+
 \subsection{Rotation action}%
 \label{sub:rotation_action}
 
@@ -138,6 +163,36 @@ and
 \cR_{\f{2\pi}3} f(x) = \sum_m f_m e^{i \pa{R_{\f{2\pi}3}^{\text{red}} m} a^* \cdot x} = \sum_m f_{R_{-\f{2\pi}3}^{\text{red}} m} e^{im a^* \cdot x}
 \end{align*}
 
+\section{Computation of $V\ind{int}$}%
+\label{sec:computation_of_vint_}
+
+For $\bs \in \Omega := [0,1] \ba_1 + [0,1] \ba_2$, we denote by $V^{(2)}_{\bs}$ the true Kohn-Sham mean-field potential for the configuration where the two sheets are aligned (no angle), but with the upper one shifted by a vector $\bs$. We set
+\begin{align*}
+	V_{\rm int, \bs}(z) &:= \f{1}{\ab{\Omega}} \int_{\Omega}  \left( V^{(2)}_{\bs}(\bx, z) - V(\bx, z + \dd) - V(\bx - \bs, z -\dd)   \right) \d \bx \\
+    &= \f{1}{\ab{\Omega}} \sum_{\substack{\bmm \in \Z^2 \\ m_z \in \Z}} \int_{\Omega} e^{i \pa{\bmm \ba^* \cdot \bx + m_z \f{2\pi}{L} z}} \\
+    &\quad \times \pa{ \widehat{\pa{V^{(2)}_{\bs}}}_{\bmm,m_z} - \widehat{V}_{\bmm,m_z}e^{i m_z \f{2\pi}{L} \f{d}{2}} -\widehat{V}_{\bmm,m_z} e^{-i \pa{\bmm \ba^*\cdot \bs +m_z \f{2\pi}{L} \f{d}{2}}}} \d \bx \\
+    &= \sum_{\substack{m_z \in \Z}} e^{i  m_z \f{2\pi}{L} z} \pa{ \widehat{\pa{V^{(2)}_{\bs}}}_{0,m_z} - 2 \widehat{V}_{0,m_z} \cos\pa{ m_z \tfrac{\pi d}{L} }}
+\end{align*}
+and we obtain the Fourier coefficients
+\begin{align*}
+\pa{\widehat{V_{\rm{int},\bs}}}_{m_z} = \widehat{\pa{V^{(2)}_{\bs}}}_{0,m_z} - 2 \widehat{V}_{0,m_z} \cos\pa{ m_z \tfrac{\pi d}{L} }
+\end{align*}
+We then compute
+\begin{align*}
+V\ind{int}(z) := \f{1}{\ab{\Omega}} \int_\Omega V_{\rm int, \bs}(z) \d \bs = \f{1}{N^2} \sum_{\substack{s_x,s_y \in \intent{1,N}}} V^{\rm{array}}_{\rm int, (s_x,s_y)}(z)
+\end{align*}
+and finally obtain the Fourier coefficients
+\begin{align*}
+\boxed{\pa{\widehat{V\ind{int}}}_{m_z} = \f{1}{N^2} \sum_{\substack{s_x,s_y \in \intent{1,N}}} \pa{\widehat{V_{\rm{int},\bs}}}_{m_z}}
+\end{align*}
+and we expect $V_{\rm{int},\bs}$ not to depend too much on $\bs$, that is we expect that
+\begin{align*}
+	\delta_{V\ind{int}} &:= \f{\int_{\Omega\times \R} \ab{V_{\rm{int},\bs}(z) - V\ind{int}(z)}^2 \d \bs \d z}{\ab{\Omega} \int_{\R} V\ind{int}(z)^2 \d z} \\
+&= \f{\sum_{m_z} \int_{\Omega} \ab{\pa{\widehat{V_{\rm{int},\bs}}}_{m_z} - \pa{\widehat{V\ind{int}}}_{m_z}}^2 \d \bs }{\ab{\Omega} \sum_{m_z}  \pa{\widehat{V\ind{int}}}_{m_z}^2} \\
+&= \f{\sum_{s_x,s_y,m_z} \ab{\pa{\widehat{V}_{\rm{int},(s_x,s_y)}}_{m_z} - \pa{\widehat{V\ind{int}}}_{m_z}}^2 }{N^2 \sum_{m_z}  \pa{\widehat{V\ind{int}}}_{m_z}^2}
+\end{align*}
+is small. We also verify that $V\ind{int}(-z) = V\ind{int}(z)$.
+
 
 
 \section{Effective potentials}%
@@ -145,17 +200,18 @@ and
 
 We defined
 \begin{align*}
-	\db{ f, g}^{\eta,\eta'}(\bX) &:=  \f{1}{\ab{\Omega}} \int_{\Omega \times \R} \overline{f}\pa{x -\eta J\bX,z- \eta\dd} g\pa{x - \eta' J \bX, z- \eta'\dd} \d \bx \d z \\
-	\lAngle f, g \rAngle^{\eta,\eta'}(\bX) &:=  \f{e^{i\pa{\eta-\eta'} \bK \cdot J \bX}}{\ab{\Omega}} \int_{\Omega \times \R} \overline{f}\pa{x -\eta J\bX,z-\eta \dd} g\pa{x -\eta' J \bX, z-\eta'\dd} \d \bx \d z
+\db{ f, g}^{\eta,\eta'}(\bX) :=  \f{1}{\ab{\Omega}} \int_{\Omega \times \R} \overline{f}\pa{x -\eta J\bX,z- \eta\dd} g\pa{x - \eta' J \bX, z- \eta'\dd} \d \bx \d z
 \end{align*}
+and
+\begin{multline*}
+\lAngle f, g \rAngle^{\eta,\eta'}(\bX)\\
+:=  \f{e^{i\pa{\eta-\eta'} \bK \cdot J \bX}}{\ab{\Omega}} \int_{\Omega \times \R} \overline{f}\pa{x -\eta J\bX,z-\eta \dd} g\pa{x -\eta' J \bX, z-\eta'\dd} \d \bx \d z
+\end{multline*}
 so $\lAngle f, g \rAngle^{\eta,\eta'} = e^{i\pa{\eta-\eta'} \bK \cdot J \bX}\db{ f, g}^{\eta,\eta'}$. Now we make the approximation
 \begin{align*}
 \int_{\Omega\times\R} \simeq \int_{\Omega\times \seg{-\f L2,\f L2}} = \int_{\Omega\times \seg{0,L}}
 \end{align*}
-and consider that $f$ and $g$ are $L$-periodic in $z$,
-\begin{align*}
-f(\bx,z) = \sum_{\bG,G_z} e^{i\pa{\bG \bx + G_z z}} \widehat{f}_{\bG,G_z}= \sum_{\bmm,m_z} e^{i\pa{\bmm \ba^* \cdot \bx + m_z \f{2\pi}L z}} \widehat{f}_{\bmm,m_z}
-\end{align*}
+
 
 The situation is drawn on Figure \ref{fig:z_drawing}. Numerically the functions are defined on $[-L/2,L/2]$ but we need to integrate on the common segment, which is $[-\f{L-d}{2},\f{L-d}{2}]$, so on $[-L/2,L/2]$ to recover the initial domain.
 
@@ -167,10 +223,9 @@ The situation is drawn on Figure \ref{fig:z_drawing}. Numerically the functions 
 \end{figure}
 
 
-Firstly,
+Firstly, using the Fourier decomposition \eqref{eq:dec_four},
 \begin{align*}
-	\db{f,g}^{\eta,\eta'} &= L \sum_{G} e^{i\pa{\eta-\eta'} G \cdot J \bX} \sum_{G_z} e^{i\pa{\eta-\eta'} G_z \f{d}{2}} \overline{\widehat{f}_{G,G_z}} \widehat{g}_{G,G_z} \\
-& = L \sum_{\bmm \in \Z^2} e^{i\pa{\eta-\eta'} ma^* \cdot J \bX} \sum_{m_z \in \Z} e^{i\pa{\eta-\eta'} \f{2\pi}{L} m_z \f{d}{2}} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}\\
+	\db{f,g}^{\eta,\eta'} &=  L \sum_{\bmm \in \Z^2} e^{i\pa{\eta-\eta'} ma^* \cdot J \bX} \sum_{m_z \in \Z} e^{i\pa{\eta-\eta'} \f{2\pi}{L} m_z \f{d}{2}} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}\\
 & = \sum_{\bmm \in \Z^2} e^{i\pa{\eta-\eta'} ma^* \cdot J \bX} C_\bmm
 \end{align*}
 where
@@ -185,8 +240,11 @@ Then,
 
 Hence
 \begin{align*}
-	\db{f,g}^{+-}\pa{-\tfrac{3}{2} J \bX} &=  \sum_{\bmm \in \Z^2} e^{i 3 ma^* \cdot \bX} C_\bmm=  \sum_{\bmm \in \Z^2} e^{i m a^* \cdot \bX} C_{\f{\bmm}{3}}, \\
-\lAngle f,g \rAngle^{+-}\pa{-\tfrac{3}{2} J\bX} &=  \sum_{\bmm \in \Z^2} e^{i 3 \pa{m+m_k}a^* \cdot \bX} C_\bmm =  \sum_{\bmm \in \Z^2} e^{i m a^* \cdot \bX} C_{\f{\bmm-3\bmm_K}{3}}
+	\boxed{\db{f,g}^{+-}\pa{-\tfrac{3}{2} J \bX} =  \sum_{\bmm \in \Z^2} e^{i 3 ma^* \cdot \bX} C_\bmm=  \sum_{\bmm \in \Z^2} e^{i m a^* \cdot \bX} C_{\f{\bmm}{3}},}
+	\end{align*}
+	and
+\begin{align*}
+\boxed{\lAngle f,g \rAngle^{+-}\pa{-\tfrac{3}{2} J\bX} =  \sum_{\bmm \in \Z^2} e^{i 3 \pa{m+m_k}a^* \cdot \bX} C_\bmm =  \sum_{\bmm \in \Z^2} e^{i m a^* \cdot \bX} C_{\f{\bmm-3\bmm_K}{3}}}
 \end{align*}
 where $C_{\f{\bmm}{n}} :=  0$ if $n$ does not divide $m_1$ and $m_2$. 
 
@@ -195,7 +253,11 @@ For the potentials, we finally need to implement
 \bbW_{j,j'} = \db{V, \overline{u}_j u_{j'}}^{+-}, \qquad \bbV_{j,j'} = \lAngle \pa{V+V\ind{int}} u_j , u_{j'} \rAngle^{+-}
 \end{align*}
 
-As for he magnetic term, we have
+\subsection{Magnetic term}%
+\label{sub:magnetic_term}
+
+
+As for the magnetic term, we have
 \begin{align*}
 \pa{-i\na_\bx + \bK} g = \sum_{\bmm,m_z} \pa{\bmm + \bmm_K} \ba^* e^{i\pa{\bmm \ba^* \cdot \bx + m_z \f{2\pi}L z}} \widehat{f}_{\bmm,m_z}
 \end{align*}
@@ -205,8 +267,11 @@ so
 \end{align*}
 and
 \begin{align*}
-	\lAngle f, (-i\nabla_\bx+\bK) g \rAngle^{+-}\pa{-\tfrac{3}{2}J\bX} &=  \sum_{\bmm \in \Z^2} \pa{\bmm + \bmm_K}\ba^* \; C_\bmm e^{i 3 \pa{\bmm + \bmm_K} \ba^* \cdot \bX} \\
-		& = \f {2}3 \sum_{\bmm \in \Z^2} \bmm \ba^* \; C_{\f{\bmm - 3\bmm_K}{3}} e^{i \bmm \ba^* \cdot \bX} 
+\lAngle f, (-i\nabla_\bx+\bK) g \rAngle^{+-}\pa{-\tfrac{3}{2}J\bX} =  \sum_{\bmm \in \Z^2} \pa{\bmm + \bmm_K}\ba^* \; C_\bmm e^{i 3 \pa{\bmm + \bmm_K} \ba^* \cdot \bX}
+\end{align*}
+so
+\begin{align*}
+\boxed{\lAngle f, (-i\nabla_\bx+\bK) g \rAngle^{+-}\pa{-\tfrac{3}{2}J\bX} = \f {1}3 \sum_{\bmm \in \Z^2} \bmm \ba^* \; C_{\f{\bmm - 3\bmm_K}{3}} e^{i \bmm \ba^* \cdot \bX} }
 \end{align*}
 so we can implement
 \begin{align*}

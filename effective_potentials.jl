@@ -3,9 +3,6 @@ px = println
 include("common_functions.jl")
 include("misc/create_bm_pot.jl")
 
-import Base.+  
-+(f::Function, g::Function) = (x...) -> f(x...) + g(x...)  
-
 ################## Imports graphene.jl quantities (u1, u2, V, Vint) and produces effective potentials without plotting and tests
 
 function import_and_computes(N,Nz)
@@ -66,9 +63,9 @@ end
 # C_m = ∑_M conj(hat(g))_{m,M} hat(f)_{m,M} e^{i d q_M 2π/L}
 function build_Cm(g,f,p) 
 	C = zeros(ComplexF64,p.N,p.N)
-	app(kz) = cis(p.interlayer_distance*kz*2π/p.L)
+	app(kz) = cis(2*p.interlayer_distance*kz*π/p.L)
 	expo = app.(p.kz_axis)
-	[sum(conj.(g[m,n,:]).*f[m,n,:].*expo) for m=1:p.N, n=1:p.N]*p.dv
+	p.L*[sum(conj.(g[m,n,:]).*f[m,n,:].*expo) for m=1:p.N, n=1:p.N]
 end
 
 function div_three(m,n,p) # Test whether [m;n] is in 3ℤ^2, returns [m;n]/3 if yes
@@ -98,13 +95,13 @@ function build_potential(g,f,p;magnetic="no",transl=true)
 				P[m,n] = 0
 			else
 				K = m0*p.a1_star .+ n0*p.a2_star
-				magn_fact = magnetic == "no" ? 1 : (2/3)*(magnetic == "1" ? K[1] : K[2])
+				magn_fact = magnetic == "no" ? 1 : (1/3)*(magnetic == "1" ? K[1] : K[2])
 				(m3,n3) = k_inv(m2,n2,p)
 				P[m,n] = magn_fact*C[m3,n3]
 			end
 		end
 	end
-	return p.L*P
+	return P
 end
 
 function compute_W_Vint_term(p) # matrix <u_j, Vint u_{j'}>
@@ -169,7 +166,6 @@ function add_cst_block(B,cB,p) # B in Fourier so needs to add to the first compo
 end
 
 ################## Operations on functions
-
 
 function mirror2d(u,p)
 	vec = Int.(floor.([0,p.N/1]))
@@ -467,8 +463,6 @@ function plot_block_reduced(B,p;title="plot_full")
 	end
 end
 
-
 # ENVOYER LE CODE QUI FAIT CES CALCULS A ERIC ET DAVID
-# LA PARTIE POT MAGNETIQUE EST CENSEE AVOIR LA SYM R
 # LE POT BM EST CENSE RESTER LA SYM MIRROIR
-# # Regarder d grand
+# Regarder d grand

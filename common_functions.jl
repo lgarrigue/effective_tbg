@@ -1,6 +1,9 @@
 using Plots#, LaTeXStrings
 px = println
 
+import Base.+  
++(f::Function, g::Function) = (x...) -> f(x...) + g(x...)  
+
 fill2d(x,n) = [copy(x) for i=1:n, j=1:n]
 axis2grid(ax) = [(ax[i],ax[j]) for i=1:length(ax), j=1:length(ax)]
 rotM(θ) = [cos(θ) -sin(θ);sin(θ) cos(θ)]
@@ -208,7 +211,7 @@ function test_x_parity(u,p;name="") # Tests u(-x) = u(x) (or u(-x,z) = u(x,z)), 
 	px("Test ",name,"(-x) = ",name,"(x) : ",c)
 end
 
-test_z_parity(u,ε,p;name="function") = px("Test ",name,"(-z) = ",ε==-1 ? "-" : "",name,"(z) :",norm2_3d(u.- ε*parity_z(u,p),p)/norm2_3d(u,p))
+test_z_parity(u,ε,p;name="function") = px("Test ",name,"(-z) = ",ε==-1 ? "-" : "",name,"(z) : ",norm2_3d(u.- ε*parity_z(u,p),p)/norm2_3d(u,p))
 
 # Bloch transform and Rotation, RBu = Rexp(...) * Ru. We obtain (RBu)(x,y) for (x,y) ∈ x_grid_red
 RB(u,k,p) = apply_Op_B(X -> p.mat_R*X,k,p)(u,k,p)

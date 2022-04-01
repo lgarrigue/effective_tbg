@@ -46,7 +46,6 @@ function init_basis(p)
 	p.root_path = "band_diagrams_bm_like/"
 	create_dir(p.root_path)
 	init_cell_vectors(p)
-	init_cell_infinitesimals(p)
 	p.S = nothing
 
 	### Parameters for the 4×4 matrix
@@ -207,7 +206,7 @@ function V_offdiag_matrix(v,p) # v = [v1,v2,v3,v4] = mat(v1 & v2 \\ v3 & v4), Fo
 			H[n_lin,m_lin] = c
 		end
 	end
-	test_hermitianity(H,"V matrix")
+	test_hermitianity(H,"offdiag V matrix")
 	test_part_hole_sym_matrix(H,p,"H")
 	# save_H(H,"potential_V",p)
 	# display([H[mod1(x,p.Mfull),mod1(y,p.Mfull)] for x=1:30, y=1:30])
@@ -236,7 +235,7 @@ function V_ondiag_matrix(v,p)
 			H[n_lin,m_lin] = c
 		end
 	end
-	# test_hermitianity(H,"ondiag V matrix")
+	test_hermitianity(H,"ondiag V matrix")
 	# save_H(H,"potential_ondiag_V",p)
 	# test_part_hole_sym_matrix(Hk,p,"Hvk")
 	# display([H[mod1(x,p.Mfull),mod1(y,p.Mfull)] for x=1:30, y=1:30])
