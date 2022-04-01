@@ -12,23 +12,18 @@ function computes_and_plots_effective_potentials()
 	p.plots_cutoff = 7
 	p.plots_res = 50
 	p.plots_n_motifs = 4
-	take_Vint_into_account = true
+	take_Vint_into_account = false
 	produce_plots = true
 
 	# Initializations
 	import_u1_u2_V(N,Nz,p)
 	import_Vint(p)
 	init_EffPot(p)
-	px("Test norm ",norms3d(p.u1,p,false)," and in Fourier ",norms3d(p.u1_f,p))
+	px("Test norm ",norms3d(p.u1_dir,p,false)," and in Fourier ",norms3d(p.u1_f,p))
 
 	# True BM potential
 	α = 0.5; β = 1.0
 	T = build_BM(α,β,p)
-
-	if false # tests
-		app(a) = fft(intZ(a,p))
-		to_plot = [app(p.v),app(p.u1),app(p.u2)]
-	end
 
 	if false # tests Cm_s
 		P1 = build_potential_direct(p.u1v_f,p.u1_f,p)
@@ -42,16 +37,16 @@ function computes_and_plots_effective_potentials()
 	build_block_𝔸(p) # computes 𝔸
 	to_test = p.Wplus[1,1]
 
-	px("|<u1,u2>| = ",abs(sca3d(p.u1,p.u2,p,false)))
+	px("|<u1,u2>| = ",abs(sca3d(p.u1_dir,p.u2_dir,p,false)))
 	(∂1_u2_f,∂2_u2_f,∂3_u2_f) = ∇(p.u2_f,p)
 	c1 = 2im*sca3d(p.u1_f,∂1_u2_f,p,true)
 	c2 = 2im*sca3d(p.u1_f,∂2_u2_f,p,true)
 	# c3 = 2im*sca3d(p.u1_f,∂3_u2_f,p,true)
 	px("2i<u1,∇r u2> = [",c1,",",c2,"] ; ratio ",c1/c2," ; |c1|=",abs(c1)," ; |c2|=",abs(c2)," ; should be 0.42")
 
-	test_z_parity(p.u1,-1,p;name="u1")
-	test_z_parity(p.u2,-1,p;name="u2")
-	test_z_parity(p.v,1,p;name="Vks")
+	test_z_parity(p.u1_dir,-1,p;name="u1")
+	test_z_parity(p.u2_dir,-1,p;name="u2")
+	test_z_parity(p.v_dir,1,p;name="Vks")
 
 	W = p.Wplus
 	V = p.𝕍_V
@@ -211,3 +206,4 @@ end
 computes_and_plots_effective_potentials()
 # explore_band_structure_Heff()
 # explore_band_structure_BM()
+# LE POT BM EST CENSE RESTER LA SYM MIRROIR !!!

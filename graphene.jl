@@ -12,6 +12,7 @@ mutable struct Params
 	kz_axis
 	K_red
 	L # physical length of periodicity for the computations for a monolayer
+	cell_area; Vol
 
 	N; Nz; N2d; N3d
 	n_fball # size of the Fermi ball ∈ ℕ
@@ -24,14 +25,17 @@ mutable struct Params
 	K_red_3d; K_coords_cart; K_kpt # Dirac point in several formats
 	shift_K 
 
-	# Monolayer functions
+	### Monolayer functions
 	i_state # index of first valence state
-	u0; u1; u2 # in the Fourier ball
+	# Dirac Bloch eigenfunctions
+	u0_fb; u1_fb; u2_fb # in the Fourier ball
+	u0_fc; u1_fc; u2_fc # in the Fourier cube
 	u0_dir; u1_dir; u2_dir # in direct space
+	# Kohn-Sham potential
 	v_monolayer_dir # in direct space
-	v_0_M # hat{v_monolayer_dir}_{0,M}
+	v_monolayer_fc # in the Fourier cube
 
-	# Bilayer quantities
+	### Bilayer quantities
 	interlayer_distance # physical distance between two layers /2
 	Vint_f
 
@@ -138,9 +142,9 @@ function scf_graphene_monolayer(p)
 	# Run SCF
 	p.scfres = self_consistent_field(basis)
 	px("Energies")
-	px(p.scfres.energies)
+	display(p.scfres.energies)
 	p.v_monolayer_dir = DFTK.total_local_potential(p.scfres.ham)[:,:,:,1]
-	p.v_0_M = fft([sum(p.v_monolayer_dir[:,:,z])/p.N^2 for z=1:p.Nz])
+	p.v_monolayer_fc = fft(p.v_monolayer_dir)
 end
 
 # Compute the band structure at momentum k
@@ -227,15 +231,18 @@ function get_dirac_eigenmodes(p)
 	end
 
 	# Extracts relevant states
-	p.u0 = us_K[:,p.i_state-1]
-	p.u0_dir = G_to_r(p.basis,p.K_kpt,p.u0)
-	p.u1 = us_K[:,p.i_state]
-	p.u2 = us_K[:,p.i_state+1]
+	p.u0_fb = us_K[:,p.i_state-1]
+	p.u0_dir = G_to_r(p.basis,p.K_kpt,p.u0_fb)
+	p.u0_fc = fft(p.u0_dir)
+	p.u0_fc /= norms_3d_four(p.u0_fc,p)
+
+	p.u1_fb = us_K[:,p.i_state]
+	p.u2_fb = us_K[:,p.i_state+1]
 	H_K_dirac = ham.blocks[1]; Hmat = Array(H_K_dirac)
 
 	# Verifications
-	# res = norm(H_K_dirac * p.u1 - dot(p.u1, H_K_dirac * p.u1) * p.u1)
-	# println("Verification residual norm ",res," eigenvalues (p.u1,p.u2) ",real(dot(p.u1, H_K_dirac * p.u1)),",",real(dot(p.u2, H_K_dirac * p.u2))," shoul equal ",real(Es_K[p.i_state]),",",real(Es_K[p.i_state+1])," Norm p.u1 ",norm(p.u1))
+	# res = norm(H_K_dirac * p.u1_fb - dot(p.u1_fb, H_K_dirac * p.u1_fb) * p.u1_fb)
+	# println("Verification residual norm ",res," eigenvalues (p.u1_fb,p.u2_fb) ",real(dot(p.u1_fb, H_K_dirac * p.u1_fb)),",",real(dot(p.u2_fb, H_K_dirac * p.u2_fb))," shoul equal ",real(Es_K[p.i_state]),",",real(Es_K[p.i_state+1])," Norm p.u1_fb ",norm(p.u1_fb))
 	nothing
 end
 
@@ -244,26 +251,33 @@ end
 
 function rotate_u1_and_u2(p)
 	τau = cis(2π/3)
-	(Ru1,Tu1) = (R(p.u1,p),τ(p.u1,p.shift_K,p))
-	(Ru2,Tu2) = (R(p.u2,p),τ(p.u2,p.shift_K,p))
+	(Ru1,Tu1) = (R(p.u1_fb,p),τ(p.u1_fb,p.shift_K,p))
+	(Ru2,Tu2) = (R(p.u2_fb,p),τ(p.u2_fb,p.shift_K,p))
 	d1 = Ru1.-τau*Tu1; d2 = Ru2.-τau*Tu2
 	
 	c = (norm(d1))^2
 	s = d1'*d2
 	f = (c/abs(s))^2
 
-	U = (s/abs(s))/(sqrt(1+f))*p.u1 + (1/sqrt(1+1/f))*p.u2
-	V = (s/abs(s))/(sqrt(1+f))*p.u1 - (1/sqrt(1+1/f))*p.u2
+	U = (s/abs(s))/(sqrt(1+f))*p.u1_fb + (1/sqrt(1+1/f))*p.u2_fb
+	V = (s/abs(s))/(sqrt(1+f))*p.u1_fb - (1/sqrt(1+1/f))*p.u2_fb
 
 	(RU,TU) = (R(U,p),τ(U,p.shift_K,p))
 	(RV,TV) = (R(V,p),τ(V,p.shift_K,p))
 
 	I = argmin([norm(RU.-τau *TU),norm(RV.-τau *TV)])
-	p.u1 = I == 1 ? U : V
-	p.u2 = conj.(p.u1) # conj ∘ parity is conj in Fourier
+	p.u1_fb = I == 1 ? U : V
+	p.u2_fb = conj.(p.u1_fb) # conj ∘ parity is conj in Fourier
 
-	p.u1_dir = G_to_r(p.basis,p.K_kpt,p.u1)
-	p.u2_dir = G_to_r(p.basis,p.K_kpt,p.u2)
+	# Computes them in direct space
+	p.u1_dir = G_to_r(p.basis,p.K_kpt,p.u1_fb)
+	p.u2_dir = G_to_r(p.basis,p.K_kpt,p.u2_fb)
+	# Computes them in the Fourier cube
+	p.u1_fc = fft(p.u1_dir)
+	p.u2_fc = fft(p.u2_dir)
+	# Choose the right normalization
+	p.u1_fc /= norms_3d_four(p.u1_fc,p)
+	p.u2_fc /= norms_3d_four(p.u2_fc,p)
 end
 
 ######################### Computation of Vint
@@ -288,8 +302,8 @@ end
 function compute_Vint_Xs(V_bil_Xs_fc,p)
 	Vint_Xs = zeros(ComplexF64,p.N,p.N,p.Nz)
 	app(mz) = 2*cos(mz*π*p.interlayer_distance/p.L)
-	app_k = app.(p.kz_axis)
-	[V_bil_Xs_fc[sx,sy,mz] - app_k[mz] for sx=1:p.N, sy=1:p.N, mz=1:p.Nz]
+	V_app_k = p.v_monolayer_fc[1,1,:].*app.(p.kz_axis)
+	[V_bil_Xs_fc[sx,sy,mz] - V_app_k[mz] for sx=1:p.N, sy=1:p.N, mz=1:p.Nz]
 end
 
 # Computes Vint
@@ -319,7 +333,7 @@ end
 form_∇_one_matrix(u1,u2,j,p) = Hermitian([form_∇_term(u1,u1,j,p) form_∇_term(u1,u2,j,p);form_∇_term(u2,u1,j,p) form_∇_term(u2,u2,j,p)])
 
 function fermi_velocity_from_rotated_us(p) # needs that u1 and u2 are rotated before
-	(A1,A2) = (form_∇_one_matrix(p.u1,p.u2,1,p),form_∇_one_matrix(p.u1,p.u2,2,p))
+	(A1,A2) = (form_∇_one_matrix(p.u1_fb,p.u2_fb,1,p),form_∇_one_matrix(p.u1_fb,p.u2_fb,2,p))
 	# display(A1); display(A2)
 	px("Fermi velocity ",abs(A1[1,2]))
 end
@@ -347,7 +361,7 @@ function get_fermi_velocity_with_finite_diffs(p)
 end
 
 function compute_vF_with_diagonalization_doesnt_work(p)
-	(A1,A2) = (form_∇_one_matrix(p.u1,p.u2,1,p),form_∇_one_matrix(p.u1,p.u2,2,p))
+	(A1,A2) = (form_∇_one_matrix(p.u1_fb,p.u2_fb,1,p),form_∇_one_matrix(p.u1_fb,p.u2_fb,2,p))
 	(E1,W1) = eigen(A1)
 	(E2,W2) = eigen(A2)
 	px("Eigenvals1 ",E1)
@@ -364,12 +378,12 @@ function compute_vF_with_diagonalization_doesnt_work(p)
 		α2 = conj(U[2,1])*u1 + conj(U[2,2])*u2
 		(α1,α2)
 	end
-	(α1,α2) = turn(p.u1,p.u2,U1)
+	(α1,α2) = turn(p.u1_fb,p.u2_fb,U1)
 	Aα1 = form_∇_one_matrix(α1,α2,1,p)
 	px("Aα1")
 	display(Aα1)
 
-	(β1,β2) = turn(p.u1,p.u2,U2)
+	(β1,β2) = turn(p.u1_fb,p.u2_fb,U2)
 	Aβ2 = form_∇_one_matrix(β1,β2,2,p)
 	px("Aβ2")
 	display(Aβ2)
@@ -384,21 +398,18 @@ end
 
 function exports_v_u1_u2(p)
 	v = p.v_monolayer_dir
-	v_f = fft(v)
 	vu1_f = fft(v.*p.u1_dir)
 	vu2_f = fft(v.*p.u2_dir)
-	u1_f = fft(p.u1_dir)
-	u2_f = fft(p.u2_dir)
 	prods_f = [fft(abs2.(p.u1_dir)), fft(conj.(p.u1_dir).*p.u2_dir), fft(conj.(p.u2_dir).*p.u1_dir), fft(abs2.(p.u2_dir))]
 
 	filename = string(p.path_exports,"N",p.N,"_Nz",p.Nz,"_u1_u2_V.jld")
-	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"v_f",v_f,"vu1_f",vu1_f,"vu2_f",vu2_f,"u1_f",u1_f,"u2_f",u2_f,"prods_f",prods_f)
+	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"v_f",p.v_monolayer_fc,"vu1_f",vu1_f,"vu2_f",vu2_f,"u1_f",p.u1_fc,"u2_f",p.u2_fc,"prods_f",prods_f)
 	px("Exported : V, u1, u2 functions for N=",p.N,", Nz=",p.Nz)
 end
 
 function export_Vint(p)
 	filename = string(p.path_exports,"N",p.N,"_Nz",p.Nz,"_Vint.jld")
-	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"interlayer_distance",p.interlayer_distance,"Vint",p.Vint_f)
+	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"interlayer_distance",p.interlayer_distance,"Vint_f",p.Vint_f)
 	px("Exported : Vint for N=",p.N,", Nz=",p.Nz)
 end
 
@@ -406,9 +417,9 @@ end
 
 function test_rot_sym(p)
 	# Tests
-	(RS,TS) = (R(p.u1,p),τ(p.u1,p.shift_K,p))
-	(RW,TW) = (R(p.u2,p),τ(p.u2,p.shift_K,p))
-	(Ru0,Tu0) = (R(p.u0,p),τ(p.u0,p.shift_K,p))
+	(RS,TS) = (R(p.u1_fb,p),τ(p.u1_fb,p.shift_K,p))
+	(RW,TW) = (R(p.u2_fb,p),τ(p.u2_fb,p.shift_K,p))
+	(Ru0,Tu0) = (R(p.u0_fb,p),τ(p.u0_fb,p.shift_K,p))
 
 	τau = cis(2π/3)
 	px("Test R φ0 = φ0 ",norm(Ru0.-Tu0)/norm(Ru0))
@@ -449,9 +460,6 @@ function rapid_plot(u,p;n_motifs=5,name="rapidplot",bloch_trsf=true,res=25)
 end
 
 function plot_Vint(Vint,p)
-	# Vint_Xs = Vint_Xs_fc
-	# Vint_Xs_without_Z = [Vint_Xs[x,y,z] - sum(Vint_Xs[:,:,z])/p.N^2 for x=1:p.N, y=1:p.N, z=1:p.Nz]
-	# plr = plot(heatmap(real.(intZ(Vint_Xs,p))),plot(Vint))
 	plr = plot(p.z_axis_cart,Vint)
 	savefig(plr,string(p.path_plots,"Vint.png"))
 end

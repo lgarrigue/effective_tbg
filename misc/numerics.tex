@@ -209,11 +209,9 @@ and
 \end{multline*}
 so $\lAngle f, g \rAngle^{\eta,\eta'} = e^{i\pa{\eta-\eta'} \bK \cdot J \bX}\db{ f, g}^{\eta,\eta'}$. Now we make the approximation
 \begin{align*}
-\int_{\Omega\times\R} \simeq \int_{\Omega\times \seg{-\f L2,\f L2}} = \int_{\Omega\times \seg{0,L}}
+\int_{\Omega\times\R} \simeq  \int_{\Omega\times \seg{0,L}}
 \end{align*}
-
-
-The situation is drawn on Figure \ref{fig:z_drawing}. Numerically the functions are defined on $[-L/2,L/2]$ but we need to integrate on the common segment, which is $[-\f{L-d}{2},\f{L-d}{2}]$, so on $[-L/2,L/2]$ to recover the initial domain.
+The situation is drawn on Figure \ref{fig:z_drawing}. The functions are defined on $[-L/2,L/2]$ but we need to integrate on the common segment, which is $[-\f{L-d}{2},\f{L-d}{2}]$, so on $[-L/2,L/2]$ to recover the initial domain.
 
 \begin{figure}
 \begin{center}
@@ -253,6 +251,9 @@ For the potentials, we finally need to implement
 \bbW_{j,j'} = \db{V, \overline{u}_j u_{j'}}^{+-}, \qquad \bbV_{j,j'} = \lAngle \pa{V+V\ind{int}} u_j , u_{j'} \rAngle^{+-}
 \end{align*}
 
+
+If $f(z) = \ep f(-z)$, then $\widehat{f}_{-m_z} = \ep \widehat{f}_{m_z}$, from this we see that $\overline{C_\bmm^{u_{j'},u_{j}}} = C_\bmm^{u_{j},u_{j'}}$ and hence $\bbV(-X)^* = \bbV(X)$
+
 \subsection{Magnetic term}%
 \label{sub:magnetic_term}
 
@@ -288,30 +289,6 @@ We write $V\ind{int}(z) = \sum_{M_z \in \Z} \widehat{V}\ind{int}^{M_z} e^{i \f{2
 and the matrix $M_{j,j'} := \ps{u_j, V\ind{int} u_{j'}}$ is such that $M^* = M$ and $M_{11} = M_{22}$.
 
 
-\begin{align*}
-j^{\ell} \na \Phi_\ell(x) = \na \cR_{\f{2\pi}3} \Phi_\ell(x) = R_{\f{2\pi}3} \cR_{\f{2\pi}3} \na \Phi_\ell
-\end{align*}
-hence
-\begin{align*}
-\cR_{\f{2\pi}3} \pa{\na \Phi_\ell} = j^\ell R_{-\f{2\pi}3} \pa{\na \Phi_\ell}
-\end{align*}
-and with
-\begin{align*}
-\db{f,g}^{\eta,\eta'} := \ab{\Omega}^{-1} \int_{\Omega\times\R} \overline{f}\pa{x-\eta JX,z - \eta \dd} g\pa{x-\eta'JX,z-\eta'\dd}
-\end{align*}
-\begin{align*}
-\cR_{\f{2\pi}3} \db{ \Phi_\ell,\na \Phi_{\ell'} }^{\eta,\eta'} = j^{\ell'-\ell}R_{-\f{2\pi}3} \db{  \Phi_\ell,\na \Phi_{\ell'}}^{\eta,\eta'}
-\end{align*}
-and hence
-\begin{align*}
-\cR_{\f{2\pi}3} \bm{\cA} = R_{-\f{2\pi}3} : U \bm{\cA} U^*
-\end{align*}
-
-If $f(z) = \ep f(-z)$, then $\widehat{f}_{-m_z} = \ep \widehat{f}_{m_z}$, from this we see that $\overline{C_\bmm^{u_{j'},u_{j}}} = C_\bmm^{u_{j},u_{j'}}$ and hence $\bbV(-X)^* = \bbV(X)$
-
-
-
-
 
 
 
@@ -325,54 +302,23 @@ From \cite{BecEmbWitZwo21}, the BM Hamiltonian is
 \end{align*}
 where
 \begin{align*}
-\boxed{T_1 = \mat{w_0 & w_1 \\ w_1 & w_0}, \quad  T_2 = \mat{w_0 &  w_1e^{-i\phi} \\  w_1e^{i\phi} & w_0}, \quad T_3 = \mat{w_0 &  w_1e^{-i\overline{\phi}} \\  w_1e^{i\overline{\phi}} & w_0}}
+\boxed{T_1 = \mat{w_0 & w_1 \\ w_1 & w_0}, \quad  T_2 = \mat{w_0 &  w_1e^{-i\phi} \\  w_1e^{i\phi} & w_0}, \quad T_3 = \mat{w_0 &  w_1e^{-i2\phi} \\  w_1e^{i2\phi} & w_0}}
 \end{align*}
 and where, for $x \in \R^2$,
 \begin{align*}
-T^c(x) := \sum_{j=1}^3 T_j e^{-iq^c_j \cdot x}, \qquad \widehat{T}_p = \sum_{j=1}^{3} T_j \delta_{p,q_j}
+T^c(x) := \sum_{j=1}^3 T_j e^{-iq^c_j \cdot x}, \qquad \widehat{T}_p = \sum_{j=1}^{3} T_j \delta_{p,q_j^c}
 \end{align*}
+and
+\begin{align*}
+q_1 = \f{4\pi}{a\sqrt{3}} \mat{1 \\ 0}, \qquad q_2 = \f{4\pi}{a\sqrt{3}} \mat{-\f 12 \\ \f{\sqrt{3}}{2}}, \qquad q_3 = \f{4\pi}{a\sqrt{3}} \mat{-\f 12 \\ -\f{\sqrt{3}}{2}},
+\end{align*}
+where we took rotated $q_j^c$'s by $J$ with respect to \cite{BecEmbWitZwo21}, and with a rescaling of $\f{4\pi}{a\sqrt{3}}$.
 
-\section{Rotation of $\f{\pi}2$}%
-\label{sec:rotation_of_q_}
-
-From \cite{BecEmbWitZwo21}, we have vectors (in the reference, without the factor $\f{4\pi}{a\sqrt 3}$)
+We define the reduced dual vectors $q_j := -\cM^* q^c_j /2\pi$ so
 \begin{align*}
-	\widetilde{q}^c_1 = \f{4\pi}{a\sqrt 3} \mat{0 \\ -1}, \qquad \widetilde{q}^c_{2,3} =\f{4\pi}{a\sqrt 3} \mat{\pm \f{\sqrt{3}}2 \\ \f 12}  = \f{2\pi}a \mat{\pm 1 \\ \f{1}{\sqrt 3}}
+T(x) = T^c(\cM x) = \sum_{j=1}^3 T_j e^{-ix\cdot \cM^* q_j^c}= \sum_{j=1}^3 T_j e^{i2\pi x\cdot q_j}
 \end{align*}
-For them to be adapted to our lattice, we turn them and define $q^c_j := R_{-\f{\pi}2} \widetilde{q}^c_j$, so that
-\begin{align*}
-q^c_2 = a_2^*,\qquad q^c_3 = a_1^*,\qquad q^c_1 = \f{4\pi}{a\sqrt 3} \mat{-1 \\ 0}
-\end{align*}
-so after a rotation of $-\f{\pi}2$, we have
-\begin{align*}
-T^c(x) = T_1 e^{-i q_1^c \cdot x} + T_2 e^{-i a_2^* \cdot x} + T_3 e^{-i a_1^* \cdot x}
-\end{align*}
-On reduced coordinates, we have
-\begin{align*}
-T(x) = T^c(\cM x) = \sum_{j=1}^3 T_j e^{-i x \cdot \cM^* q^c_j} = \sum_{j=1}^3 T_j e^{i 2\pi x \cdot q_j}
-\end{align*}
-where $q_j :=  -\cM^* q^c_j / 2\pi$, so
-\begin{align*}
-q_2 = \mat{0 \\ -1}, q_3 = \mat{-1 \\ 0}, q_1 = \mat{1 \\ -1}
-\end{align*}
-
-Writing a drawing and placing the $q_i$'s, we have
-\begin{align*}
-R_{\f{2\pi}3} q_1 = q_2, \qquad R_{\f{2\pi}3} q_2 = q_3, \qquad R_{\f{2\pi}3} q_3 = q_1
-\end{align*}
-so 
-\begin{align*}
-\cR_{\f{2\pi}3} T (x) = T_1 e^{-i q_2 x} + T_2 e^{-i q_3 x} + T_3 e^{-iq_1 x}
-\end{align*}
-We don't have $\cR_{\f{2\pi}3} T = T$ but this is true for the diagonal elements and for the off-diagonal, there exists $X$ such that $\cR_{\f{2\pi}3} \pa{\tau_X T} = \tau_X T$.
-
-
-\section{Without rotation}%
-
-Without rotation, we have $q_j := -\widetilde{\cM}^* \widetilde{q}^c_j /2\pi$ so
-\begin{align*}
-T(x) = T^c(\widetilde{\cM} x) = \sum_{j=1}^3 T_j e^{-ix\cdot \widetilde{\cM}^* \widetilde{q}_j^c}= \sum_{j=1}^3 T_j e^{i2\pi x\cdot \widetilde{q}_j}
-\end{align*}
+and we compute
 \begin{align*}
 \boxed{q_1 = \mat{1 \\ 1}, \qquad q_{2} = \mat{0 \\ -1}, \qquad q_{3} = \mat{-1 \\ 0}}
 \end{align*}
@@ -383,6 +329,12 @@ Or
 
 Since $T_j^* = T_j$, then $T(-x)^* = T(x)$
 
+
+
+
+\section{Operators in basis}%
+\label{sec:operators_in_basis}
+
 \subsection{Basis}%
 \label{sub:basis}
 
@@ -392,12 +344,23 @@ e_{\alpha,m} := e_\alpha \otimes e_m = e_\alpha \f{e^{ima^*\cdot x}}{\sqrt{\ab{\
 \end{align*}
 
 
-\section{Operators in basis}%
-\label{sec:operators_in_basis}
+
+\subsection{On-diagonal potential}%
+\label{sub:on_diagonal_potential}
 
 
 
-For a general $W = \sum_{k} W^{ik a^* \cdot x}$, we have
+For a general $V = \sum_m V_m e^{im a^* \cdot x}$, we have
+\begin{align*}
+	\ps{e_{\alpha,n},\mat{V & 0 \\ 0 & V} e_{\beta,m}} = \delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{1,2}}\pa{V_{n-m}}_{\alpha_1 \beta_1} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{3,4}}\pa{V_{n-m}}_{\alpha_2 \beta_2}
+\end{align*}
+
+\subsection{Off-diagonal potential}%
+\label{sub:off_diagonal_potential}
+
+
+
+For a general $W = \sum_m W_m e^{im a^* \cdot x}$, we have
 \begin{align*}
 	M_{IJ} & := \ps{e_{\alpha,n}, \mat{0 & W \\ W^* & 0} e_{\beta,m}} \\
 	       &= \sum_{k} \pa{\delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}} \delta_{m+k-n} \ps{e_{\alpha_1},W_k e_{\beta_2}} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}}\delta_{m-k-n} \ps{e_{\alpha_2},W_k^* e_{\beta_1}}} \\
@@ -406,10 +369,10 @@ For a general $W = \sum_{k} W^{ik a^* \cdot x}$, we have
 \end{align*}
 and $M$ is also Hermitian.
 
-For a general $V = \sum_{k} V^{ik a^* \cdot x}$, we have
-\begin{align*}
-	\ps{e_{\alpha,n},\mat{V & 0 \\ 0 & V} e_{\beta,m}} = \delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{1,2}}\pa{V_{n-m}}_{\alpha_1 \beta_1} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{3,4}}\pa{V_{n-m}}_{\alpha_2 \beta_2}
-\end{align*}
+\subsection{Off-diagonal magnetic term}%
+\label{sub:off_diagonal_magnetic_term}
+
+
 
 For a general $A = \mat{A_1 \\ A_2}$, $A_j = \sum_k \pa{A_j}_k e^{ika^*\cdot x}$, we compute
 \begin{multline*}
@@ -419,49 +382,8 @@ For a general $A = \mat{A_1 \\ A_2}$, $A_j = \sum_k \pa{A_j}_k e^{ika^*\cdot x}$
 \end{multline*}
 
 
-\section{Symmetries}%
-\label{sec:symmetries}
-
-
-
-
-
-\subsection{Particle-hole}%
-\label{sub:particle_hole}
-
-we have
-\begin{align*}
-\cS \mat{0 & \bbV \\ \bbV^* & 0} \cS = -\mat{0 & \bbV^*(-x) \\ \bbV(-x) & 0} = - \mat{0 & \bbV \\ \bbV^* & 0}
-\end{align*}
-we also have, for any operator $A$,
-\begin{align*}
-	\cS \mat{A & 0 \\ 0 & A} \cS = P \mat{A & 0 \\ 0 & A} P
-\end{align*}
-where $Pu(x) := u(-x)$. Hence
-\begin{align*}
-	\cS \mat{\sigma \cdot \na & 0 \\ 0 & \sigma \cdot \na} \cS = - \mat{\sigma \cdot \na & 0 \\ 0 & \sigma \cdot \na}
-\end{align*}
-but since $P \sigma \cdot k P = \sigma \cdot k$, 
-\begin{align*}
-	\cS \mat{\sigma \cdot \pa{-i\na + k} & 0 \\ 0 & \sigma \cdot \pa{-i\na + k}} \cS = \mat{\sigma \cdot \pa{-i\na -k} & 0 \\ 0 & \sigma \cdot \pa{-i\na -k}} 
-\end{align*}
-so it is not $\cS$ symmetric ! We have $T(-x)^* = T(x)$ hence defining
-\begin{align*}
-\cS u(x) := i \mat{0 & -\1_{2\times 2} \\ \1_{2\times 2} & 0} u(-x)
-\end{align*}
-we should have that
-\begin{align*}
-\cS H \cS = - H
-\end{align*}
-
-We compute
-\begin{align*}
-	\cS_{IJ} &= \ps{e_{\alpha,n},\cS e_{\beta,n}} = i \ps{e_{\alpha,n}, \mat{-e_{\beta_2,-m} \\ e_{\beta_1,-m}}} \\
-&= i \delta_{m+n} \pa{\delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}} \delta_{\beta_1-\alpha_2} -\delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}}\delta_{\beta_2-\alpha_1}}
-\end{align*}
-
-\section{Numerics}%
-\label{sec:numerics}
+\subsection{Dirac operator}%
+\label{sub:dirac_operator}
 
 We have 
 \begin{align*}
@@ -486,19 +408,72 @@ Then
 	\mat{\sigma \cdot \pa{-i\na + k} & 0 \\ 0 & \sigma \cdot \pa{-i\na + k}} e_{3,m} &= \pa{ma^* + k}_\C  e_{4,m} \\
 	\mat{\sigma \cdot \pa{-i\na + k} & 0 \\ 0 & \sigma \cdot \pa{-i\na + k}} e_{4,m} &= \overline{\pa{ma^* + k}_\C}  e_{3,m}
 \end{align*}
-and for $V_{ij} := E_{ij} v_{ij}$ where $v_{ij}$ is a potential in $\R^2$ and $E_{ij} := \ketbra{e_i}{e_j}$ being the $4 \times 4$ matrix having a one at line $i$ and column $j$,
+
+
+\section{Symmetries}%
+\label{sec:symmetries}
+
+
+\subsection{Particle-hole}%
+\label{sub:particle_hole}
+
+We define
 \begin{align*}
-V_{\gamma,\eta} e_{\alpha,m} = \delta_{\eta,\alpha} e_\gamma \otimes v_{\gamma,\eta} e_m
+\cS u(x) := i \mat{0 & -\1_{2\times 2} \\ \1_{2\times 2} & 0} u(-x)
+\end{align*}
+We have
+\begin{align*}
+\cS \mat{0 & B \\ B^* & 0} \cS = -\mat{0 & B^*(-x) \\ B(-x) & 0}
+\end{align*}
+We have $T(-x)^* = T(x)$ hence we should have that
+\begin{align*}
+\cS H \cS = - H
 \end{align*}
 
-and we recall that $v e_m = \sum_k v_k e_{k+m}$ hence
+We compute
 \begin{align*}
-\ps{e_n,ve_m} = v_{n-m}
+	\cS_{IJ} &= \ps{e_{\alpha,n},\cS e_{\beta,m}} = i \ps{e_{\alpha,n}, \mat{-e_{\beta_2,-m} \\ e_{\beta_1,-m}}} \\
+&= i \delta_{m+n} \pa{\delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}} \delta_{\beta_1-\alpha_2} -\delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}}\delta_{\beta_2-\alpha_1}}
 \end{align*}
-and
+
+\subsection{Mirror}%
+\label{sub:mirror}
+
+First, for any function $B$, we have $\sigma_1 B^* \sigma_1 = \mat{\overline{B_{22}} & \overline{B_{12}} \\ \overline{B_{21}} & \overline{B_{11}}}$.
+
+
+The mirror operator for the BM Hamiltonian is
 \begin{align*}
-\ps{e_{\beta,n}, V_{\gamma,\eta} e_{\alpha,m}} = \delta_{\eta,\alpha} \delta_{\beta,\gamma} \ps{e_n, v_{\gamma,\eta} e_m} =  \delta_{\eta,\alpha} \delta_{\beta,\gamma} \pa{v_{\gamma,\eta}}_{n-m}
+	\cM u(\bX) := \mat{0 & \sigma_1 \\ \sigma_1 & 0} u(\overline{\bX})
 \end{align*}
+where $\overline{\bX} := (X_1,-X_2) =: M \bX$, it satisfies $\cM = \cM^{-1} = \cM^*$.
+
+
+Next,
+\begin{align*}
+	\cM \mat{0 & B(\bX) \\ B(\bX)^* & 0} \cM = \mat{0 & \sigma_1 B^*(\overline{\bX}) \sigma_1 \\ \sigma_1 B(\overline{\bX}) \sigma_1 & 0}%= \mat{0 & \sigma_1 B(\bX)^* \sigma_1 \\ \sigma_1 B(\bX) \sigma_1 & 0}
+\end{align*}
+
+In cartesian coordinates, we have 
+\begin{align*}
+T(M \bX) = \sum_{j=1}^3 T_j e^{i  x \cdot M^*q^c_j} = \sum_{j=1}^3 T_j e^{i x \cdot Mq^c_j}
+\end{align*}
+because $M^* = M$. But
+\begin{multline*}
+	\sigma_1 T^*(M \bX) \sigma_1 = \mat{ w_0 \pa{\sum_{j=1}^3 e^{i x \cdot Mq_j}} & w_1\pa{e^{ix \cdot M q_1} + e^{i\phi} e^{ix Mq_2} + e^{i2\phi} e^{ix \cdot Mq_3}} \\ \cdot & \cdot} \\
+	= \mat{ w_0 \pa{\sum_{j=1}^3 e^{i x \cdot q_j}} & w_1\pa{e^{ix \cdot q_1} + e^{-i\phi} e^{ix q_2} + e^{-i2\phi} e^{ix \cdot q_3}} \\ \cdot & \cdot} = T(\bX)
+\end{multline*}
+where we used that $M q_1^c = q_1^c$, $M q_2^c = q_3^c$ and $M q_3^c = q_2^c$.
+
+We search the action on reduced Fourier coefficients. We have
+\begin{align*}
+f(M x) = \sum_m e^{i x \cdot M\pa{m a^*}} = \sum_m e^{i x \cdot \pa{M^r m}a^*}
+\end{align*}
+where $M = \mat{1 & 0 \\ 0 & -1}$,
+\begin{align*}
+M^r = S^{-1} M S = \cM^* M \pa{\cM^*}^{-1} = \sigma_1
+\end{align*}
+
 
 \section{Eigenvalue equation}%
 \label{sec:eigenvalue_equation}
@@ -512,5 +487,5 @@ and in the code we define $S_2 := \pa{S^* S}^{-\f 12} S^*$ and $S_1 = \pa{S^* S}
 
 
 \bibliographystyle{siam}
-\bibliography{../biblio}
+\bibliography{../../../biblio}
 \end{document}

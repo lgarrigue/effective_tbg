@@ -21,9 +21,9 @@ function inverse_dict_from_2d_array(a)
 end
 
 function init_cell_infinitesimals(p) # needs a, N, Nz
-	cell_area = sqrt(3)*0.5*p.a^2 
+	p.cell_area = sqrt(3)*0.5*p.a^2 
 	p.dx = p.a/p.N
-	p.dS = cell_area/p.N^2
+	p.dS = p.cell_area/p.N^2
 	p.k_axis = Int.(fftfreq(p.N)*p.N)
 	p.k_grid = axis2grid(p.k_axis)
 	p.x_axis_cart = (0:p.N-1)*p.dx
@@ -33,6 +33,7 @@ function init_cell_infinitesimals(p) # needs a, N, Nz
 	p.dz = p.L/p.Nz
 	p.dv = p.dS*p.dz
 	p.kz_axis = Int.(fftfreq(p.Nz)*p.Nz)
+	p.Vol = p.cell_area*p.L
 end
 
 function init_cell_vectors(p) # needs a
@@ -52,7 +53,7 @@ fill2d(x,n) = [copy(x) for i=1:n, j=1:n]
 fill1d(x,n) = [copy(x) for i=1:n]
 init_vec(p) = fill2d(zeros(ComplexF64,p.N,p.N),4)
 
-cyclic_conv(a,b) = fft(ifft(a).*ifft(b))
+cyclic_conv(a,b) = prod(size(a))*fft(ifft(a).*ifft(b))
 
 ####################################### 2d functions
 
@@ -70,6 +71,10 @@ integral3d(ϕ,p,four=true) = p.dv*sum(ϕ)/(!four ? 1 : p.N3d)
 sca3d(ϕ,ψ,p,four=true) = p.dv*ϕ⋅ψ/(!four ? 1 : p.N3d)
 norm2_3d(ϕ,p,four=true) = real(sca3d(ϕ,ϕ,p,four))
 norms3d(ϕ,p,four=true) = sqrt(norm2_3d(ϕ,p,four))
+
+sca3d_four(f,g,p) = p.Vol*f⋅g
+norm2_3d_four(f,p) = real(sca3d_four(f,f,p))
+norms_3d_four(f,p) = sqrt(norm2_3d_four(f,p))
 
 axis2grid_ar(ax) = [[ax[i],ax[j]] for i=1:length(ax), j=1:length(ax)]
 
@@ -106,6 +111,7 @@ end
 
 R_four(B,p) = apply_map_four(X -> [0 -1;1 -1]*X,B,p) # rotation of 2π/3, in Fourier space
 parity_four(B,p) = apply_map_four(X -> -X,B,p)
+σ1_four(B,p) = apply_map_four(X -> [0 1;1 0]*X,B,p)
 
 function apply_map_four(L,u,p) 
 	a = similar(u)

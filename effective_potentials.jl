@@ -27,10 +27,11 @@ mutable struct EffPotentials
 	K_red
 	N2d; N3d
 	N; Nz; L; interlayer_distance
+	cell_area; Vol
 
 	# Quantities computed and exported by graphene.jl
 	v_f; u1_f; u2_f; u1v_f; u2v_f; prods_f; Vint_f
-	v; u1; u2; u1v; u2v; prods; Vint
+	v_dir; u1_dir; u2_dir; u1v_dir; u2v_dir; prods_dir; Vint_dir
 
 	# Effective potentials
 	Σ # Σ = <<u_j, u_{j'}>>^+-
@@ -146,8 +147,8 @@ function build_blocks_potentials(p)
 	       build_potential(p.u2_f,p.u1_f,p), build_potential(p.u2_f,p.u2_f,p)]
 
 	# Computes blocks with Vint
-	u1Vint_f = fft(p.u1.*p.Vint)
-	u2Vint_f = fft(p.u2.*p.Vint)
+	u1Vint_f = fft(p.u1_dir.*p.Vint_dir)
+	u2Vint_f = fft(p.u2_dir.*p.Vint_dir)
 	compute_W_Vint_term(p)
 	p.𝕍_Vint = [build_potential(p.u1_f,u1Vint_f,p), build_potential(p.u1v_f,u2Vint_f,p),
 		    build_potential(p.u2v_f,u1Vint_f,p), build_potential(p.u2v_f,u2Vint_f,p)]
@@ -167,20 +168,6 @@ end
 
 ################## Operations on functions
 
-function mirror2d(u,p)
-	vec = Int.(floor.([0,p.N/1]))
-	a = translation2d(u,vec,p)
-	c = [a[x,mod1(2-y,p.N)] for x=1:p.N, y=1:p.N]
-	translation2d(c,vec,p)
-end
-
-function mirror2d_J(u,p)
-	vec = Int.(floor.([p.N/1,0]))
-	a = translation2d(u,vec,p)
-	c = [a[mod1(2-x,p.N),y] for x=1:p.N, y=1:p.N]
-	translation2d(c,vec,p)
-end
-
 function rot_A(B1,B2,p) # applies R_{-2π/3} to the vector [B1,B2], where Bj contains matrices N×N
 	R = rotM(-2π/3)
 	A1 = similar(B1); A2 = similar(B2)
@@ -197,7 +184,6 @@ end
 
 norm_block(B) = sum(abs.(B[1])) + sum(abs.(B[2])) + sum(abs.(B[3])) + sum(abs.(B[4]))
 app_block(map,B,p) = [map(B[1],p),map(B[2],p),map(B[3],p),map(B[4],p)]
-mirror_block(B,p) = [mirror2d(B[1],p),mirror2d(B[2],p),mirror2d(B[3],p),mirror2d(B[4],p)] # f(x_1,x_2) -> f(x_1,-x_2)
 σ1_B_σ1(B) = [B[4],B[3],B[2],B[1]]
 hermitian_block(B) = conj.([B[1],B[3],B[2],B[4]])
 # hermitian_block(B) = [conj.(B[1]),conj.(B[3]),conj.(B[2]),conj.(B[4])]
@@ -235,10 +221,8 @@ end
 ################## Symmetry tests
 
 function test_particle_hole_block(B,p;name="B")
-	PB_four = app_block(parity_four,B,p)
-	# HPB_four = hermitian_block(B) # MARCHE AVEC CA...
-	HPB_four = hermitian_block(PB_four) # PQ CA MARCHE PAS AVEC CA ?! PB AVEC z->-z pour les sym ? A TESTER
-	px("Test ",name,"(-x)^* = ",name,"(x) ",relative_distance_blocks(B,HPB_four))
+	PB_four = hermitian_block(B) # parity ∘ conj in direct becomes just conj in Fourier
+	px("Test ",name,"(-x)^* = ",name,"(x) ",relative_distance_blocks(B,PB_four))
 end
 
 function test_PT_block(B,p;name="B")
@@ -264,14 +248,13 @@ function test_R_magnetic_block(B1,B2,p;name="B")
 end
 
 function test_mirror_block(B,p;name="B",herm=false)
-	B_direct = ifft.(B)
-	σ1Bσ1 = σ1_B_σ1(B_direct)
+	HB = B
 	if herm
-		# σ1Bσ1 = conj.(σ1Bσ1)
-		σ1Bσ1 = hermitian_block(σ1Bσ1)
+		HB = hermitian_block(B)
 	end
-	symB = mirror_block(σ1Bσ1,p)
-	px("Test σ1 ",name,(herm ? "*" : ""),"(x1,-x2) σ1 = ",name,"(x) ",relative_distance_blocks(B_direct,symB))
+	σ1Bσ1 = σ1_B_σ1(HB)
+	symB = app_block(σ1_four,σ1Bσ1,p)
+	px("Test σ1 ",name,(herm ? "*" : ""),"(x1,-x2) σ1 = ",name,"(x) ",relative_distance_blocks(B,symB))
 end
 
 function test_build_potential_direct(g,f,p) # by P(x)= = ∑_m Cm e^{i2πxJ^*m}, used to test because it's much heavier than building by Fourier. PERIOD L, NOT L/2 !!
@@ -344,22 +327,24 @@ function import_u1_u2_V(N,Nz,p)
 	p.u2v_f = load(f,"vu2_f")
 	p.prods_f = load(f,"prods_f")
 
-	p.v = ifft(p.v_f)
-	p.u1 = ifft(p.u1_f)
-	p.u2 = ifft(p.u2_f)
-	p.u1v = ifft(p.u1v_f)
-	p.u2v = ifft(p.u2v_f)
-	p.prods = ifft.(p.prods_f)
+	p.v_dir = ifft(p.v_f)
+	p.u1_dir = ifft(p.u1_f)
+	p.u2_dir = ifft(p.u2_f)
+	p.u1v_dir = ifft(p.u1v_f)
+	p.u2v_dir = ifft(p.u2v_f)
+	p.prods_dir = ifft.(p.prods_f)
 end
 
 function import_Vint(p)
 	path = "graphene/exported_functions/"
 	f = string(path,"N",p.N,"_Nz",p.Nz,"_Vint.jld")
-	Vint = load(f,"Vint")
 	p.interlayer_distance = load(f,"interlayer_distance")
 	a = load(f,"a"); L = load(f,"L"); @assert a==p.a && L==p.L
-	p.Vint = [Vint[z] for x=1:p.N, y=1:p.N, z=1:p.Nz]
-	p.Vint_f = fft(p.Vint)
+
+	Vint_f = load(f,"Vint_f")
+	p.Vint_f = zeros(ComplexF64,p.N,p.N,p.Nz)
+	p.Vint_f[1,1,:] = Vint_f
+	p.Vint_dir = ifft(p.Vint_f)
 end
 
 ################## Plot functions
@@ -463,6 +448,4 @@ function plot_block_reduced(B,p;title="plot_full")
 	end
 end
 
-# ENVOYER LE CODE QUI FAIT CES CALCULS A ERIC ET DAVID
-# LE POT BM EST CENSE RESTER LA SYM MIRROIR
 # Regarder d grand

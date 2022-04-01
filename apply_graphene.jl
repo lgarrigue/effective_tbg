@@ -14,7 +14,7 @@ function produce_bloch_functions_and_potentials()
 	p.tol_scf = 1e-3
 	p.plots_cutoff = 7 # Fourier cutoff for plots
 	init_params(p)
-	compute_Vint = true
+	compute_Vint = false
 
 	px("Computes the Kohn-Sham potential of the monolayer")
 	scfres = scf_graphene_monolayer(p)
@@ -24,6 +24,11 @@ function produce_bloch_functions_and_potentials()
 
 	# Rotates u1 and u2 in U(2) to obtain the symmetric ones
 	rotate_u1_and_u2(p)
+
+	# Tests normalization
+	px("Normalization of u1: ",norms_3d_four(p.u1_fc,p))
+	px("Potential energy of u1 <u1,V u1> in Fourier : ",sca3d_four(p.u1_fc,cyclic_conv(p.u1_fc,p.v_monolayer_fc),p))
+	px("Potential energy of u1 <u1,V u1> in direct: ",sum(abs2.(p.u1_dir).*p.v_monolayer_dir))
 
 	# Computes the Fermi velocity
 	# get_fermi_velocity_with_finite_diffs(p) # Computing dE/dk with diagonalization
@@ -46,9 +51,9 @@ function produce_bloch_functions_and_potentials()
 	# Plots u0, u1, u2
 	resolution = 75
 	n_motifs = 15
-	rapid_plot(p.u0,p;n_motifs=n_motifs,name="u0",res=resolution)
-	rapid_plot(p.u1,p;n_motifs=n_motifs,name= "u1",res=resolution)
-	# rapid_plot(R(p.u1,p),p;n_motifs=n_motifs,res=resolution,name="u2",bloch_trsf=false)
+	rapid_plot(p.u0_fb,p;n_motifs=n_motifs,name="u0",res=resolution)
+	rapid_plot(p.u1_fb,p;n_motifs=n_motifs,name= "u1",res=resolution)
+	# rapid_plot(R(p.u1_fb,p),p;n_motifs=n_motifs,res=resolution,name="u2",bloch_trsf=false)
 
 	# Computes Vint (expensive in time)
 	if compute_Vint
