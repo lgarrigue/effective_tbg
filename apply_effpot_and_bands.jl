@@ -224,7 +224,7 @@ function explore_band_structure_Heff()
 			plot_band_structure(Hv,title,p)
 		end
 	else
-		H1 = p.H0 + 0*V + A∇
+		H1 = p.H0 + V + A∇
 		α = 1.0
 		for β in (0:1:2)
 			print(" ",β)
@@ -238,13 +238,15 @@ function explore_band_structure_Heff()
 	end
 end
 
-# computes_and_plots_effective_potentials()
-explore_band_structure_Heff()
+computes_and_plots_effective_potentials()
+# explore_band_structure_Heff()
 # explore_band_structure_BM()
 #
 
 #### Todo
-# chemin prop sur diag bandes
 # Wplus =? Wmoins
 # régler pb W trop grand
+# ajouter termes d'ordre ε du hamiltonien
+# chemin prop sur diag bandes
+# ajouter effet du terme non local
 # cube Fourier pour plus de symétrie

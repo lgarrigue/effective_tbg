@@ -48,6 +48,8 @@ mutable struct EffPotentials
 	
 	function EffPotentials()
 		p = new()
+		p.plots_n_motifs = 5
+		p.plots_res = 20
 		p
 	end
 end
