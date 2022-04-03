@@ -227,7 +227,6 @@ explore_band_structure_Heff()
 #
 
 #### Todo
-# chemin prop sur diag bandes
 # ajouter effet du terme non local
 # cube Fourier pour plus de symétrie
 # Ht_a ≂̸ t_a H comme dit par Watson, regarder son papier sur l'existence des magic angles
