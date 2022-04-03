@@ -397,13 +397,8 @@ end
 ######################### Exports
 
 function exports_v_u1_u2(p)
-	v = p.v_monolayer_dir
-	vu1_f = fft(v.*p.u1_dir)
-	vu2_f = fft(v.*p.u2_dir)
-	prods_f = fft.([abs2.(p.u1_dir), conj.(p.u1_dir).*p.u2_dir, conj.(p.u2_dir).*p.u1_dir, abs2.(p.u2_dir)])
-
 	filename = string(p.path_exports,"N",p.N,"_Nz",p.Nz,"_u1_u2_V.jld")
-	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"v_f",p.v_monolayer_fc,"vu1_f",vu1_f,"vu2_f",vu2_f,"u1_f",p.u1_fc,"u2_f",p.u2_fc,"prods_f",prods_f)
+	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"v_f",p.v_monolayer_fc,"u1_f",p.u1_fc,"u2_f",p.u2_fc)
 	px("Exported : V, u1, u2 functions for N=",p.N,", Nz=",p.Nz)
 end
 

@@ -74,17 +74,17 @@ end
 ######################### Main functions, to plot band diagrams
 
 function plot_band_structure(Hv,name,p)
-	K = [0.0,0.0]
+	Γ0 = [0,0.0]
 	K0 = [2/3,1/3]
-	Γ = K.-K0
 	M0 = [1/2,0]
-	M = K.-M0
-
+	K = K0 - K0
+	Γ = Γ0 - K0
+	M = M0 - K0
 	Klist = [Γ,K,M]
-	Klist_names = ["Γ","K","M"]
+	σ_on_path = spectrum_on_a_path(Klist,p,Hv)
 
-	# @time (σ_on_path,pl) = spectrum_on_a_path(Klist,Klist_names,p,Hv,resolution)
-	(σ_on_path,pl) = spectrum_on_a_path(Klist,Klist_names,p,Hv)
+	Klist_names = ["Γ","K","M"]
+	pl = plot_band_diagram(σ_on_path,Klist,Klist_names,p)
 	path = string(p.root_path,p.folder_plots_bands)
 	create_dir(path)
 	savefig(pl,string(path,"/band_struct_",name,".png"))
@@ -162,7 +162,7 @@ function create_H0(p)
 	end
 	test_hermitianity(H0,"H0")
 	# save_H(H0,"H0",p)
-	(2π/p.a)*H0
+	H0
 end
 
 # Creates [σk    0]
@@ -178,12 +178,13 @@ function shift_κ(κ,p) # κ in reduced coordinates, κ_cart = κ_red_1 a1_star 
 		(c1,c2,c3,c4) = coords_ik2full_i(mi1,mi2,p)
 		H[c1,c2] = ckC; H[c2,c1] = kC; H[c3,c4] = ckC; H[c4,c3] = kC
 	end
-	(2π/p.a)*H
+	H
 end
 
 # Creates [0  𝕍]
 #         [𝕍* 0]
-function V_offdiag_matrix(v,p) # v = [v1,v2,v3,v4] = mat(v1 & v2 \\ v3 & v4), Fourier coeffcients
+function V_offdiag_matrix(v0,p) # v = [v1,v2,v3,v4] = mat(v1 & v2 \\ v3 & v4), Fourier coeffcients
+	v = lin2mat(v0)
 	n = p.Mfull
 	H = zeros(ComplexF64,n,n)
 	for n_lin=1:n
@@ -215,7 +216,8 @@ end
 
 # Creates [Vp  0 ]
 #         [0   Vm]
-function V_ondiag_matrix(Vp,Vm,p)
+function V_ondiag_matrix(Vp0,Vm0,p)
+	Vp = lin2mat(Vp0); Vm = lin2mat(Vm0)
 	n = p.Mfull
 	H = zeros(ComplexF64,n,n)
 	for n_lin=1:n
@@ -244,7 +246,8 @@ end
 
 # Creates [0     -i𝔸∇]
 #         [-i𝔸*∇    0]
-function A_offdiag_matrix(A1,A2,p)
+function A_offdiag_matrix(Aa1,Aa2,p)
+	A1 = lin2mat(Aa1); A2 = lin2mat(Aa2)
 	n = p.Mfull
 	H = zeros(ComplexF64,n,n)
 	for n_lin=1:n
@@ -341,9 +344,9 @@ end
 
 ######################### Computes the band diagram
 
-# plots spectrum for eigenvalues between l1 and l2
+# Computes spectrum for eigenvalues between l1 and l2
 # It is paralellized
-function spectrum_on_a_path(Klist,names,p,Hv) 
+function spectrum_on_a_path(Klist,p,Hv) 
 	res = p.resolution_bands
 	n = length(Klist)
 	T = [i/res for i=0:res-1]; Nt = res
@@ -367,17 +370,35 @@ function spectrum_on_a_path(Klist,names,p,Hv)
 			# px("Percentage done ",percentage)
 		end
 	end
+	graphs
+end
+
+# From the numbers of the band diagram, produces a plot of it
+function plot_band_diagram(graphs,Klist,Knames,p)
+	n = length(Klist)
+	res = p.resolution_bands
+	n_path_points = res*n
 	ylims = p.energy_center-p.energy_scale,p.energy_center+p.energy_scale
-	pl = plot(size=(1200,1300),legend=:topright,ylims=ylims)
+	lengths_paths = [norm(Klist[mod1(i+1,n)].-Klist[i]) for i=1:n]
+	px(lengths_paths)
+	lengths_paths /= sum(lengths_paths)
+	dx_list = lengths_paths/res
+	x_list = []; starts_x = []; end_x = 0
+	for j=1:n
+		dx = dx_list[j]
+		cur_l = end_x .+ [dx*(i-1) for i=1:res]
+		x_list = vcat(x_list,cur_l)
+		push!(starts_x,end_x)
+		end_x += res*dx
+	end
+	pl = plot(size=(1000,1100),ylims=ylims,legend=false)#:topright)
 	for l=1:p.n_l
-		plot!(pl,graphs[:,l])
+		plot!(pl,x_list,graphs[:,l],xticks=nothing)
 	end
 	for Ki=1:n
-		plot!(pl,[res*(Ki-1)+1], seriestype="vline", label=names[Ki])
+		plot!(pl,[starts_x[Ki]], seriestype="vline", label=Knames[Ki])
 	end
-	# plot!(pl,graphs[:,1])
-	# plot!(pl,[n_path_points+1], seriestype="vline", label=names[1])
-	(graphs,pl)
+	pl
 end
 
 ######################### Symmetry tests

@@ -38,6 +38,7 @@ mutable struct EffPotentials
 	𝕍_V; 𝕍_Vint; 𝕍 # 𝕍_V = <<u_j, V u_{j'}>>^+-, 𝕍_Vint = <<u_j, Vint u_{j'}>>^+-, 𝕍 = 𝕍_V + 𝕍_Vint
 	Wplus; Wplus_tot; Wminus; Wminus_tot; W_Vint_matrix # Wplus = << overline(u_j) u_{j'}, V >>^++, Wminus = << overline(u_j) u_{j'}, V >>^--, W_Vint_matrix = <u_j,Vint u_{j'}>, Wplus_tot = Wplus + W_Vint_matrix, Wminus_tot = Wminus + W_Vint_matrix
 	𝔸1; 𝔸2; 𝔹1; 𝔹2
+	J𝔸1; J𝔸2
 
 	# Plots
 	plots_cutoff
@@ -89,6 +90,7 @@ end
 # 2 × 2 matrix, magnetic ∈ {"no","1","2"}, f and g are in Fourier. transl is for diagonal blocks
 function build_potential(g,f,p;magnetic="no",transl=true,η=1) # η ∈ {-1,1}
 	C = build_Cm(g,f,p;η=1)
+	# px("Mass Cm for η=",η," ",sum(abs.(C)))
 	if η==-1
 		C = parity_four(C,p)
 	end
@@ -143,6 +145,7 @@ function build_block_𝔸(p)
 	K = p.K_red[1]*p.a1_star.+p.K_red[2]*p.a2_star
 	p.𝔹1 = p.𝔸1 .- K[1]*p.Σ
 	p.𝔹2 = p.𝔸2 .- K[2]*p.Σ
+	(p.J𝔸1,p.J𝔸2) = rot_block(π/2,p.𝔸1,p.𝔸2,p)
 end
 
 function build_blocks_potentials(p)
@@ -181,8 +184,8 @@ end
 
 ################## Operations on functions
 
-function rot_A(B1,B2,p) # applies R_{-2π/3} to the vector [B1,B2], where Bj contains matrices N×N
-	R = rotM(-2π/3)
+function rot_A(θ,B1,B2,p) # applies R_θ to the vector [B1,B2], where Bj contains functions N×N
+	R = rotM(θ)
 	A1 = similar(B1); A2 = similar(B2)
 	for K=1:p.N
 		for P=1:p.N
@@ -193,7 +196,7 @@ function rot_A(B1,B2,p) # applies R_{-2π/3} to the vector [B1,B2], where Bj con
 	(A1,A2)
 end
 
-################## Operations on block functions
+################## Operations on (2×2) block functions
 
 norm_block(B) = sum(abs.(B[1])) + sum(abs.(B[2])) + sum(abs.(B[3])) + sum(abs.(B[4]))
 app_block(map,B,p) = [map(B[1],p),map(B[2],p),map(B[3],p),map(B[4],p)]
@@ -203,10 +206,10 @@ hermitian_block(B) = conj.([B[1],B[3],B[2],B[4]])
 U_B_U_star(B) = [B[1],cis(2π/3).*B[2],cis(4π/3).*B[3],B[4]]
 
 # Rotations on magnetic blocks, as a vector
-function rot_block(B1,B2,p)
+function rot_block(θ,B1,B2,p)
 	A1 = similar(B1); A2 = similar(B2)
 	for j=1:4
-		(A1[j],A2[j]) = rot_A(B1[j],B2[j],p)
+		(A1[j],A2[j]) = rot_A(θ,B1[j],B2[j],p)
 	end
 	(A1,A2)
 end
@@ -264,7 +267,7 @@ function test_R_magnetic_block(B1,B2,p;name="B")
 	RB2 = app_block(R_four,B2,p)
 	U_B1_Ustar = U_B_U_star(B1)
 	U_B2_Ustar = U_B_U_star(B2)
-	(R_U_B1_Ustar,R_U_B2_Ustar) = rot_block(U_B1_Ustar,U_B2_Ustar,p)
+	(R_U_B1_Ustar,R_U_B2_Ustar) = rot_block(-2π/3,U_B1_Ustar,U_B2_Ustar,p)
 	d = relative_distance_blocks(R_U_B1_Ustar,RB1) + relative_distance_blocks(R_U_B2_Ustar,RB2)
 	px("Test R ",name," = R_{-2π/3 on vector} U",name,"U* ",d)
 end
@@ -343,16 +346,19 @@ function import_u1_u2_V(N,Nz,p)
 	p.v_f = load(f,"v_f")
 	p.u1_f = load(f,"u1_f")
 	p.u2_f = load(f,"u2_f")
-	p.u1v_f = load(f,"vu1_f")
-	p.u2v_f = load(f,"vu2_f")
-	p.prods_f = load(f,"prods_f")
 
 	p.v_dir = ifft(p.v_f)
 	p.u1_dir = ifft(p.u1_f)
 	p.u2_dir = ifft(p.u2_f)
-	p.u1v_dir = ifft(p.u1v_f)
-	p.u2v_dir = ifft(p.u2v_f)
-	p.prods_dir = ifft.(p.prods_f)
+
+	p.u1v_dir = p.v_dir.*p.u1_dir
+	p.u2v_dir = p.v_dir.*p.u2_dir
+
+	p.u1v_f = fft(p.u1v_dir)
+	p.u2v_f = fft(p.u2v_dir)
+
+	p.prods_dir = [abs2.(p.u1_dir), conj.(p.u1_dir).*p.u2_dir, conj.(p.u2_dir).*p.u1_dir, abs2.(p.u2_dir)]
+	p.prods_f = fft.(p.prods_dir)
 end
 
 function import_Vint(p)

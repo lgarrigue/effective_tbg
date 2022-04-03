@@ -11,14 +11,14 @@ function computes_and_plots_effective_potentials()
 	p = EffPotentials()
 	p.plots_cutoff = 7
 	p.plots_res = 50
-	p.plots_n_motifs = 10
+	p.plots_n_motifs = 6
 	produce_plots = true
 
 	# Initializations
 	import_u1_u2_V(N,Nz,p)
 	import_Vint(p)
 	init_EffPot(p)
-	px("Test norm ",norms3d(p.u1_dir,p,false)," and in Fourier ",norms3d(p.u1_f,p))
+	# px("Test norm ",norms3d(p.u1_dir,p,false)," and in Fourier ",norms3d(p.u1_f,p))
 
 	# True BM potential
 	α = 0.5; β = 1.0
@@ -102,6 +102,7 @@ function computes_and_plots_effective_potentials()
 	# Hermitianity
 	px("\nTests hermitianity")
 	test_block_hermitianity(p.Wplus_tot,p;name="W")
+	px("\n")
 
 	if produce_plots
 		# Plots in reduced coordinates
@@ -158,7 +159,6 @@ end
 
 function explore_band_structure_Heff()
 	N = 8; Nz = 27
-	sc = 1.5*1e3
 
 	# Imports u1, u2, V, Vint and computes the effective potentials
 	EffV = import_and_computes(N,Nz)
@@ -170,33 +170,34 @@ function explore_band_structure_Heff()
 
 	######## Base Hamiltonian
 	# Mass matrix
-	SΣ = V_offdiag_matrix(lin2mat(EffV.Σ),p)
+	SΣ = V_offdiag_matrix(EffV.Σ,p)
 	S = Hermitian(I + 1*SΣ)
 	p.ISΣ = Hermitian(inv(sqrt(S)))
 	# test_hermitianity(S,"S"); test_part_hole_sym_matrix(S,p,"S")
 	
 	# On-diagonal potential
-	W = V_ondiag_matrix(lin2mat(EffV.Wplus_tot),lin2mat(EffV.Wminus_tot),p) # WHY THIS IS NOT CONSTANT AS IN THE COMPUTATION ????
+	W = V_ondiag_matrix(EffV.Wplus_tot,EffV.Wminus_tot,p) # WHY THIS IS NOT CONSTANT AS IN THE COMPUTATION ????
 	
 	# Off-diagonal magnetic operator
-	A∇ = A_offdiag_matrix(lin2mat(EffV.𝔸1),lin2mat(EffV.𝔸2),p)
+	A∇ = A_offdiag_matrix(EffV.𝔸1,EffV.𝔸2,p)
+	JA∇ = A_offdiag_matrix(EffV.J𝔸1,EffV.J𝔸2,p)
 
 	# Off-diagonal potential
-	V = V_offdiag_matrix(lin2mat(EffV.𝕍),p)
+	V = V_offdiag_matrix(EffV.𝕍,p)
 
 	# Other parameters
 	p.solver=="Exact"
 
-	p.folder_plots_bands = "bands_eff_avec_V_A_Sigma_alpha_egal_1"
+	p.folder_plots_bands = "bands_eff"
 	p.energy_center = -0.5
 	p.energy_scale = 2
 	p.resolution_bands = 5
 
 	method = "natural" # ∈ ["weight","natural"]
 	if method=="natural"
-		for θ in (0.005:0.001:0.04) # 1° × 2π/360 = 0.017 rad
+		for θ in (0.005:0.001:0.006) # 1° × 2π/360 = 0.017 rad
 			cθ = cos(θ/2); εθ = sin(θ/2)
-			Hv = p.ISΣ*( cθ*(p.H0 + A∇) + (1/εθ)*(V+0*W) )*p.ISΣ
+			Hv = p.ISΣ*( (1/εθ)*(V+W) + cθ*(p.H0 + A∇) + εθ*JA∇ )*p.ISΣ
 			print(" ",θ)
 			# px("mass W ",sum(abs.(W)))
 			# test_hermitianity(Hv); test_part_hole_sym_matrix(W,p,"W")
@@ -220,17 +221,15 @@ function explore_band_structure_Heff()
 	end
 end
 
-computes_and_plots_effective_potentials()
-# explore_band_structure_Heff()
+# computes_and_plots_effective_potentials()
+explore_band_structure_Heff()
 # explore_band_structure_BM()
 #
 
 #### Todo
-# Wplus =? Wminus
-# régler pb W trop grand
-# ajouter termes d'ordre ε du hamiltonien
 # chemin prop sur diag bandes
 # ajouter effet du terme non local
 # cube Fourier pour plus de symétrie
 # Ht_a ≂̸ t_a H comme dit par Watson, regarder son papier sur l'existence des magic angles
+# ajouter termes d'ordre ε du hamiltonien POUR CA IL FAUT D ABORD CONNAITRE LA TRANSF DE BLOCH DE H
 # régler le pb du scaling -3/2 JX
