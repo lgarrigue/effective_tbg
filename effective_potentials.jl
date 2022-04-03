@@ -36,7 +36,7 @@ mutable struct EffPotentials
 	# Effective potentials
 	Σ # Σ = <<u_j, u_{j'}>>^+-
 	𝕍_V; 𝕍_Vint; 𝕍 # 𝕍_V = <<u_j, V u_{j'}>>^+-, 𝕍_Vint = <<u_j, Vint u_{j'}>>^+-, 𝕍 = 𝕍_V + 𝕍_Vint
-	Wplus; Wmoins; W_Vint_matrix; W # Wplus = <<V, u_j u_{j'}>>^++, Wmoins = <<V, u_j u_{j'}>>^--, W_Vint_matrix = <u_j,Vint u_{j'}>, W = Wplus + W_Vint_matrix
+	Wplus; Wplus_tot; Wminus; Wminus_tot; W_Vint_matrix # Wplus = << overline(u_j) u_{j'}, V >>^++, Wminus = << overline(u_j) u_{j'}, V >>^--, W_Vint_matrix = <u_j,Vint u_{j'}>, Wplus_tot = Wplus + W_Vint_matrix, Wminus_tot = Wminus + W_Vint_matrix
 	𝔸1; 𝔸2; 𝔹1; 𝔹2
 
 	# Plots
@@ -87,8 +87,11 @@ function div_three(m,n,p) # Test whether [m;n] is in 3ℤ^2, returns [m;n]/3 if 
 end
 
 # 2 × 2 matrix, magnetic ∈ {"no","1","2"}, f and g are in Fourier. transl is for diagonal blocks
-function build_potential(g,f,p;magnetic="no",transl=true,η=1) 
+function build_potential(g,f,p;magnetic="no",transl=true,η=1) # η ∈ {-1,1}
 	C = build_Cm(g,f,p;η=1)
+	if η==-1
+		C = parity_four(C,p)
+	end
 	P = zeros(ComplexF64,p.N,p.N)
 	# Fills P_n^D = C^D_{F^{-1} J^{*,-1} F(n)}
 	(m3K,n3K) = Tuple(Int.(3*p.K_red))
@@ -97,6 +100,7 @@ function build_potential(g,f,p;magnetic="no",transl=true,η=1)
 			# px("TYPE ",p.k_grid)
 			(m0,n0) = p.k_grid[m,n]
 			(m1,n1) = transl ? (m0-m3K,n0-n3K) : (m0,n0)
+			(m1,n1) = (η*m1,η*n1)
 			(B,m2,n2) = div_three(m1,n1,p)
 			if !B
 				P[m,n] = 0
@@ -147,9 +151,9 @@ function build_blocks_potentials(p)
 		 build_potential(p.u2v_f,p.u1_f,p), build_potential(p.u2v_f,p.u2_f,p)]
 	p.Wplus = [build_potential(p.v_f,p.prods_f[1],p;transl=false), build_potential(p.v_f,p.prods_f[2],p;transl=false),
 		   build_potential(p.v_f,p.prods_f[3],p;transl=false), build_potential(p.v_f,p.prods_f[4],p;transl=false)]
-	p.Wmoins = [build_potential(p.v_f,p.prods_f[1],p;transl=false,η=-1), build_potential(p.v_f,p.prods_f[2],p;transl=false,η=-1),
+	p.Wminus = [build_potential(p.v_f,p.prods_f[1],p;transl=false,η=-1), build_potential(p.v_f,p.prods_f[2],p;transl=false,η=-1),
 		    build_potential(p.v_f,p.prods_f[3],p;transl=false,η=-1), build_potential(p.v_f,p.prods_f[4],p;transl=false,η=-1)]
-	# p.W_moins = [build_potential(p.prods_f[1],p.v_f,p;η=-1,transl=false), build_potential(p.prods_f[2],p.v_f,p;η=-1,transl=false),
+	# p.W_minus = [build_potential(p.prods_f[1],p.v_f,p;η=-1,transl=false), build_potential(p.prods_f[2],p.v_f,p;η=-1,transl=false),
 	# build_potential(p.prods_f[3],p.v_f,p;η=-1,transl=false), build_potential(p.prods_f[4],p.v_f,p;η=-1,transl=false)]
 	p.Σ = [build_potential(p.u1_f,p.u1_f,p), build_potential(p.u1_f,p.u2_f,p),
 	       build_potential(p.u2_f,p.u1_f,p), build_potential(p.u2_f,p.u2_f,p)]
@@ -163,7 +167,8 @@ function build_blocks_potentials(p)
 
 	# Sums the blocks with and without Vint
 	p.𝕍 = p.𝕍_V .+ p.𝕍_Vint
-	p.W = add_cst_block(p.Wplus,p.W_Vint_matrix,p)
+	p.Wplus_tot = add_cst_block(p.Wplus,p.W_Vint_matrix,p)
+	p.Wminus_tot = add_cst_block(p.Wminus,p.W_Vint_matrix,p)
 end
 
 function add_cst_block(B,cB,p) # B in Fourier so needs to add to the first component
@@ -227,6 +232,15 @@ function lin2mat(M)
 end
 
 ################## Symmetry tests
+
+function relative_distance_blocks(B,C)
+	count = 0; tot = 0
+	for i=1:4
+		count += sum(abs.(B[i].-C[i]))
+		tot += sum(abs.(B[i]))
+	end
+	count/tot
+end
 
 function test_particle_hole_block(B,p;name="B")
 	PB_four = hermitian_block(B) # parity ∘ conj in direct becomes just conj in Fourier
@@ -296,15 +310,6 @@ function test_equality_all_blocks(B,p;name="")
 	test_equality_blocks_interm(B,p)
 end
 
-function relative_distance_blocks(B,C)
-	count = 0; tot = 0
-	for i=1:4
-		count += sum(abs.(B[i].-C[i]))
-		tot += sum(abs.(B[i]))
-	end
-	count/tot
-end
-
 function test_block_hermitianity(C,p;name="")
 	B = ifft.(C)
 	c = 0; T = 0
@@ -316,6 +321,13 @@ function test_block_hermitianity(C,p;name="")
 		end
 	end
 	px("Test block hermitianity ",name," ",c/T)
+end
+
+function test_sym_Wplus_Wminus(p)
+	Wm = p.Wminus
+	TW = [Wm[4],Wm[2],Wm[3],Wm[1]]
+	d = relative_distance_blocks(p.Wplus,TW)
+	px("Test antitranspose(Wminus) = Wplus : ",d)
 end
 
 ################## Import functions

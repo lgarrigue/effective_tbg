@@ -109,9 +109,9 @@ end
 
 ####################################### Operations on functions in Fourier space
 
-R_four(B,p) = apply_map_four(X -> [0 -1;1 -1]*X,B,p) # rotation of 2π/3, in Fourier space
-parity_four(B,p) = apply_map_four(X -> -X,B,p)
-σ1_four(B,p) = apply_map_four(X -> [0 1;1 0]*X,B,p)
+R_four(a,p) = apply_map_four(X -> [0 -1;1 -1]*X,a,p) # rotation of 2π/3, in Fourier space
+parity_four(a,p) = apply_map_four(X -> -X,a,p)
+σ1_four(a,p) = apply_map_four(X -> [0 1;1 0]*X,a,p)
 
 function apply_map_four(L,u,p) 
 	a = similar(u)

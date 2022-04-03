@@ -12,7 +12,6 @@ function computes_and_plots_effective_potentials()
 	p.plots_cutoff = 7
 	p.plots_res = 50
 	p.plots_n_motifs = 10
-	take_Vint_into_account = false
 	produce_plots = true
 
 	# Initializations
@@ -25,18 +24,17 @@ function computes_and_plots_effective_potentials()
 	α = 0.5; β = 1.0
 	T = build_BM(α,β,p)
 
-	if false # tests Cm_s
-		P1 = build_potential_direct(p.u1v_f,p.u1_f,p)
-		P2 = ifft(build_potential(p.u1v_f,p.u1_f,p))
-		Cm = build_Cm(p.u1_f,p.u1_f,p)
-		rapid_plot([P1,P2],real,p)
-		display(Cm)
-	end
+	# if false # tests Cm_s
+		# P1 = build_potential_direct(p.u1v_f,p.u1_f,p)
+		# P2 = ifft(build_potential(p.u1v_f,p.u1_f,p))
+		# Cm = build_Cm(p.u1_f,p.u1_f,p)
+		# rapid_plot([P1,P2],real,p)
+		# display(Cm)
+	# end
 
 	build_blocks_potentials(p) # computes Wplus, 𝕍_V and Σ
 	build_block_𝔸(p) # computes 𝔸
-	to_test = p.Wplus[1,1]
-
+	test_sym_Wplus_Wminus(p)
 
 	px("\nW_Vint matrix\n",p.W_Vint_matrix,"\n")
 
@@ -51,30 +49,20 @@ function computes_and_plots_effective_potentials()
 	test_z_parity(p.u2_dir,-1,p;name="u2")
 	test_z_parity(p.v_dir,1,p;name="Vks")
 
-	W = p.Wplus
-	V = p.𝕍_V
-	if take_Vint_into_account
-		import_Vint(p)
-		px("Matrix Vint for W: ",p.W_Vint_matrix)
-		plot_block_cart(p.𝕍_Vint,p;title="Vint")
-		W = p.W
-		V = p.𝕍
-	end
-
 	# Particle-hole
 	px("\nTests particle-hole symmetry")
 	test_particle_hole_block(T,p;name="T")
-	test_particle_hole_block(V,p;name="V")
-	test_particle_hole_block(W,p;name="W")
+	test_particle_hole_block(p.𝕍,p;name="V")
+	test_particle_hole_block(p.Wplus_tot,p;name="W")
 	test_particle_hole_block(p.Σ,p;name="Σ")
 	test_particle_hole_block(p.𝔸1,p;name="A1")
 	test_particle_hole_block(p.𝔸2,p;name="A2")
 
-	# Partiy-time
+	# Parity-time
 	px("\nTests PT symmetry")
 	test_PT_block(T,p;name="T")
-	test_PT_block(W,p;name="W")
-	test_PT_block(V,p;name="V")
+	test_PT_block(p.Wplus_tot,p;name="W")
+	test_PT_block(p.𝕍,p;name="V")
 	test_PT_block(p.𝔸1,p;name="A1")
 	test_PT_block(p.𝔸2,p;name="A2")
 	test_PT_block(p.Σ,p;name="Σ")
@@ -82,10 +70,10 @@ function computes_and_plots_effective_potentials()
 	# Mirror
 	px("\nTests mirror symmetry")
 	test_mirror_block(T,p;name="T",herm=true)
-	test_mirror_block(W,p;name="W",herm=true)
-	test_mirror_block(W,p;name="W",herm=false)
-	test_mirror_block(V,p;name="V",herm=true)
-	test_mirror_block(V,p;name="V",herm=false)
+	test_mirror_block(p.Wplus_tot,p;name="W",herm=true)
+	test_mirror_block(p.Wplus_tot,p;name="W",herm=false)
+	test_mirror_block(p.𝕍,p;name="V",herm=true)
+	test_mirror_block(p.𝕍,p;name="V",herm=false)
 	test_mirror_block(p.𝔸1,p;name="A1",herm=true)
 	test_mirror_block(p.𝔸1,p;name="A1",herm=false)
 	test_mirror_block(p.𝔸2,p;name="A2",herm=true)
@@ -96,31 +84,29 @@ function computes_and_plots_effective_potentials()
 	# R
 	px("\nTests R symmetry")
 	test_R_block(T,p;name="T")
-	test_R_block(W,p;name="W")
-	test_R_block(V,p;name="V")
+	test_R_block(p.Wplus_tot,p;name="W")
+	test_R_block(p.𝕍,p;name="V")
 	test_R_magnetic_block(p.𝔸1,p.𝔸2,p;name="A")
 	test_R_block(p.Σ,p;name="Σ")
 
 	# Equalities inside blocks
 	px("\nTests equality inside blocks")
 	test_equality_all_blocks(T,p;name="T")
-	test_equality_all_blocks(W,p;name="W")
-	test_equality_all_blocks(V,p;name="V")
+	test_equality_all_blocks(p.Wplus_tot,p;name="W")
+	test_equality_all_blocks(p.𝕍,p;name="V")
 	test_equality_all_blocks(p.Σ,p;name="Σ")
 	test_equality_all_blocks(p.𝔸1,p;name="A1")
 	test_equality_all_blocks(p.𝔸2,p;name="A2")
-	# px("Equality blocks V and V_moins ",relative_distance_blocks(V,V_moins))
+	# px("Equality blocks V and V_minus ",relative_distance_blocks(V,V_minus))
 
 	# Hermitianity
 	px("\nTests hermitianity")
-	test_block_hermitianity(W,p;name="W")
+	test_block_hermitianity(p.Wplus_tot,p;name="W")
 
 	if produce_plots
 		# Plots in reduced coordinates
-		plot_block_reduced(W,p;title="W")
-		plot_block_reduced(V,p;title="V")
-		plot_block_reduced(p.Wplus,p;title="W_plus")
-		plot_block_reduced(p.Wmoins,p;title="W_moins")
+		plot_block_reduced(p.Wplus_tot,p;title="W")
+		plot_block_reduced(p.𝕍,p;title="V")
 		plot_block_reduced(p.Σ,p;title="Σ")
 		plot_block_reduced(p.𝔸1,p;title="A1")
 		plot_block_reduced(p.𝔸2,p;title="A2")
@@ -128,7 +114,8 @@ function computes_and_plots_effective_potentials()
 		# Plots in cartesian coordinates
 		plot_block_cart(T,p;title="T")
 		plot_block_cart(p.Wplus,p;title="W_plus")
-		plot_block_cart(p.Wmoins,p;title="W_moins")
+		plot_block_cart(p.Wplus_tot,p;title="W_plus_tot")
+		plot_block_cart(p.Wminus,p;title="W_minus")
 		plot_block_cart(p.𝕍,p;title="V")
 		plot_block_cart(p.𝕍_V,p;title="V_V")
 		plot_block_cart(p.𝕍_Vint,p;title="V_Vint")
@@ -137,11 +124,6 @@ function computes_and_plots_effective_potentials()
 		# plot_magnetic_block_cart(p.𝔹1,p.𝔹2,p;title="B") 
 		# plot_block_cart(p.𝔹1,p;title="B1")
 		# plot_block_cart(p.𝔹2,p;title="B2")
-		if take_Vint_into_account
-			plot_block_cart(p.W,p;title="W")
-			plot_block_cart(p.𝕍_Vint,p;title="V_Vint")
-			plot_block_cart(p.𝕍,p;title="V")
-		end
 	end
 end
 
@@ -188,19 +170,19 @@ function explore_band_structure_Heff()
 
 	######## Base Hamiltonian
 	# Mass matrix
-	SΣ = V_offdiag_matrix(lin2mat(EffV.Σ),p)/sc
+	SΣ = V_offdiag_matrix(lin2mat(EffV.Σ),p)
 	S = Hermitian(I + 1*SΣ)
 	p.ISΣ = Hermitian(inv(sqrt(S)))
 	# test_hermitianity(S,"S"); test_part_hole_sym_matrix(S,p,"S")
 	
 	# On-diagonal potential
-	V = V_ondiag_matrix(lin2mat(EffV.𝕍_V),p)/sc # WHY THIS IS NOT CONSTANT AS IN THE COMPUTATION ????
+	W = V_ondiag_matrix(lin2mat(EffV.Wplus_tot),lin2mat(EffV.Wminus_tot),p) # WHY THIS IS NOT CONSTANT AS IN THE COMPUTATION ????
 	
 	# Off-diagonal magnetic operator
-	A∇ = A_offdiag_matrix(lin2mat(EffV.𝔸1),lin2mat(EffV.𝔸2),p)/sc
+	A∇ = A_offdiag_matrix(lin2mat(EffV.𝔸1),lin2mat(EffV.𝔸2),p)
 
 	# Off-diagonal potential
-	W = V_offdiag_matrix(lin2mat(EffV.Wplus),p)/sc
+	V = V_offdiag_matrix(lin2mat(EffV.𝕍),p)
 
 	# Other parameters
 	p.solver=="Exact"
@@ -244,9 +226,11 @@ computes_and_plots_effective_potentials()
 #
 
 #### Todo
-# Wplus =? Wmoins
+# Wplus =? Wminus
 # régler pb W trop grand
 # ajouter termes d'ordre ε du hamiltonien
 # chemin prop sur diag bandes
 # ajouter effet du terme non local
 # cube Fourier pour plus de symétrie
+# Ht_a ≂̸ t_a H comme dit par Watson, regarder son papier sur l'existence des magic angles
+# régler le pb du scaling -3/2 JX

@@ -230,6 +230,10 @@ where
 \begin{align*}
 \boxed{C_\bmm := L \sum_{m_z \in \Z} e^{i\pa{\eta-\eta'} \f{d\pi}{L} m_z} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}}
 \end{align*}
+and we also define
+\begin{align*}
+C^\pm_\bmm := L \sum_{m_z \in \Z} e^{\pm i2 \f{d\pi}{L} m_z} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}
+\end{align*}
 Then,
 \begin{align*}
 \lAngle f,g \rAngle ^{\eta,\eta'} = e^{i\pa{\eta-\eta'} \bK \cdot J \bX}\db{f,g}^{\eta,\eta'} =  \sum_{\bmm \in \Z^2} e^{i\pa{\eta-\eta'} \pa{m+m_K}a^* \cdot J \bX} C_\bmm
@@ -238,18 +242,24 @@ Then,
 
 Hence
 \begin{align*}
-	\boxed{\db{f,g}^{+-}\pa{-\tfrac{3}{2} J \bX} =  \sum_{\bmm \in \Z^2} e^{i 3 ma^* \cdot \bX} C_\bmm=  \sum_{\bmm \in \Z^2} e^{i m a^* \cdot \bX} C_{\f{\bmm}{3}},}
-	\end{align*}
-	and
-\begin{align*}
-\boxed{\lAngle f,g \rAngle^{+-}\pa{-\tfrac{3}{2} J\bX} =  \sum_{\bmm \in \Z^2} e^{i 3 \pa{m+m_k}a^* \cdot \bX} C_\bmm =  \sum_{\bmm \in \Z^2} e^{i m a^* \cdot \bX} C_{\f{\bmm-3\bmm_K}{3}}}
+\boxed{\db{f,g}^{+-}\pa{-\tfrac{3}{2} J \bX} =  \sum_{\bmm \in \Z^2} e^{i 3 ma^* \cdot \bX} C^+_\bmm=  \sum_{\bmm \in \Z^2} e^{i m a^* \cdot \bX} C^+_{\f{\bmm}{3}},}
 \end{align*}
-where $C_{\f{\bmm}{n}} :=  0$ if $n$ does not divide $m_1$ and $m_2$. 
+and
+\begin{align*}
+\boxed{\lAngle f,g \rAngle^{+-}\pa{-\tfrac{3}{2} J\bX} =  \sum_{\bmm \in \Z^2} e^{i 3 \pa{m+m_k}a^* \cdot \bX} C^+_\bmm =  \sum_{\bmm \in \Z^2} e^{i m a^* \cdot \bX} C^+_{\f{\bmm-3\bmm_K}{3}}}
+\end{align*}
+where $C_{\f{\bmm}{n}} := 0$ if $n$ does not divide $m_1$ and $m_2$. 
+
+Similarly
+\begin{align*}
+\db{f,g}^{-+}\pa{-\tfrac{3}{2} J \bX} =  \sum_{\bmm \in \Z^2} e^{-i 3 ma^* \cdot \bX} C^-_\bmm=  \sum_{\bmm \in \Z^2} e^{i m a^* \cdot \bX} C^-_{-\f{\bmm}{3}},
+\end{align*}
 
 For the potentials, we finally need to implement
-\begin{align*}
-\bbW_{j,j'} = \db{V, \overline{u}_j u_{j'}}^{+-}, \qquad \bbV_{j,j'} = \lAngle \pa{V+V\ind{int}} u_j , u_{j'} \rAngle^{+-}
-\end{align*}
+\begin{multline*}
+\bbW_{j,j'}^+ = \db{\overline{u}_j u_{j'}, V}^{+-}, \qquad \bbW_{j,j'}^- = \db{\overline{u}_j u_{j'}, V}^{-+},\\
+\bbV_{j,j'} = \lAngle \pa{V+V\ind{int}} u_j , u_{j'} \rAngle^{+-}
+\end{multline*}
 
 
 If $f(z) = \ep f(-z)$, then $\widehat{f}_{-m_z} = \ep \widehat{f}_{m_z}$, from this we see that $\overline{C_\bmm^{u_{j'},u_{j}}} = C_\bmm^{u_{j},u_{j'}}$ and hence $\bbV(-X)^* = \bbV(X)$
@@ -281,7 +291,7 @@ so we can implement
 
 \subsection{$\bbW$'s $V\ind{int}$ term}%
 \label{sub:_bbw_s_vint_term}
-We write $V\ind{int}(z) = \sum_{M_z \in \Z} \widehat{V}\ind{int}^{M_z} e^{i \f{2\pi}L M_z z}$ hence
+We write $V\ind{int}(z) = \sum_{m_z \in \Z} \widehat{V}\ind{int}^{m_z} e^{i \f{2\pi}L m_z z}$ hence
 \begin{align*}
 	\ps{u_j, V\ind{int} u_{j'}} &= \sum_{\substack{\bmm \in \Z^2 \\ m_z,m_z',M_z \in \Z}} \pa{\overline{\widehat{u}}_j}_{\bmm,m_z} \pa{\widehat{u}_{j'}}_{\bmm,m_z'}\pa{\widehat{V\ind{int}}}_{M_z} \int_z e^{iz \f{2\pi}{L} \pa{M_z + m_z'-m_z}} \\
 & = L \sum_{\substack{\bmm \in \Z^2 \\ m_z,m_z' \in \Z}} \pa{\overline{\widehat{u}}_j}_{\bmm,m_z} \pa{\widehat{u}_{j'}}_{\bmm,m_z'}\pa{\widehat{V\ind{int}}}_{m_z-m_z'} 
@@ -350,9 +360,9 @@ e_{\alpha,m} := e_\alpha \otimes e_m = e_\alpha \f{e^{ima^*\cdot x}}{\sqrt{\ab{\
 
 
 
-For a general $V = \sum_m V_m e^{im a^* \cdot x}$, we have
+For a general $W^\pm = \sum_m W^\pm_m e^{im a^* \cdot x}$, we have
 \begin{align*}
-	\ps{e_{\alpha,n},\mat{V & 0 \\ 0 & V} e_{\beta,m}} = \delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{1,2}}\pa{V_{n-m}}_{\alpha_1 \beta_1} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{3,4}}\pa{V_{n-m}}_{\alpha_2 \beta_2}
+	\ps{e_{\alpha,n},\mat{W^+ & 0 \\ 0 & W^-} e_{\beta,m}} = \delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{1,2}}\pa{W^+_{n-m}}_{\alpha_1 \beta_1} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{3,4}}\pa{W^-_{n-m}}_{\alpha_2 \beta_2}
 \end{align*}
 
 \subsection{Off-diagonal potential}%
@@ -360,12 +370,12 @@ For a general $V = \sum_m V_m e^{im a^* \cdot x}$, we have
 
 
 
-For a general $W = \sum_m W_m e^{im a^* \cdot x}$, we have
+For a general $V = \sum_m V_m e^{im a^* \cdot x}$, we have
 \begin{align*}
-	M_{IJ} & := \ps{e_{\alpha,n}, \mat{0 & W \\ W^* & 0} e_{\beta,m}} \\
-	       &= \sum_{k} \pa{\delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}} \delta_{m+k-n} \ps{e_{\alpha_1},W_k e_{\beta_2}} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}}\delta_{m-k-n} \ps{e_{\alpha_2},W_k^* e_{\beta_1}}} \\
-	       &=   \delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}}\ps{e_{\alpha_1},W_{n-m} e_{\beta_2}} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}}\ps{e_{\alpha_2},W_{m-n}^* e_{\beta_1}} \\
-	       &=     \delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}}\pa{W_{n-m}}_{\alpha_1 \beta_2} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}} \overline{\pa{W_{m-n}}_{\beta_1\alpha_2} }
+	M_{IJ} & := \ps{e_{\alpha,n}, \mat{0 & V \\ V^* & 0} e_{\beta,m}} \\
+	       &= \sum_{k} \pa{\delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}} \delta_{m+k-n} \ps{e_{\alpha_1},V_k e_{\beta_2}} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}}\delta_{m-k-n} \ps{e_{\alpha_2},V_k^* e_{\beta_1}}} \\
+	       &=   \delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}}\ps{e_{\alpha_1},V_{n-m} e_{\beta_2}} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}}\ps{e_{\alpha_2},V_{m-n}^* e_{\beta_1}} \\
+	       &=     \delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}}\pa{V_{n-m}}_{\alpha_1 \beta_2} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}} \overline{\pa{V_{m-n}}_{\beta_1\alpha_2} }
 \end{align*}
 and $M$ is also Hermitian.
 

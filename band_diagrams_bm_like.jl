@@ -213,9 +213,9 @@ function V_offdiag_matrix(v,p) # v = [v1,v2,v3,v4] = mat(v1 & v2 \\ v3 & v4), Fo
 	Hermitian(H)
 end
 
-# Creates [𝕎  0]
-#         [0  𝕎]
-function V_ondiag_matrix(v,p)
+# Creates [Vp  0 ]
+#         [0   Vm]
+function V_ondiag_matrix(Vp,Vm,p)
 	n = p.Mfull
 	H = zeros(ComplexF64,n,n)
 	for n_lin=1:n
@@ -228,9 +228,9 @@ function V_ondiag_matrix(v,p)
 			c = 0
 			Pi1,Pi2 = k_inv(n1-m1,n2-m2,p)
 			if α ≤ 2 && β ≤ 2
-				c = v[α,β][Pi1,Pi2]
+				c = Vp[α,β][Pi1,Pi2]
 			elseif α ≥ 3 && β ≥ 3
-				c = v[α-2,β-2][Pi1,Pi2]
+				c = Vm[α-2,β-2][Pi1,Pi2]
 			end
 			H[n_lin,m_lin] = c
 		end
