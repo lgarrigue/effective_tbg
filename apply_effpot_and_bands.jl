@@ -132,27 +132,31 @@ end
 
 function explore_band_structure_BM()
 	p = Basis()
-	p.N = 8
+	p.N = 7
 	p.a = 4.66
 	p.l = 6 # number of eigenvalues we compute
 	init_basis(p)
-	α = 0.0
-	p.resolution_bands = 5
-
-	Vmat0 = V_offdiag_matrix(T_BM_four(p.N,p.a,1,1),p)
+	α = 0.0 # anti-chiral / AA stacking weight
+	p.resolution_bands = 3
 
 	p.folder_plots_bands = "bands_BM"
 	p.energy_center = 0
 	p.energy_scale = 2
-	for β in vcat((0:0.05:6),(1.2:0.001:1.25))
+	for β in (0:0.05:5) # chiral / AB stacking weight
+	# for β in vcat((0:0.05:6),(1.2:0.001:1.25)) # chiral / AB stacking weight
 		print(" ",β)
-		Vmat = weights_off_diag_matrix(Vmat0,α,β,p)
+		T = V_offdiag_matrix(build_BM(α,β,p),p)
 
-		Hv = p.H0 + Vmat
-		# px("mass V ",sum(abs.(Vmat)))
+		# px("mass V ",sum(abs.(T)))
+		# K-dependent part
+		Kdep(k_red) = Dirac_k(k_red,p)
+		# K-independent part
+		Hv = p.H0 + T
+		# test_hermitianity(Hv); test_part_hole_sym_matrix(Hv,p,"Hv")
 		# test_hermitianity(Hv)
 		s = string(β,"00000000000")
-		plot_band_structure(Hv,s[1:min(6,length(s))],p)
+		title = s[1:min(6,length(s))]
+		plot_band_structure(Hv,Kdep,title,p)
 	end
 	p
 end
@@ -160,7 +164,7 @@ end
 function explore_band_structure_Heff()
 	N = 8; Nz = 27
 
-	# Imports u1, u2, V, Vint and computes the effective potentials
+	# Imports u1, u2, V, Vint, v_fermi and computes the effective potentials
 	EffV = import_and_computes(N,Nz)
 
 	p = Basis()
@@ -178,10 +182,6 @@ function explore_band_structure_Heff()
 	# On-diagonal potential
 	W = V_ondiag_matrix(EffV.Wplus_tot,EffV.Wminus_tot,p) # WHY THIS IS NOT CONSTANT AS IN THE COMPUTATION ????
 	
-	# Off-diagonal magnetic operator
-	A∇ = A_offdiag_matrix(EffV.𝔸1,EffV.𝔸2,p)
-	JA∇ = A_offdiag_matrix(EffV.J𝔸1,EffV.J𝔸2,p)
-
 	# Off-diagonal potential
 	V = V_offdiag_matrix(EffV.𝕍,p)
 
@@ -196,15 +196,29 @@ function explore_band_structure_Heff()
 	method = "natural" # ∈ ["weight","natural"]
 	if method=="natural"
 		for θ in (0.005:0.001:0.006) # 1° × 2π/360 = 0.017 rad
-			cθ = cos(θ/2); εθ = sin(θ/2)
-			Hv = p.ISΣ*( (1/εθ)*(V+W) + cθ*(p.H0 + A∇) + εθ*JA∇ )*p.ISΣ
 			print(" ",θ)
+			cθ = cos(θ/2); εθ = sin(θ/2)
+			# If needed to accelerate : compute all the operators for all k, then multiply by each constant depending on θ. Ici on forme plein de fois des operateurs HkV alors qu'on peut l'éviter
+
+			# K-dependent part
+			function Kdep(k_red)
+				# Off-diagonal magnetic operator
+				A∇ = A_offdiag_matrix(EffV.𝔸1,EffV.𝔸2,k_red,p)
+				JA∇ = A_offdiag_matrix(EffV.J𝔸1,EffV.J𝔸2,k_red,p)
+				ΣmΔ = VΔ_offdiag_matrix(EffV.Σ,k_red,p)
+				Δ = mΔ(k_red,p)
+				EffV.v_fermi*p.ISΣ*(cθ*(Dirac_k(k_red,p) +A∇) + εθ*(0.5*(Δ + ΣmΔ) - JA∇ + J_Dirac_k(k_red,p)))*p.ISΣ
+			end
+
+			# K-independent part
+			Hv = p.ISΣ*( (1/εθ)*(V+W) + EffV.v_fermi*cθ*p.H0 )*p.ISΣ
+
 			# px("mass W ",sum(abs.(W)))
-			# test_hermitianity(Hv); test_part_hole_sym_matrix(W,p,"W")
+			test_hermitianity(Hv)#; test_part_hole_sym_matrix(W,p,"W")
 			s = string(θ,"00000000000")
 			title = s[1:min(6,length(s))]
 			title = string(θ)
-			plot_band_structure(Hv,title,p)
+			plot_band_structure(Hv,Kdep,title,p)
 		end
 	else
 		H1 = p.H0 + V + A∇
@@ -222,13 +236,12 @@ function explore_band_structure_Heff()
 end
 
 # computes_and_plots_effective_potentials()
-explore_band_structure_Heff()
-# explore_band_structure_BM()
-#
+# explore_band_structure_Heff()
+explore_band_structure_BM()
+
 
 #### Todo
 # ajouter effet du terme non local
 # cube Fourier pour plus de symétrie
 # Ht_a ≂̸ t_a H comme dit par Watson, regarder son papier sur l'existence des magic angles
-# ajouter termes d'ordre ε du hamiltonien POUR CA IL FAUT D ABORD CONNAITRE LA TRANSF DE BLOCH DE H
 # régler le pb du scaling -3/2 JX

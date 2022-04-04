@@ -32,6 +32,7 @@ mutable struct EffPotentials
 	# Quantities computed and exported by graphene.jl
 	v_f; u1_f; u2_f; u1v_f; u2v_f; prods_f; Vint_f
 	v_dir; u1_dir; u2_dir; u1v_dir; u2v_dir; prods_dir; Vint_dir
+	v_fermi # Fermi velocity
 
 	# Effective potentials
 	Σ # Σ = <<u_j, u_{j'}>>^+-
@@ -62,7 +63,7 @@ function init_EffPot(p)
 	create_dir(p.root_path)
 	plots_L = p.L*p.plots_n_motifs
 	plots_dx = plots_L/p.plots_res
-	p.plots_x_axis_cart = (0:plots_dx:plots_L)
+	p.plots_x_axis_cart = (0:plots_dx:plots_L-plots_dx)
 end
 
 ################## Core: computation of effective potentials
@@ -346,7 +347,9 @@ function import_u1_u2_V(N,Nz,p)
 	p.v_f = load(f,"v_f")
 	p.u1_f = load(f,"u1_f")
 	p.u2_f = load(f,"u2_f")
+	p.v_fermi = load(f,"v_fermi")
 
+	# Builds products from imports
 	p.v_dir = ifft(p.v_f)
 	p.u1_dir = ifft(p.u1_f)
 	p.u2_dir = ifft(p.u2_f)
@@ -402,7 +405,6 @@ function red2cart_function(f,p)
 	end
 	g
 end
-
 
 function eval_fun_to_plot(f_four,fun,n_motifs,res,p)
 	# Computes function in cartesian space
@@ -474,5 +476,3 @@ function plot_block_reduced(B,p;title="plot_full")
 		end
 	end
 end
-
-# Regarder d grand

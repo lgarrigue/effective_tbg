@@ -6,6 +6,10 @@ function Ts(α,β) # α,β = 1,0 is the anti-chiral model, α,β = 0,1 is the ch
 	T1 = α*σ0 + β*σ1
 	T2 = α*σ0 + β*(-(1/2)*σ1 + (sqrt(3)/2)*σ2)
 	T3 = α*σ0 + β*(-(1/2)*σ1 - (sqrt(3)/2)*σ2)
+	# ϕ = 2π/3
+	# T1 = β*[0 1;1 0] + α*I
+	# T2 = β*[0 cis(-ϕ); cis(ϕ) 0] + α*I
+	# T3 = β*[0 cis(ϕ); cis(-ϕ) 0] + α*I
 	(T1,T2,T3)
 end
 
@@ -51,26 +55,21 @@ function T_BM(N,a,α,β)
 	T
 end
 
-function T_BM_four(N,a,α,β)
+function T_BM_four(N,α,β)
 	(T1,T2,T3) = Ts(α,β)
 	m = zeros(ComplexF64,N,N)
 	T = fill2d(m,2)
-	# Tcart(r) = T1 [1,0] + T2 [0,1] + T3 [-1,-1]
-	# In reduced coords : q2 =
-	# q1 = -q2-q3
 	for i=1:2
 		for j=1:2
-			# T[i,j][2,2] = T1[i,j]; T[i,j][end,1] = T2[i,j]; T[i,j][1,end] = T3[i,j]
-			T[i,j][2,2] = T1[i,j]; T[i,j][1,end] = T2[i,j]; T[i,j][end,1] = T3[i,j]
-			# FAIRE AVEC k_inv peut etre ?
-			# tester les syms que Hbm doit vérifier
+			# T[i,j][2,2] = T1[i,j]; T[i,j][1,end] = T2[i,j]; T[i,j][end,1] = T3[i,j]
+			T[i,j][end,end] = T1[i,j]; T[i,j][1,2] = T2[i,j]; T[i,j][2,1] = T3[i,j]
 		end
 	end
 	T
 end
 
 function build_BM(α,β,p)
-	T = T_BM_four(p.N,p.a,α,β)
+	T = T_BM_four(p.N,α,β)
 	[T[1,1],T[1,2],T[2,1],T[2,2]]
 end
 

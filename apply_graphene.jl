@@ -31,7 +31,7 @@ function produce_bloch_functions_and_potentials()
 	px("Potential energy of u1 <u1,V u1> in direct: ",sum(abs2.(p.u1_dir).*p.v_monolayer_dir))
 
 	# Computes the Fermi velocity
-	# get_fermi_velocity_with_finite_diffs(p) # Computing dE/dk with diagonalization
+	p.v_fermi = get_fermi_velocity_with_finite_diffs(4,p) # Computing dE/dk with diagonalization
 	# fermi_velocity_from_rotated_us(p) # Doing scalar products
 
 	# Symmetry tests

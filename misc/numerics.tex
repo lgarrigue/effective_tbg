@@ -93,7 +93,7 @@
 %%%%%%%%%%%%%%%%%%%% End macros
 
 \title[Numerics effective TBG]{Numerical computations for an effective model of twisted bilayer graphene}
-\author[É. Cancès, D. Gontier and L. Garrigue]{Éric Cancès, David Gontier and Louis Garrigue}
+\author[É. Cancès, L. Garrigue and D. Gontier]{Éric Cancès, Louis Garrigue and David Gontier}
 % \address{CERMICS, \'Ecole des ponts ParisTech, 6 and 8 av. Pascal, 77455 Marne-la-Vallée, France} 
 % \email{louis.garrigue@enpc.fr}
 % \date{\today}
@@ -105,7 +105,8 @@
 
 We recall that 
 \begin{multline*}
-a_1 = a \mat{ \f{\sqrt 3}2 \\ \f 12}, \qquad a_2 = a \mat{ \f{\sqrt 3}2 \\ -\f 12} \qquad a^*_1 = \f{2\pi}{a} \mat{ \f{1}{\sqrt 3} \\ 1}, \qquad a^*_2 = \f{2\pi}{a} \mat{ \f{1}{\sqrt 3} \\ -1}
+a_1 = a \mat{ \f{\sqrt 3}2 \\ \f 12}, \qquad a_2 = a \mat{ \f{\sqrt 3}2 \\ -\f 12} \\
+a^*_1 = \f{2\pi}{a} \mat{ \f{1}{\sqrt 3} \\ 1}= \f{4\pi}{a\sqrt{3}} \mat{ \f{1}{2} \\ \f{\sqrt{3}}{2}}, \qquad a^*_2 = \f{2\pi}{a} \mat{ \f{1}{\sqrt 3} \\ -1}= \f{4\pi}{a\sqrt{3}} \mat{ \f{1}{2} \\ -\f{\sqrt{3}}{2}}
 \end{multline*}
 
 In reduced coordinates, with 
@@ -312,16 +313,17 @@ From \cite{BecEmbWitZwo21}, the BM Hamiltonian is
 \end{align*}
 where
 \begin{align*}
-\boxed{T_1 = \mat{w_0 & w_1 \\ w_1 & w_0}, \quad  T_2 = \mat{w_0 &  w_1e^{-i\phi} \\  w_1e^{i\phi} & w_0}, \quad T_3 = \mat{w_0 &  w_1e^{-i2\phi} \\  w_1e^{i2\phi} & w_0}}
+\boxed{T_1 = \mat{w_0 & w_1 \\ w_1 & w_0}, \quad  T_2 = \mat{w_0 &  w_1e^{-i\phi} \\  w_1e^{i\phi} & w_0}, \quad T_3 = \mat{w_0 &  w_1e^{i\phi} \\  w_1e^{-i\phi} & w_0}}
 \end{align*}
 and where, for $x \in \R^2$,
 \begin{align*}
-T^c(x) := \sum_{j=1}^3 T_j e^{-iq^c_j \cdot x}, \qquad \widehat{T}_p = \sum_{j=1}^{3} T_j \delta_{p,q_j^c}
+T^c(x) := \sum_{j=1}^3 T_j e^{-iq^c_j \cdot x} = \sum_{j=1}^3 T_j e^{iq_j a^*\cdot x}, \qquad \widehat{T}_p = \sum_{j=1}^{3} T_j \delta_{p,q_j^c}
 \end{align*}
 and
-\begin{align*}
-q_1 = \f{4\pi}{a\sqrt{3}} \mat{1 \\ 0}, \qquad q_2 = \f{4\pi}{a\sqrt{3}} \mat{-\f 12 \\ \f{\sqrt{3}}{2}}, \qquad q_3 = \f{4\pi}{a\sqrt{3}} \mat{-\f 12 \\ -\f{\sqrt{3}}{2}},
-\end{align*}
+\begin{multline*}
+q^c_1 = \f{4\pi}{a\sqrt{3}} \mat{1 \\ 0} = a_1^* + a_2^*, \\
+q^c_2 = \f{4\pi}{a\sqrt{3}} \mat{-\f 12 \\ \f{\sqrt{3}}{2}} = -a_2^*, \qquad q^c_3 = \f{4\pi}{a\sqrt{3}} \mat{-\f 12 \\ -\f{\sqrt{3}}{2}} = -a_1^*,
+\end{multline*}
 where we took rotated $q_j^c$'s by $J$ with respect to \cite{BecEmbWitZwo21}, and with a rescaling of $\f{4\pi}{a\sqrt{3}}$.
 
 We define the reduced dual vectors $q_j := -\cM^* q^c_j /2\pi$ so
@@ -345,6 +347,34 @@ Since $T_j^* = T_j$, then $T(-x)^* = T(x)$
 \section{Operators in basis}%
 \label{sec:operators_in_basis}
 
+
+\subsection{Goal}%
+\label{sub:goal}
+Our goal is to study the eigenvalue equation
+\begin{align*}
+\cH \p = \cS \p
+\end{align*}
+where $\cS$ is Hermitian and positive and
+\begin{align*}
+\cH := \f{1}{\ep_\theta} \cV + c_\theta T + \ep_\theta T^{(1)}
+\end{align*}
+where
+\begin{align*}
+T &:=  v_{\rm F} \left( \begin{array}{cc} \bm\sigma \cdot (-i \nabla)  &  \bm{\mathcal A} \cdot (-i\nabla)   \\  \bm{\mathcal A}^* \cdot (-i\nabla) &  \bm\sigma \cdot (-i \nabla)  \end{array} \right),  \\
+T^{(1)} &:= v_{\rm F} \left( \begin{array}{cc}  -  \bm\sigma \cdot J (-i \nabla) - \frac 12  \Delta &  \bm{\mathcal A} \cdot J (-i\nabla) - \frac 12  \Sigma \Delta  \\  \bm{\mathcal A}^*  \cdot J (-i\nabla) - \frac 12 \Sigma^* \Delta &  \bm\sigma \cdot J (-i \nabla) - \frac 12   \Delta \end{array} \right), \\
+\cV &:=  \left( \begin{array}{cc}  \bbW &   \bbV \\   \bbV^* &   \bbW \end{array} \right),
+\end{align*}
+and their Bloch transform becomes
+\begin{align*}
+T_k &:=  v_{\rm F} \left( \begin{array}{cc} \bm\sigma \cdot (-i\na +k)  &  \bm{\mathcal A} \cdot (-i\na +k)   \\  \bm{\mathcal A}^* \cdot (-i\na +k) &  \bm\sigma \cdot (-i\na +k)  \end{array} \right),  \\
+\hspace{-5cm} T_k^{(1)} &:= v_{\rm F} \left( \begin{array}{cc}  -  \bm\sigma \cdot J (-i\na +k) +\f 12  (-i\na +k)^2 &  \bm{\mathcal A} \cdot J (-i\na +k) +\f 12  \Sigma (-i\na +k)^2  \\  \bm{\mathcal A}^*  \cdot J (-i\na +k) +\f 12 \Sigma^* (-i\na +k)^2 &  \bm\sigma \cdot J (-i\na +k) +\f 12   (-i\na +k)^2 \end{array} \right)
+\end{align*}
+and we want the middle of the spectrum of
+\begin{align*}
+\cH_k := \cS^{-\f 12} \pa{\f{1}{\ep_\theta} \cV + c_\theta T_k + \ep_\theta T^{(1)}_k}\cS^{-\f 12}
+\end{align*}
+
+
 \subsection{Basis}%
 \label{sub:basis}
 
@@ -353,8 +383,20 @@ We define $e_m := \f{1}{\sqrt{\ab{\Omega}}} e^{i m a^* \cdot x}$, and
 e_{\alpha,m} := e_\alpha \otimes e_m = e_\alpha \f{e^{ima^*\cdot x}}{\sqrt{\ab{\Omega}}}, \qquad \text{where } e_1 := \mat{1 \\ 0 \\ 0 \\ 0},\dots
 \end{align*}
 
+\subsection{Multiplication-derivation operators}%
+\label{sub:magnetic_term}
 
+For $A = (A_1,A_2)$ and $A_j = \sum_\ell \pa{\widehat{A_j}}_\ell e^{i \ell a^*\cdot x}$, we have
+\begin{multline*}
+\ps{e_n, A \cdot (-i\na +k) e_m} = \sum_{\ell} \pa{\widehat{A_1}}_\ell \pa{ma^* + k}_1\ps{e_n, e^{i\ell a^*\cdot x} e_m} \\
++ \pa{\widehat{A_2}}_\ell \pa{ma^* + k}_2\ps{e_n, e^{i\ell a^*\cdot x} e_m} \\
+= \pa{\widehat{A_1}}_{n-m} \pa{ma^* + k}_1 + \pa{\widehat{A_2}}_{n-m} \pa{ma^* + k}_2 = \widehat{A}_{n-m} \cdot \pa{ma^*+k}
+\end{multline*}
 
+For $V = \sum_\ell \widehat{V}_\ell e^{i\ell a^*x}$, we have
+\begin{align*}
+\ps{e_n,V (-i\na + k)^2 e_m} =  \pa{ma^*+k}^2\widehat{V}_{n-m}
+\end{align*}
 \subsection{On-diagonal potential}%
 \label{sub:on_diagonal_potential}
 
@@ -370,7 +412,7 @@ For a general $W^\pm = \sum_m W^\pm_m e^{im a^* \cdot x}$, we have
 
 
 
-For a general $V = \sum_m V_m e^{im a^* \cdot x}$, we have
+For a general $V = \sum_m V_m e^{im a^* \cdot x}$, we have $V^* = \sum_m V_m^* e^{-im a^* \cdot x}$ and
 \begin{align*}
 	M_{IJ} & := \ps{e_{\alpha,n}, \mat{0 & V \\ V^* & 0} e_{\beta,m}} \\
 	       &= \sum_{k} \pa{\delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}} \delta_{m+k-n} \ps{e_{\alpha_1},V_k e_{\beta_2}} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}}\delta_{m-k-n} \ps{e_{\alpha_2},V_k^* e_{\beta_1}}} \\
@@ -384,11 +426,11 @@ and $M$ is also Hermitian.
 
 
 
-For a general $A = \mat{A_1 \\ A_2}$, $A_j = \sum_k \pa{A_j}_k e^{ika^*\cdot x}$, we compute
+For a general $A = \mat{A_1 \\ A_2}$, $A_j = \sum_\ell  \pa{A_j}_\ell  e^{i\ell a^*\cdot x}$, we have $A_j^* = \sum_\ell  \pa{A_j}^*_\ell  e^{-i\ell a^*\cdot x}$ and we compute
 \begin{multline*}
-\ps{e_{\alpha,n}, \mat{0 & A \cdot \pa{-i\na} \\A^* \cdot \pa{-i\na}  & 0} e_{\beta,m}} \\
-= \delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}} \pa{ \pa{ma^*}_1 \pa{\pa{A_1}_{n-m}}_{\alpha_1 \beta_2} + \pa{ma^*}_2 \pa{\pa{A_2}_{n-m}}_{\alpha_1 \beta_2}}\\
-+ \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}} \pa{ \pa{ma^*}_1 \overline{\pa{\pa{A_1}_{m-n}}_{\beta_1 \alpha_2}} + \pa{ma^*}_2 \overline{\pa{\pa{A_2}_{m-n}}_{\beta_1 \alpha_2}}}
+\ps{e_{\alpha,n}, \mat{0 & A \cdot \pa{-i\na +k} \\A^* \cdot \pa{-i\na +k}  & 0} e_{\beta,m}} \\
+= \delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}} \pa{ \pa{ma^* +k}_1 \pa{\pa{A_1}_{n-m}}_{\alpha_1 \beta_2} + \pa{ma^* +k}_2 \pa{\pa{A_2}_{n-m}}_{\alpha_1 \beta_2}}\\
++ \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}} \pa{ \pa{ma^* +k}_1 \overline{\pa{\pa{A_1}_{m-n}}_{\beta_1 \alpha_2}} + \pa{ma^* +k}_2 \overline{\pa{\pa{A_2}_{m-n}}_{\beta_1 \alpha_2}}}
 \end{multline*}
 
 
@@ -420,13 +462,44 @@ Then
 \end{align*}
 
 
-\begin{align}
-T_{d} &:=  v_{\rm F} \left( \begin{array}{cc} \bm\sigma \cdot (-i \nabla)  &  \bm{\mathcal A}_{d}(\bX) \cdot (-i\nabla)   \\  \bm{\mathcal A}_{d}(\bX)^* \cdot (-i\nabla) &  \bm\sigma \cdot (-i \nabla)  \end{array} \right), \label{eq:op_Td} \\
-T_{d}^{(1)} &:= v_{\rm F} \left( \begin{array}{cc}  -  \bm\sigma \cdot J (-i \nabla) - \frac 12  \Delta &  \bm{\mathcal A}_{d}(\bX) \cdot J (-i\nabla) - \frac 12  \Sigma_d(\bX) \Delta  \\  \bm{\mathcal A}_{d}(\bX)^*  \cdot J (-i\nabla) - \frac 12 \Sigma_d(\bX)^* \Delta &  \bm\sigma \cdot J (-i \nabla) - \frac 12   \Delta \end{array} \right), \\
-\cV_{d} &:=  \left( \begin{array}{cc}  \bbW_{d}(\bX) &   \bbV_d(\bX) \\   \bbV_d(\bX)^* &   \bbW_{d}(\bX) \end{array} \right),
-\end{align}
 
-WHAT IS THE BLOCH TRANSFORM OF $H$ SINCE $t H \neq H t$ ?
+
+
+We know that $e^{-ikx} \pa{-i\na} e^{ikx} \cdot = -i\na + k$ hence
+\begin{align*}
+e^{-ikx} \pa{-\f 12 \Delta} e^{ikx} \cdot = \f 12 \pa{-i\na + k}^2
+\end{align*}
+and with $f(x) = \sum_m \widehat{f}_m e^{ima^*x}$
+\begin{align*}
+\pa{-i\na +k} f = \sum_m  \pa{ma^* +k} \widehat{f}_m e^{ima^*x},
+\end{align*}
+so
+\begin{align*}
+\f 12 \pa{-i\na +k}^2 f = \sum_m  \f 12 \pa{ma^* +k}^2 \widehat{f}_m e^{ima^*x}
+\end{align*}
+
+We have
+\begin{align*}
+\ps{e_{\alpha,n}, \f 12 \pa{-i\na +k}^2 e_{\beta,m}} = \f 12 \pa{ma^* + k}^2 \delta_{\alpha,\beta} \delta_{m-n}
+\end{align*}
+
+We have
+\begin{align*}
+	\sigma \cdot k = \mat{0 & \overline{k_\C} \\ k_\C & 0}, \qquad \pa{J k}_\C = i k_\C, \qquad \sigma \cdot J k = \mat{0 & -i \overline{k_\C} \\ i k_\C & 0}
+\end{align*}
+so
+\begin{align*}
+	\mat{-\sigma \cdot J \pa{-i\na + k} & 0 \\ 0 & \sigma \cdot J \pa{-i\na + k}} e_{1,m} &= -i\pa{ma^* + k}_\C  e_{2,m} \\
+	\mat{-\sigma \cdot J \pa{-i\na + k} & 0 \\ 0 & \sigma \cdot J \pa{-i\na + k}} e_{2,m} &= i \; \overline{\pa{ma^* + k}_\C} \; e_{1,m} \\
+	\mat{-\sigma \cdot J \pa{-i\na + k} & 0 \\ 0 & \sigma \cdot J \pa{-i\na + k}} e_{3,m} &= i\pa{ma^* + k}_\C  e_{4,m} \\
+	\mat{-\sigma \cdot J \pa{-i\na + k} & 0 \\ 0 & \sigma \cdot J \pa{-i\na + k}} e_{4,m} &= -i \; \overline{\pa{ma^* + k}_\C} \; e_{3,m}
+\end{align*}
+
+For a general $V = \sum_m \widehat{V}_m e^{ima^*\cdot x}$, we have $V^* = \sum_m \widehat{V}^*_m e^{-ima^*\cdot x}$ and we compute
+\begin{multline*}
+\ps{e_{\alpha,n}, \mat{0 & V  \pa{-i\na +k}^2 \\V^*  \pa{-i\na +k}^2  & 0} e_{\beta,m}} \\
+=  \pa{ma^* +k}^2 \pa{\delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}} \pa{\widehat{V}_{n-m}}_{\alpha_1 \beta_2} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}}   \overline{\pa{\widehat{V}_{m-n}}_{\beta_1 \alpha_2}}}
+\end{multline*}
 
 
 \section{Symmetries}%
@@ -494,10 +567,43 @@ M^r = S^{-1} M S = \cM^* M \pa{\cM^*}^{-1} = \sigma_1
 \end{align*}
 
 
-\section{Eigenvalue equation}%
-\label{sec:eigenvalue_equation}
+\section{Change of basis for getting $\Phi_j \in L^2_{\tau,\overline{\tau}}$}%
+\label{sub:change_of_basis_for_getting_l_2__tau_tau}
+Numerically, DFTK gives 
+\begin{align*}
+\phi, \p \in \Ker \pa{\cR_{\f{2\pi}{3}}-\tau} + \Ker\pa{\cR_{\f{2\pi}{3}}-\overline{\tau}}
+\end{align*}
+but we want to separate the spaces and obtain $\phi_1 \in \Ker \pa{\cR_{\f{2\pi}{3}}-\tau}$ so that $\phi_2(x,z) := \overline{\phi_1}(-x,z) \in \Ker\pa{\cR_{\f{2\pi}{3}}-\overline{\tau}}$, which existence is ensured by \cite{FefWei12}.
 
-We have $H \p = E S \p$ is equivalent to $S^{-\f{1}{2}} H S^{-\f{1}{2}}\p = E \p$
+First we define
+\begin{align*}
+c := \nor{\pa{\cR_{\f{2\pi}{3}} -\tau}\phi_a}{L^2}^2, \qquad s := \ps{\pa{\cR_{\f{2\pi}{3}} -\tau}\phi_a,\pa{\cR_{\f{2\pi}{3}} -\tau}\phi_b}.
+\end{align*}
+Then we parametrize
+\begin{align*}
+\phi_1 = e^{i \alpha} \pa{\f s{\ab{s}} \cos \theta \phi_a + e^{i\beta} \sin \theta \phi_b}
+\end{align*}
+and we want $\pa{\cR_{\f{2\pi}{3}} -\tau}\phi_1 = 0$ which is equivalent to
+\begin{align*}
+\f s{\ab{s}}\cos \theta \pa{\cR_{\f{2\pi}{3}} -\tau}\phi_a + e^{i\beta} \sin \theta \pa{\cR_{\f{2\pi}{3}} -\tau}\phi_b =0
+\end{align*}
+and we take the scalar product with $\pa{\cR_{\f{2\pi}{3}} -\tau}\phi_a$ so that
+\begin{align*}
+\f c{\ab{s}}\cos \theta  + e^{i\beta} \sin \theta =0
+\end{align*}
+Now we necessarily have $e^{i\beta} = \pm$ so $\cos \theta = \mp \f {\ab{s}}c \sin \theta$ and finally using $\cos^2 + \sin^2 = 1$,
+\begin{align*}
+\ab{\cos \theta} = \f 1{\sqrt{1+ \pa{\f c{\ab{s}}}^2}}, \qquad \ab{\sin \theta} = \f 1{\sqrt{1+ \pa{\f {\ab{s}}c}^2}},
+\end{align*}
+and also choosing $\alpha = 0$ if $\cos \theta \ge 0$ and $\pi$ otherwise, which does not change anything, we have
+\begin{align*}
+\phi_1 = \f{s}{\ab{s}}\f 1{\sqrt{1+ \pa{\f c{\ab{s}}}^2}} \phi_a \pm \f 1{\sqrt{1+ \pa{\f {\ab{s}}c}^2}} \phi_b
+\end{align*}
+and $\phi_2(x) = \overline{\phi_1(-x)}$. By multiplying by $e^{-iKx}$, we also obtain
+\begin{align*}
+\boxed{u_1 = \f{s}{\ab{s}}\f 1{\sqrt{1+ \pa{\f c{\ab{s}}}^2}} u_a \pm \f 1{\sqrt{1+ \pa{\f {\ab{s}}c}^2}} u_b}
+\end{align*}
+and $u_2(x) = \overline{u_1(-x)}$.
 
 
 \bibliographystyle{siam}

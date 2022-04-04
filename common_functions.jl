@@ -45,6 +45,9 @@ function init_cell_vectors(p) # needs a
 	p.a2 = p.a*a2_unit
 	p.a1_star = (2π/p.a)*a1s0
 	p.a2_star = (2π/p.a)*a2s0
+	J = rotM(π/2)
+	# p.a1_star = J*p.a1_star
+	# p.a2_star = J*p.a2_star
 
 	p.K_red = [-1/3;1/3]
 end
@@ -83,6 +86,19 @@ axis2grid_ar(ax) = [[ax[i],ax[j]] for i=1:length(ax), j=1:length(ax)]
 k_inv_1d(k,N) = Int(mod(k,N))+1 # from k in reduced Fourier coordinate to ki such that f^D[ki] = f_k, where f_k = int e^{-ikx} f(x) dx and f^D is the array storing the coefficients f_k, k = fftfreq[ki] so k_inv_1d inverts fftfreq
 k_inv(k,l,p) = (k_inv_1d(k,p.N),k_inv_1d(l,p.N))
 kz_inv(k,p) = k_inv_1d(k,p.Nz)
+
+function test_k_inv()
+	N = 10
+	k_axis = fftfreq(N)*N
+	c = true
+	for ki=1:N
+		k = k_axis[ki]
+		if k_axis[k_inv_1d(k,N)] != k
+			c = false
+		end
+	end
+	px("Test k inv ",c)
+end
 
 # tests whether u(-z) = ε u(z)
 

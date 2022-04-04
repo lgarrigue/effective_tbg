@@ -19,13 +19,12 @@ mutable struct Basis
 	kz_axis
 
 	# Parameters for the 4×4 matrix
-	σ1; σ2 # Pauli matrices
 	N2d; Mfull
 	Li_tot; Li_k; Ci_tot; Ci_k; k2lin
 	H0
 	S # part_hole matrix
 	l; l1; l2; n_l
-	ISΣ
+	ISΣ # S^{-1/2}
 	solver
 	Iα; Iβ
 
@@ -49,7 +48,6 @@ function init_basis(p)
 	p.S = nothing
 
 	### Parameters for the 4×4 matrix
-	p.σ1 = Hermitian([0 1;1 0]); p.σ2 = Hermitian([0 -im;im 0])
 	p.N2d = p.N^2; p.Mfull = 4*p.N2d
 
 	ref = zeros(4,p.N,p.N); ref_k = zeros(p.N,p.N)
@@ -73,7 +71,7 @@ end
 
 ######################### Main functions, to plot band diagrams
 
-function plot_band_structure(Hv,name,p)
+function plot_band_structure(Hv,Kdep,name,p)
 	Γ0 = [0,0.0]
 	K0 = [2/3,1/3]
 	M0 = [1/2,0]
@@ -81,7 +79,7 @@ function plot_band_structure(Hv,name,p)
 	Γ = Γ0 - K0
 	M = M0 - K0
 	Klist = [Γ,K,M]
-	σ_on_path = spectrum_on_a_path(Klist,p,Hv)
+	σ_on_path = spectrum_on_a_path(Hv,Kdep,Klist,p)
 
 	Klist_names = ["Γ","K","M"]
 	pl = plot_band_diagram(σ_on_path,Klist,Klist_names,p)
@@ -90,8 +88,8 @@ function plot_band_structure(Hv,name,p)
 	savefig(pl,string(path,"/band_struct_",name,".png"))
 end
 
-function do_one_value(Hv,K,p)
-	(E,Xf) = solve_one(Hv,K,p)
+function do_one_value(HvK,p)
+	(E,Xf) = solve_one(HvK,p)
 	pl = plot_spectrum(E)
 	savefig(pl,"spectrum_K.png")
 end
@@ -141,6 +139,8 @@ function lin2four(ψ_lin,p)
 	ψ_four
 end
 
+######################### Derivation operators
+
 # Gives the action (hat{VX})_k in Fourier space. Vfour is the Fourier transform of V, Xfour is the Fourier transform of X
 # actionV(Vfour,Xfour,p) = vcat(cyclic_conv(Vfour,Xfour)/length(Vfour)...)
 # actionH(Vfour,p) = X -> p.k2lin.*X .+ actionV(Vfour,Reshape(X,p),p) # X = Xlin, v in direct space
@@ -160,26 +160,65 @@ function create_H0(p)
 		H0[c3,c4] = conj(vC)
 		H0[c4,c3] = vC
 	end
-	test_hermitianity(H0,"H0")
+	# test_hermitianity(H0,"Dirac order 0")
 	# save_H(H0,"H0",p)
 	H0
 end
 
 # Creates [σk    0]
 #         [0    σk]
-function shift_κ(κ,p) # κ in reduced coordinates, κ_cart = κ_red_1 a1_star + κ_red_2 a2_star
+function Dirac_k(κ,p) # κ in reduced coordinates, κ_cart = κ_red_1 a1_star + κ_red_2 a2_star
 	n = p.Mfull
 	H = zeros(ComplexF64,n,n)
-	κ1 = κ[1]; κ2 = κ[2]
-	kC = vec2C(κ1*p.a1_star + κ2*p.a2_star)
-	ckC = conj(kC)
+	kC = vec2C(κ[1]*p.a1_star + κ[2]*p.a2_star); ckC = conj(kC)
 	for ck_lin=1:p.N2d
 		(mi1,mi2) = lin_k2coord_ik(ck_lin,p)
 		(c1,c2,c3,c4) = coords_ik2full_i(mi1,mi2,p)
 		H[c1,c2] = ckC; H[c2,c1] = kC; H[c3,c4] = ckC; H[c4,c3] = kC
 	end
+	test_hermitianity(H,"k shift of Dirac")
+	Hermitian(H)
+end
+
+# Creates (-i∇+k)^2 𝕀_{4×4}
+function mΔ(k,p)
+	n = p.Mfull
+	Δ = zeros(ComplexF64,n,n)
+	kC = k[1]*p.a1_star + k[2]*p.a2_star
+	for ck_lin=1:p.N2d
+		(mi1,mi2) = lin_k2coord_ik(ck_lin,p)
+		(c1,c2,c3,c4) = coords_ik2full_i(mi1,mi2,p)
+		(m1,m2) = k_axis(mi1,mi2,p)
+		vC = norm(m1*p.a1_star + m2*p.a2_star .+ kC)^2
+		Δ[c1,c1],Δ[c2,c2],Δ[c3,c3],Δ[c4,c4] = vC,vC,vC,vC
+	end
+	# test_hermitianity(Δ,"Δ order 1")
+	# save_H(Δ,"Δ",p)
+	Δ
+end
+
+# Creates [-σ⋅J(-i∇+k)           0]
+#         [0            σ⋅J(-i∇+k)]
+function J_Dirac_k(k,p)
+	n = p.Mfull
+	H = zeros(ComplexF64,n,n)
+	kC = vec2C(k[1]*p.a1_star + k[2]*p.a2_star)
+	for ck_lin=1:p.N2d
+		(mi1,mi2) = lin_k2coord_ik(ck_lin,p)
+		(c1,c2,c3,c4) = coords_ik2full_i(mi1,mi2,p)
+		(m1,m2) = k_axis(mi1,mi2,p)
+		vC = vec2C(m1*p.a1_star + m2*p.a2_star) + kC
+		H[c1,c2] = im*conj(vC)
+		H[c2,c1] = -im*vC
+		H[c3,c4] = -im*conj(vC)
+		H[c4,c3] = im*vC
+	end
+	# test_hermitianity(H,"Dirac order 1")
+	# save_H(H,"H",p)
 	H
 end
+
+######################### Electric potential operators
 
 # Creates [0  𝕍]
 #         [𝕍* 0]
@@ -193,17 +232,14 @@ function V_offdiag_matrix(v0,p) # v = [v1,v2,v3,v4] = mat(v1 & v2 \\ v3 & v4), F
 		for m_lin=1:n
 			(β,mi1,mi2) = lin2coord(m_lin,p)
 			(m1,m2) = k_axis(mi1,mi2,p)
-
+			Pi1,Pi2 = k_inv(n1-m1,n2-m2,p)
+			Ki1,Ki2 = k_inv(m1-n1,m2-n2,p)
 			c = 0
-			Pi1,Pi2 = k_inv(n1-m1,  n2-m2,p)
-			Ki1,Ki2 = k_inv(-n1+m1,-n2+m2,p)
-
 			if α ≥ 3 && β ≤ 2
 				c = conj(v[β,α-2][Ki1,Ki2])
 			elseif α ≤ 2 && β ≥ 3
 				c = v[α,β-2][Pi1,Pi2]
 			end
-			
 			H[n_lin,m_lin] = c
 		end
 	end
@@ -237,19 +273,23 @@ function V_ondiag_matrix(Vp0,Vm0,p)
 			H[n_lin,m_lin] = c
 		end
 	end
-	test_hermitianity(H,"ondiag V matrix")
+	# test_hermitianity(H,"ondiag V matrix")
 	# save_H(H,"potential_ondiag_V",p)
 	# test_part_hole_sym_matrix(Hk,p,"Hvk")
 	# display([H[mod1(x,p.Mfull),mod1(y,p.Mfull)] for x=1:30, y=1:30])
 	Hermitian(H)
 end
 
-# Creates [0     -i𝔸∇]
-#         [-i𝔸*∇    0]
-function A_offdiag_matrix(Aa1,Aa2,p)
+######################### Magnetic potential/derivation operators
+
+# Creates [0          𝔸⋅(-i∇+k)]
+#         [𝔸*⋅(-i∇+k)         0]
+function A_offdiag_matrix(Aa1,Aa2,k,p)
 	A1 = lin2mat(Aa1); A2 = lin2mat(Aa2)
 	n = p.Mfull
 	H = zeros(ComplexF64,n,n)
+	K_cart = k[1]*p.a1_star + k[2]*p.a2_star
+	k1 = K_cart[1]; k2 = K_cart[2]
 	for n_lin=1:n
 		(α,ni1,ni2) = lin2coord(n_lin,p)
 		(n1,n2) = k_axis(ni1,ni2,p)
@@ -262,17 +302,49 @@ function A_offdiag_matrix(Aa1,Aa2,p)
 			Ki1,Ki2 = k_inv(-n1+m1,-n2+m2,p)
 
 			if α ≥ 3 && β ≤ 2
-				c = (m1*p.a1_star[1]+m2*p.a2_star[1])*conj(A1[β,α-2][Ki1,Ki2])
-				+ (m1*p.a1_star[2]+m2*p.a2_star[2])*conj(A2[β,α-2][Ki1,Ki2])
+				c = (m1*p.a1_star[1]+m2*p.a2_star[1]+k1)*conj(A1[β,α-2][Ki1,Ki2])
+				+ (m1*p.a1_star[2]+m2*p.a2_star[2]+k2)*conj(A2[β,α-2][Ki1,Ki2])
 			elseif α ≤ 2 && β ≥ 3
-				c = (m1*p.a1_star[1]+m2*p.a2_star[1])*A1[α,β-2][Pi1,Pi2]
-				+ (m1*p.a1_star[2]+m2*p.a2_star[2])*A2[α,β-2][Pi1,Pi2]
+				c = (m1*p.a1_star[1]+m2*p.a2_star[1]+k1)*A1[α,β-2][Pi1,Pi2]
+				+ (m1*p.a1_star[2]+m2*p.a2_star[2]+k2)*A2[α,β-2][Pi1,Pi2]
 			end
 			H[n_lin,m_lin] = c
 		end
 	end
-	test_hermitianity(H,"A")
-	test_part_hole_sym_matrix(H,p,"A")
+	# test_hermitianity(H,"A∇")
+	# test_part_hole_sym_matrix(H,p,"A∇")
+	# save_H(H,"potential_V",p)
+	# display([H[mod1(x,p.Mfull),mod1(y,p.Mfull)] for x=1:30, y=1:30])
+	Hermitian(H)
+end
+
+# Creates [0            V(-i∇+k)^2]
+#         [V^*(-i∇+k)^2          0]
+function VΔ_offdiag_matrix(V0,k,p)
+	V = lin2mat(V0)
+	n = p.Mfull
+	H = zeros(ComplexF64,n,n)
+	K_cart = k[1]*p.a1_star + k[2]*p.a2_star
+	for n_lin=1:n
+		(α,ni1,ni2) = lin2coord(n_lin,p)
+		(n1,n2) = k_axis(ni1,ni2,p)
+		for m_lin=1:n
+			(β,mi1,mi2) = lin2coord(m_lin,p)
+			(m1,m2) = k_axis(mi1,mi2,p)
+			c = 0
+			Pi1,Pi2 = k_inv(n1-m2,  n2-m2,p)
+			Ki1,Ki2 = k_inv(-n1+m1,-n2+m2,p)
+			if α ≥ 3 && β ≤ 2
+				c = conj(V[β,α-2][Ki1,Ki2])
+			elseif α ≤ 2 && β ≥ 3
+				c = V[α,β-2][Pi1,Pi2]
+			end
+			r = norm(m1*p.a1_star+m2*p.a2_star+K_cart)^2
+			H[n_lin,m_lin] = r*c
+		end
+	end
+	# test_hermitianity(H,"ΣΔ")
+	# test_part_hole_sym_matrix(H,p,"ΣΔ")
 	# save_H(H,"potential_V",p)
 	# display([H[mod1(x,p.Mfull),mod1(y,p.Mfull)] for x=1:30, y=1:30])
 	Hermitian(H)
@@ -317,26 +389,18 @@ function apply_lobpcg(H,l,p,X0,maxiter=100,tol=1e-6)
 end
 
 # Solve H_K for one K
-function solve_one(Hv,K,p,X0=-1) # l is the number of eigenvalues we want
+function solve_one(HvK,p,X0=-1) # l is the number of eigenvalues we want
 	X = []
 	if X0 == -1
 		X = randn(ComplexF64,p.Mfull,p.l2)
 	else
 		X = X0
 	end
-	shiftK = shift_κ(K,p)
-	if p.ISΣ != -1
-		shiftK = p.ISΣ*shiftK*p.ISΣ
-	end
-	Hk = Hermitian(Hv .+ shiftK)
-
-	# test_part_hole_sym_matrix(Hk,p,"Hvk")
-	# test_hermitianity(Hk,"Hvk")
 	if p.solver=="LOBPCG"
-		(E,φs,c,Xf) = apply_lobpcg(Hk,p.l2,p,X)
+		(E,φs,c,Xf) = apply_lobpcg(HvK,p.l2,p,X)
 	else
-		(E,φs) = eigen(Hk)
-		E = E[1:p.l2]; φs = φs[:,1:p.l2] # Peut etre pas bon pour φs
+		(E,φs) = eigen(HvK)
+		E = E[1:p.l2]; φs = φs[:,1:p.l2] # Peut etre pas bon pour φs mais on s'en sert pas
 	end
 	(E,Xf)
 end
@@ -346,27 +410,29 @@ end
 
 # Computes spectrum for eigenvalues between l1 and l2
 # It is paralellized
-function spectrum_on_a_path(Klist,p,Hv) 
+function spectrum_on_a_path(Hv,Kdep,Klist,p)
 	res = p.resolution_bands
 	n = length(Klist)
-	T = [i/res for i=0:res-1]; Nt = res
+	T = [i/res for i=0:res-1]
 	n_path_points = res*n
 	n_eigenvals = 1
 	graphs = zeros(n_path_points,n_eigenvals)
-	Klistt = vcat(Klist,Klist[1])
 	X = -1
 	graphs = zeros(n_path_points,p.n_l)
 	for Ki=1:n
-		K0 = Klistt[Ki]; K1 = Klistt[Ki+1]
-		path = [(1-t/Nt)*K0 .+ (t/Nt)*K1 for t=0:Nt-1]
-		Threads.@threads for s=1:Nt
-			(E,Xf) = solve_one(Hv,path[s],p,X)
-			# Selects only positive eigenvalues
+		K0 = Klist[Ki]; K1 = Klist[mod1(Ki+1,n)]
+		path = [(1-t/res)*K0 .+ (t/res)*K1 for t=0:res-1]
+		Threads.@threads for s=1:res
+			HvK = Hv + Kdep(path[s])
+			# test_hermitianity(HvK,"Hvk")
+			# test_part_hole_sym_matrix(HvK,p,"Hvk")
+			(E,Xf) = solve_one(Hermitian(HvK),p,X)
+			# Selects eigenvalues around the Fermi level
 			E = E[p.l1:p.l2]
 			X = Xf
 			indice = (Ki-1)*res + s
 			graphs[indice,:] = E
-			percentage = 100*(Ki*(Nt-1)+s-1)/((n)*(Nt))
+			percentage = 100*(Ki*(res-1)+s-1)/((n)*(res))
 			# px("Percentage done ",percentage)
 		end
 	end
@@ -380,7 +446,6 @@ function plot_band_diagram(graphs,Klist,Knames,p)
 	n_path_points = res*n
 	ylims = p.energy_center-p.energy_scale,p.energy_center+p.energy_scale
 	lengths_paths = [norm(Klist[mod1(i+1,n)].-Klist[i]) for i=1:n]
-	px(lengths_paths)
 	lengths_paths /= sum(lengths_paths)
 	dx_list = lengths_paths/res
 	x_list = []; starts_x = []; end_x = 0

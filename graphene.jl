@@ -24,6 +24,7 @@ mutable struct Params
 	# Dirac point quantities
 	K_red_3d; K_coords_cart; K_kpt # Dirac point in several formats
 	shift_K 
+	v_fermi # Fermi velocity
 
 	### Monolayer functions
 	i_state # index of first valence state
@@ -36,7 +37,7 @@ mutable struct Params
 	v_monolayer_fc # in the Fourier cube
 
 	### Bilayer quantities
-	interlayer_distance # physical distance between two layers /2
+	interlayer_distance # physical distance between two layers
 	Vint_f
 
 	# DFTK quantities
@@ -338,9 +339,10 @@ function fermi_velocity_from_rotated_us(p) # needs that u1 and u2 are rotated be
 	px("Fermi velocity ",abs(A1[1,2]))
 end
 
-function get_fermi_velocity_with_finite_diffs(p)
-	n_samplings = 2*10+1 # has to be even
-	Dλ = 0.001
+function get_fermi_velocity_with_finite_diffs(n_samplings_over_2,p)
+	@assert n_samplings_over_2 ≥ 4
+	n_samplings = 2*n_samplings_over_2+1 # has to be even
+	Dλ = 0.0001
 	start_λ = 1-Dλ; end_λ = 1+Dλ; dλ = (end_λ-start_λ)/(n_samplings-1)
 	set_coefs = [start_λ + i*dλ for i=0:n_samplings-1]
 	set_cart_K = [λ*p.K_coords_cart for λ in set_coefs]
@@ -354,10 +356,12 @@ function get_fermi_velocity_with_finite_diffs(p)
 	Ipoint = Int(floor(n_samplings/4)-1)
 	dK = norm(set_cart_K[Ipoint+1]-set_cart_K[Ipoint])
 	x_axis = norm.(set_cart_K)
-	pl = plot(x_axis,[values_down,values_up]); display(pl)
+	pl = plot(x_axis,[values_down,values_up])
+	savefig(pl,string(p.path_plots,"graph_fermi_velocity.png"))
 	vF = (values_down[Ipoint+1]-values_down[Ipoint])/dK
 	vF_up = (values_up[Ipoint+1]-values_up[Ipoint])/dK
 	px("Fermi velocity: ",vF,". Verification with upper eigenvalue: ",vF_up)
+	vF
 end
 
 function compute_vF_with_diagonalization_doesnt_work(p)
@@ -398,8 +402,8 @@ end
 
 function exports_v_u1_u2(p)
 	filename = string(p.path_exports,"N",p.N,"_Nz",p.Nz,"_u1_u2_V.jld")
-	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"v_f",p.v_monolayer_fc,"u1_f",p.u1_fc,"u2_f",p.u2_fc)
-	px("Exported : V, u1, u2 functions for N=",p.N,", Nz=",p.Nz)
+	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"v_f",p.v_monolayer_fc,"u1_f",p.u1_fc,"u2_f",p.u2_fc,"v_fermi",p.v_fermi)
+	px("Exported : V, u1, u2 functions, and Fermi velocity, for N=",p.N,", Nz=",p.Nz)
 end
 
 function export_Vint(p)
