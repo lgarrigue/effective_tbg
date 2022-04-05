@@ -297,6 +297,24 @@ function mat_on_ki(Q,ki,p)
 	fun2d(k_nat2ki,Q*k,p.N)
 end
 
+######################## Plot function 1d
+
+function red_arr2fun_red_1d(ψ_four) 
+	N = length(ψ_four)
+	k_axis = fftfreq(N)*N
+	f(x) = 0
+	for i=1:N
+		g(x) = ψ_four[i] * cis(2π*k_axis[i]*x)
+		f = f + g
+	end
+	f
+end
+
+function eval_fun_to_plot_1d(ψ_four,res)
+	f = red_arr2fun_red_1d(ψ_four) 
+	real.(f.((0:res-1)/res))
+end
+
 ######################## Plot
 
 function plot2d(f,p;axis=nothing,size=(100,200))

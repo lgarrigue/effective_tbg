@@ -39,6 +39,7 @@ mutable struct Params
 	### Bilayer quantities
 	interlayer_distance # physical distance between two layers
 	Vint_f
+	Vint_dir
 
 	# DFTK quantities
 	ecut; scfres; basis; atoms
@@ -304,7 +305,7 @@ function compute_Vint_Xs(V_bil_Xs_fc,p)
 end
 
 # Computes Vint
-form_Vint_from_Vint_Xs(V_bil_Xs_fc,p) = [sum(V_bil_Xs_fc[:,:,miz])/p.N^2 for miz=1:p.Nz]
+form_Vint_from_Vint_Xs(Vint_Xs_fc,p) = [sum(Vint_Xs_fc[:,:,miz])/p.N^2 for miz=1:p.Nz]
 
 # Computes the dependency of Vint_Xs on Xs
 function computes_δ_Vint(Vint_Xs_fc,Vint_f,p)
@@ -454,7 +455,19 @@ function rapid_plot(u,p;n_motifs=5,name="rapidplot",bloch_trsf=true,res=25)
 	savefig(pl,string(p.path_plots,name,".png"))
 end
 
-function plot_Vint(Vint,p)
-	plr = plot(p.z_axis_cart,Vint)
-	savefig(plr,string(p.path_plots,"Vint.png"))
+function plot_Vint(p)
+	# average of v_monolayer
+	v_f = fft([sum(p.v_monolayer_dir[:,:,z]) for z=1:p.Nz])/p.N^2 
+	# shifts of ±d/2 of the monolayer KS potential
+	v_f_plus  = v_f.*cis.( 2π*p.kz_axis*p.interlayer_distance/(2*p.L))
+	v_f_minus = v_f.*cis.(-2π*p.kz_axis*p.interlayer_distance/(2*p.L))
+
+	res = 100
+	v_bilayer = eval_fun_to_plot_1d(p.Vint_f,res)
+	v_plus = eval_fun_to_plot_1d(v_f_plus,res)
+	v_minus = eval_fun_to_plot_1d(v_f_minus,res)
+	z_axis = (0:res-1)*p.L/res
+
+	pl = plot(z_axis,[v_bilayer,v_plus,v_minus],label=["Vint" "τ_+ v_mono" "τ_- v_mono"])
+	savefig(pl,string(p.path_plots,"Vint.png"))
 end

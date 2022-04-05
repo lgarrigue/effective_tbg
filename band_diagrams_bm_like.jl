@@ -460,10 +460,11 @@ function plot_band_diagram(graphs,Klist,Knames,p)
 	for l=1:p.n_l
 		plot!(pl,x_list,graphs[:,l],xticks=nothing)
 	end
+	colors = [:green,:yellow,:blue]
 	for Ki=1:n
 		x = starts_x[Ki]
-		plot!(pl,[x], seriestype="vline", label=Knames[Ki])
-		annotate!(x+0.01, ylims[1]+(ylims[2]-ylims[1])/20, text(Knames[Ki], :blue, :left, 20))
+		plot!(pl,[x], seriestype="vline", label=Knames[Ki], color=colors[Ki])
+		annotate!(x+0.01, ylims[1]+(ylims[2]-ylims[1])/20, text(Knames[Ki], colors[Ki], :left, 20))
 	end
 	pl
 end

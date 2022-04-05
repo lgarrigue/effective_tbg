@@ -62,6 +62,7 @@ function produce_bloch_functions_and_potentials()
 	# Computes Vint (expensive in time)
 	if compute_Vint
 		px("Computes the Kohn-Sham potential of the bilayer at each disregistry (long step): ",p.N,"×",p.N,"=",p.N2d," steps")
+		# V_bilayer_Xs_fc = randn(p.N,p.N,p.Nz)
 		V_bilayer_Xs_fc = V_bilayer_Xs(p)
 		# Computes Vint(Xs,z)
 		Vint_Xs_fc = compute_Vint_Xs(V_bilayer_Xs_fc,p)
@@ -70,10 +71,10 @@ function produce_bloch_functions_and_potentials()
 		# Computes the dependency of Vint_Xs on Xs
 		computes_δ_Vint(Vint_Xs_fc,p.Vint_f,p)
 		# Plots, exports, tests
-		Vint = real.(ifft(p.Vint_f))
-		test_z_parity(Vint,1,p;name="Vint")
+		p.Vint_dir = real.(ifft(p.Vint_f))
+		test_z_parity(p.Vint_dir,1,p;name="Vint")
 		export_Vint(p)
-		plot_Vint(Vint,p)
+		plot_Vint(p)
 	end
 	p
 end
