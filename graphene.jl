@@ -41,7 +41,7 @@ mutable struct Params
 	Vint_f
 
 	# DFTK quantities
-	ecut; scfres; basis
+	ecut; scfres; basis; atoms
 	kgrid
 	Gvectors; Gvectors_cart; Gvectors_inv; Gplusk_vectors; Gplusk_vectors_cart # Gplusk is used to plot the e^{iKx} u(x) for instance
 	recip_lattice; recip_lattice_inv # from k in reduced coords to a k in cartesian ones
@@ -127,8 +127,8 @@ r_translation(a,s,p) = [a[mod1(x-s[1],p.N),mod1(y-s[2],p.N),z] for x=1:p.N, y=1:
 function scf_graphene_monolayer(p)
 	C = ElementPsp(:C, psp=load_psp("hgh/pbe/c-q4"))
 	c1 = [1/3,1/3,0.0]; c2 = -c1
-	atoms = [C => [c1,c2]]
-	model = model_PBE(p.M3d, atoms; temperature=1e-3, smearing=Smearing.Gaussian())
+	p.atoms = [C => [c1,c2]]
+	model = model_PBE(p.M3d, p.atoms; temperature=1e-3, smearing=Smearing.Gaussian())
 	basis = PlaneWaveBasis(model; Ecut=p.ecut, p.kgrid)
 
 	(p.N,p.N,p.Nz) = basis.fft_size
@@ -168,17 +168,13 @@ function diag_monolayer_at_k(k,p;n_bands=10) # k is in reduced coordinates, n_ba
 end
 
 # Computes the Kohn-Sham potential of the bilayer at some stacking shift (disregistry)
-function scf_graphene_bilayer(stacking_shift,p)
-	sf = [0.0,0.0]
-	sf[1] = p.x_axis_red[mod1(stacking_shift[1]+1,p.N)]
-	sf[2] = p.x_axis_red[mod1(stacking_shift[2]+1,p.N)]
-	total_shift = vcat(sf,[0.0])
-	base = [1/3,1/3] # shift base
-	s = -base
+function scf_graphene_bilayer(six,siy,p)
+	stacking_shift_red = [p.x_axis_red[six],p.x_axis_red[siy],0.0]
 	D = p.interlayer_distance/(p.L*2)
-	# px("D = ",D)
-	c1_plus =  [1/3,1/3, D]; c2_plus = vcat(s,[D])
-	c1_moins = [1/3,1/3,-D] .+ total_shift; c2_moins = vcat(s,[-D]) .+ total_shift
+	c1_plus =  [ 1/3, 1/3, D] .+ stacking_shift_red
+	c2_plus =  [-1/3,-1/3, D] .+ stacking_shift_red
+	c1_moins = [ 1/3, 1/3,-D]
+	c2_moins = [-1/3,-1/3,-D]
 	C = ElementPsp(:C, psp=load_psp("hgh/pbe/c-q4"))
 	atoms = [C => [c1_plus,c2_plus,c1_moins,c2_moins]]
 	n_extra_states = 1
@@ -287,13 +283,13 @@ end
 function V_bilayer_Xs(p) # hat(V)^{bilayer,s}_{0,M}
 	V = zeros(ComplexF64,p.N,p.N,p.Nz)
 	print("Step : ")
-	grid = [[sx,sy] for sx=1:p.N, sy=1:p.N]
+	grid = [(six,siy) for six=1:p.N, siy=1:p.N]
 	# Threads.@threads for s=1:p.N^2 # multi-threading blocks because of a problem in the parallelization of DFTK's diagonalization
 	for si=1:p.N^2
-		s = grid[si]; sx = s[1]; sy = s[2]
+		(six,siy) = grid[si]
 		print(si," ")
-		v_fc = scf_graphene_bilayer(s,p)
-		V[sx,sy,:] = v_fc[1,1,:]
+		v_fc = scf_graphene_bilayer(six,siy,p)
+		V[six,siy,:] = v_fc[1,1,:]
 	end
 	print("\n")
 	V
@@ -304,7 +300,7 @@ function compute_Vint_Xs(V_bil_Xs_fc,p)
 	Vint_Xs = zeros(ComplexF64,p.N,p.N,p.Nz)
 	app(mz) = 2*cos(mz*π*p.interlayer_distance/p.L)
 	V_app_k = p.v_monolayer_fc[1,1,:].*app.(p.kz_axis)
-	[V_bil_Xs_fc[sx,sy,mz] - V_app_k[mz] for sx=1:p.N, sy=1:p.N, mz=1:p.Nz]
+	[V_bil_Xs_fc[six,siy,miz] - V_app_k[miz] for six=1:p.N, siy=1:p.N, miz=1:p.Nz]
 end
 
 # Computes Vint

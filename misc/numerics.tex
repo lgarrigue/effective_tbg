@@ -84,6 +84,7 @@
 \def\bbA{{\mathbb A}}
 \def\bbB{{\mathbb B}}
 \def\1{{\mathds{1}}}
+\def\L{{\mathbb L}}
 
 \newcommand{\dd}{\tfrac{d}{2}}
 
@@ -170,8 +171,9 @@ and
 For $\bs \in \Omega := [0,1] \ba_1 + [0,1] \ba_2$, we denote by $V^{(2)}_{\bs}$ the true Kohn-Sham mean-field potential for the configuration where the two sheets are aligned (no angle), but with the upper one shifted by a vector $\bs$. We set
 \begin{align*}
 	V_{\rm int, \bs}(z) &:= \f{1}{\ab{\Omega}} \int_{\Omega}  \left( V^{(2)}_{\bs}(\bx, z) - V(\bx, z + \dd) - V(\bx - \bs, z -\dd)   \right) \d \bx \\
-    &= \f{1}{\ab{\Omega}} \sum_{\substack{\bmm \in \Z^2 \\ m_z \in \Z}} \int_{\Omega} e^{i \pa{\bmm \ba^* \cdot \bx + m_z \f{2\pi}{L} z}} \\
-    &\quad \times \pa{ \widehat{\pa{V^{(2)}_{\bs}}}_{\bmm,m_z} - \widehat{V}_{\bmm,m_z}e^{i m_z \f{2\pi}{L} \f{d}{2}} -\widehat{V}_{\bmm,m_z} e^{-i \pa{\bmm \ba^*\cdot \bs +m_z \f{2\pi}{L} \f{d}{2}}}} \d \bx \\
+	&= \f{1}{\ab{\Omega}} \int_{\Omega}  \left( V^{(2)}_{\bs}(\bx, z) - V(\bx, z + \dd) - V(\bx, z -\dd)   \right) \d \bx \\
+    &= \f{1}{\ab{\Omega}} \sum_{\substack{\bmm \in \Z^2 \\ m_z \in \Z}}  \pa{ \widehat{\pa{V^{(2)}_{\bs}}}_{\bmm,m_z} - \widehat{V}_{\bmm,m_z}e^{i m_z \f{2\pi}{L} \f{d}{2}} -\widehat{V}_{\bmm,m_z} e^{-i m_z \f{2\pi}{L} \f{d}{2}}} \\
+    &\qquad \qquad \times \int_{\Omega} e^{i \pa{\bmm \ba^* \cdot \bx + m_z \f{2\pi}{L} z}}\d \bx \\
     &= \sum_{\substack{m_z \in \Z}} e^{i  m_z \f{2\pi}{L} z} \pa{ \widehat{\pa{V^{(2)}_{\bs}}}_{0,m_z} - 2 \widehat{V}_{0,m_z} \cos\pa{ m_z \tfrac{\pi d}{L} }}
 \end{align*}
 and we obtain the Fourier coefficients
@@ -266,7 +268,6 @@ For the potentials, we finally need to implement
 If $f(z) = \ep f(-z)$, then $\widehat{f}_{-m_z} = \ep \widehat{f}_{m_z}$, from this we see that $\overline{C_\bmm^{u_{j'},u_{j}}} = C_\bmm^{u_{j},u_{j'}}$ and hence $\bbV(-X)^* = \bbV(X)$
 
 \subsection{Magnetic term}%
-\label{sub:magnetic_term}
 
 
 As for the magnetic term, we have
@@ -384,7 +385,6 @@ e_{\alpha,m} := e_\alpha \otimes e_m = e_\alpha \f{e^{ima^*\cdot x}}{\sqrt{\ab{\
 \end{align*}
 
 \subsection{Multiplication-derivation operators}%
-\label{sub:magnetic_term}
 
 For $A = (A_1,A_2)$ and $A_j = \sum_\ell \pa{\widehat{A_j}}_\ell e^{i \ell a^*\cdot x}$, we have
 \begin{multline*}
@@ -604,6 +604,22 @@ and $\phi_2(x) = \overline{\phi_1(-x)}$. By multiplying by $e^{-iKx}$, we also o
 \boxed{u_1 = \f{s}{\ab{s}}\f 1{\sqrt{1+ \pa{\f c{\ab{s}}}^2}} u_a \pm \f 1{\sqrt{1+ \pa{\f {\ab{s}}c}^2}} u_b}
 \end{align*}
 and $u_2(x) = \overline{u_1(-x)}$.
+
+
+\section{The $1/3$ scaling of coordinates}%
+\label{sec:the_1_3_scaling_of_coordinates}
+
+Taken from \cite[Appendix G.3, G.4]{WatLus21} for instance, the moiré lattice vectors are 
+\begin{align*}
+a_1 = \f{2\pi}{3k_\theta} \mat{\sqrt 3 \\ 1},\qquad a_2 = \f{2\pi}{3k_\theta} \mat{-\sqrt 3 \\ 1}
+\end{align*}
+and $T(x) = \sum_{j=1}^3 T_j e^{-iq_j x}$ has 
+\begin{align*}
+q_1 = k_\theta \mat{0 \\ -1},\qquad q_{2,3} = \f{k_\theta}{2} \mat{\pm \sqrt 3 \\ 1}
+\end{align*}
+and we remark that $a_1 \cdot q_1 = -\f{2\pi}{3}$ so actually $q_j \not\in \L^*$ but $3 q_j \in \L^*$.
+
+
 
 
 \bibliographystyle{siam}

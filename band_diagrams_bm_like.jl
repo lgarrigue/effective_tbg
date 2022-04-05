@@ -176,7 +176,7 @@ function Dirac_k(κ,p) # κ in reduced coordinates, κ_cart = κ_red_1 a1_star +
 		(c1,c2,c3,c4) = coords_ik2full_i(mi1,mi2,p)
 		H[c1,c2] = ckC; H[c2,c1] = kC; H[c3,c4] = ckC; H[c4,c3] = kC
 	end
-	test_hermitianity(H,"k shift of Dirac")
+	# test_hermitianity(H,"k shift of Dirac")
 	Hermitian(H)
 end
 
@@ -243,8 +243,8 @@ function V_offdiag_matrix(v0,p) # v = [v1,v2,v3,v4] = mat(v1 & v2 \\ v3 & v4), F
 			H[n_lin,m_lin] = c
 		end
 	end
-	test_hermitianity(H,"offdiag V matrix")
-	test_part_hole_sym_matrix(H,p,"H")
+	# test_hermitianity(H,"offdiag V matrix")
+	# test_part_hole_sym_matrix(H,p,"H")
 	# save_H(H,"potential_V",p)
 	# display([H[mod1(x,p.Mfull),mod1(y,p.Mfull)] for x=1:30, y=1:30])
 	Hermitian(H)

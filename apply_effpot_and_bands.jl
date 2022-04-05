@@ -193,9 +193,10 @@ function explore_band_structure_Heff()
 	p.energy_scale = 2
 	p.resolution_bands = 5
 
+
 	method = "natural" # ∈ ["weight","natural"]
 	if method=="natural"
-		for θ in (0.005:0.001:0.006) # 1° × 2π/360 = 0.017 rad
+		for θ in (0.001:0.0001:0.003) # 1° × 2π/360 = 0.017 rad
 			print(" ",θ)
 			cθ = cos(θ/2); εθ = sin(θ/2)
 			# If needed to accelerate : compute all the operators for all k, then multiply by each constant depending on θ. Ici on forme plein de fois des operateurs HkV alors qu'on peut l'éviter
@@ -211,10 +212,10 @@ function explore_band_structure_Heff()
 			end
 
 			# K-independent part
-			Hv = p.ISΣ*( (1/εθ)*(V+W) + EffV.v_fermi*cθ*p.H0 )*p.ISΣ
+			Hv = p.ISΣ*( (1/εθ)*(V+ 0*W) + EffV.v_fermi*cθ*p.H0 )*p.ISΣ
 
 			# px("mass W ",sum(abs.(W)))
-			test_hermitianity(Hv)#; test_part_hole_sym_matrix(W,p,"W")
+			# test_hermitianity(Hv)#; test_part_hole_sym_matrix(W,p,"W")
 			s = string(θ,"00000000000")
 			title = s[1:min(6,length(s))]
 			title = string(θ)
@@ -235,9 +236,9 @@ function explore_band_structure_Heff()
 	end
 end
 
-# computes_and_plots_effective_potentials()
+computes_and_plots_effective_potentials()
 # explore_band_structure_Heff()
-explore_band_structure_BM()
+# explore_band_structure_BM()
 
 
 #### Todo

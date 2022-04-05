@@ -14,7 +14,7 @@ function produce_bloch_functions_and_potentials()
 	p.tol_scf = 1e-3
 	p.plots_cutoff = 7 # Fourier cutoff for plots
 	init_params(p)
-	compute_Vint = false
+	compute_Vint = true
 
 	px("Computes the Kohn-Sham potential of the monolayer")
 	scfres = scf_graphene_monolayer(p)
@@ -34,6 +34,10 @@ function produce_bloch_functions_and_potentials()
 	p.v_fermi = get_fermi_velocity_with_finite_diffs(4,p) # Computing dE/dk with diagonalization
 	# fermi_velocity_from_rotated_us(p) # Doing scalar products
 
+
+	# proj = DFTK.build_projection_coefficients_(p.basis, p.atoms, p.K_kpt)
+	# proj = DFTK.build_projection_vectors_(p.basis, p.atoms, p.K_kpt)
+
 	# Symmetry tests
 	if true
 		test_rot_sym(p)
@@ -52,7 +56,7 @@ function produce_bloch_functions_and_potentials()
 	resolution = 75
 	n_motifs = 15
 	rapid_plot(p.u0_fb,p;n_motifs=n_motifs,name="u0",res=resolution)
-	rapid_plot(p.u1_fb,p;n_motifs=n_motifs,name= "u1",res=resolution)
+	rapid_plot(p.u1_fb,p;n_motifs=n_motifs,name="u1",res=resolution)
 	# rapid_plot(R(p.u1_fb,p),p;n_motifs=n_motifs,res=resolution,name="u2",bloch_trsf=false)
 
 	# Computes Vint (expensive in time)
