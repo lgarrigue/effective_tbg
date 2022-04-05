@@ -207,7 +207,9 @@ function explore_band_structure_Heff()
 
 	method = "natural" # ∈ ["weight","natural"]
 	if method=="natural"
-		for θ in (0.01:0.01:0.3) # 1° × 2π/360 = 0.017 rad
+		# for θ in (0.01:0.01:0.3) # 1° × 2π/360 = 0.017 rad
+		for θ in (0.001:0.0001:0.003)
+		# for θ in (0.0001:0.0001:0.001)
 			print(" ",θ)
 			cθ = cos(θ/2); εθ = sin(θ/2)
 			# If needed to accelerate : compute all the operators for all k, then multiply by each constant depending on θ. Ici on forme plein de fois des operateurs HkV alors qu'on peut l'éviter
