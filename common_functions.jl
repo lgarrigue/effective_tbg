@@ -126,6 +126,7 @@ end
 ####################################### Operations on functions in Fourier space
 
 R_four(a,p) = apply_map_four(X -> [0 -1;1 -1]*X,a,p) # rotation of 2π/3, in Fourier space
+J_four(a,p) = apply_map_four(X -> -[1 -2;2 -1]*X,a,p) # rotation of -π/2, in Fourier space, with scaling of sqrt(3)
 parity_four(a,p) = apply_map_four(X -> -X,a,p)
 σ1_four(a,p) = apply_map_four(X -> [0 1;1 0]*X,a,p)
 

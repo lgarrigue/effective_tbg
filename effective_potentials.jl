@@ -1,4 +1,4 @@
-using Plots, LinearAlgebra, JLD, FFTW
+using Plots, LinearAlgebra, JLD, FFTW, Optim
 px = println
 include("common_functions.jl")
 include("misc/create_bm_pot.jl")
@@ -64,6 +64,15 @@ function init_EffPot(p)
 	plots_L = p.L*p.plots_n_motifs
 	plots_dx = plots_L/p.plots_res
 	p.plots_x_axis_cart = (0:plots_dx:plots_L-plots_dx)
+end
+
+# multiplies all potentials by γ
+function multiply_potentials(γ,p)
+	p.Σ *= γ
+	p.𝕍_V *= γ; p.𝕍_Vint *= γ; p.𝕍 *= γ
+	p.Wplus *= γ; p.Wplus_tot *= γ; p.Wminus *= γ; p.Wminus_tot *= γ; p.W_Vint_matrix *= γ
+	p.𝔸1 *= γ; p.𝔸2 *= γ; p.𝔹1 *= γ; p.𝔹2 *= γ
+	p.J𝔸1 *= γ; p.J𝔸2 *= γ
 end
 
 ################## Core: computation of effective potentials
@@ -233,6 +242,38 @@ function lin2mat(M)
 	T = [copy(m) for i=1:2, j=1:2]
 	T[1,1] = M[1]; T[1,2] = M[2]; T[2,1] = M[3]; T[2,2] = M[4]
 	T
+end
+
+################## Comparison of functions
+
+function compare(u,v)
+	α0 = [1.0]
+	f(α) = norm(α[1]*u .- v)^2/norm(v)^2
+	res = optimize(f, α0)
+	minimum(res)
+end
+
+function compare_blocks(A,B,p)
+	for j=1:4
+		m = compare(A[j],B[j])
+		px("Distance block ",j," ",m)
+	end
+end
+
+function compare_to_BM(A,p)
+	n1 = norm(A[1])^2; n2 = norm(A[2])^2
+	function dist(α)
+		T = hermitian_block(build_BM(α[1],α[2],p))
+		T = app_block(J_four,T,p)
+		T = app_block(J_four,T,p)
+		T = app_block(J_four,T,p)
+		norm(T[1] .- A[1])^2/n1 + norm(T[2] .- A[2])^2/n2
+	end
+	α0 = [1.0,1.0]
+	res = optimize(dist, α0)
+	m = minimum(res)
+	α = Optim.minimizer(res)
+	px("Distance to BM ",m," with coefs (α,β)=(",α[1],",",α[2],")")
 end
 
 ################## Symmetry tests

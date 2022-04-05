@@ -152,6 +152,8 @@ and compute Plancherel's formula
 \end{align}
 Hence, as a verification, we test that the normalization of the $\widehat{u_j}$'s is the right one by checking that $\nor{u_j}{L^2}^2 = 1$ via \eqref{eq:plancherel}.
 
+
+
 \subsection{Rotation action}%
 \label{sub:rotation_action}
 
@@ -164,6 +166,17 @@ and
 \begin{align*}
 \cR_{\f{2\pi}3} f(x) = \sum_m f_m e^{i \pa{R_{\f{2\pi}3}^{\text{red}} m} a^* \cdot x} = \sum_m f_{R_{-\f{2\pi}3}^{\text{red}} m} e^{im a^* \cdot x}
 \end{align*}
+
+Similarly, $R_{\f{\pi}2}  \pa{ma^* } = \pa{R_{\f{\pi}2}^{\text{red}} m} a^*$ where
+\begin{align*}
+	R_{\f{\pi}2} ^{\text{red}} = S^{-1} R_{\f{\pi}2}  S = \f{1}{\sqrt 3} \mat{-1 & 2 \\ -2 & 1}, \qquad R_{-\f{\pi}2}^{\text{red}} = \f{1}{\sqrt 3} \mat{1 & -2 \\ 2 & -1} =: \f{1}{\sqrt 3} M
+\end{align*}
+and
+\begin{align*}
+\cR_{\f{\pi}2} f(x) = \sum_m f_m e^{i \pa{R_{\f{\pi}2}^{\text{red}} m} a^* \cdot x} = \sum_m f_{M m} e^{i \f{1}{\sqrt 3} m a^* \cdot x}
+\end{align*}
+
+
 
 \section{Computation of $V\ind{int}$}%
 \label{sec:computation_of_vint_}

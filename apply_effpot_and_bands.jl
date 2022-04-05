@@ -7,12 +7,12 @@ function computes_and_plots_effective_potentials()
 	N = 8; Nz = 27
 	# N = 9; Nz = 36
 	# N = 12; Nz = 45
-	# N = 15; Nz = 50
+	# N = 15; Nz = 60
 	p = EffPotentials()
 	p.plots_cutoff = 7
 	p.plots_res = 50
 	p.plots_n_motifs = 6
-	produce_plots = true
+	produce_plots = false
 
 	# Initializations
 	import_u1_u2_V(N,Nz,p)
@@ -22,7 +22,10 @@ function computes_and_plots_effective_potentials()
 
 	# True BM potential
 	α = 0.5; β = 1.0
-	T = build_BM(α,β,p)
+	T = hermitian_block(build_BM(α,β,p))
+	T = app_block(J_four,T,p) # rotates T of J and rescales space of sqrt(3)
+	T = app_block(J_four,T,p) # rotates T of J and rescales space of sqrt(3)
+	T = app_block(J_four,T,p) # rotates T of J and rescales space of sqrt(3)
 
 	# if false # tests Cm_s
 		# P1 = build_potential_direct(p.u1v_f,p.u1_f,p)
@@ -34,7 +37,14 @@ function computes_and_plots_effective_potentials()
 
 	build_blocks_potentials(p) # computes Wplus, 𝕍_V and Σ
 	build_block_𝔸(p) # computes 𝔸
+	multiply_potentials(p.N^2,p)
 	test_sym_Wplus_Wminus(p)
+	# p.𝕍 = app_block(J_four,p.𝕍,p) # rotates T of J and rescales space of sqrt(3)
+	
+	# Compares functions of T and 𝕍
+	compare_blocks(T,p.𝕍,p)
+	compare_to_BM(p.𝕍,p)
+	compare_to_BM(p.Σ,p)
 
 	px("\nW_Vint matrix\n",p.W_Vint_matrix,"\n")
 
@@ -106,6 +116,7 @@ function computes_and_plots_effective_potentials()
 
 	if produce_plots
 		# Plots in reduced coordinates
+		plot_block_reduced(T,p;title="T")
 		plot_block_reduced(p.Wplus_tot,p;title="W")
 		plot_block_reduced(p.𝕍,p;title="V")
 		plot_block_reduced(p.Σ,p;title="Σ")
@@ -134,7 +145,7 @@ function explore_band_structure_BM()
 	p = Basis()
 	p.N = 7
 	p.a = 4.66
-	p.l = 6 # number of eigenvalues we compute
+	p.l = 12 # number of eigenvalues we compute
 	init_basis(p)
 	α = 0.0 # anti-chiral / AA stacking weight
 	p.resolution_bands = 3
@@ -196,7 +207,7 @@ function explore_band_structure_Heff()
 
 	method = "natural" # ∈ ["weight","natural"]
 	if method=="natural"
-		for θ in (0.001:0.0001:0.003) # 1° × 2π/360 = 0.017 rad
+		for θ in (0.01:0.01:0.3) # 1° × 2π/360 = 0.017 rad
 			print(" ",θ)
 			cθ = cos(θ/2); εθ = sin(θ/2)
 			# If needed to accelerate : compute all the operators for all k, then multiply by each constant depending on θ. Ici on forme plein de fois des operateurs HkV alors qu'on peut l'éviter
@@ -218,7 +229,6 @@ function explore_band_structure_Heff()
 			# test_hermitianity(Hv)#; test_part_hole_sym_matrix(W,p,"W")
 			s = string(θ,"00000000000")
 			title = s[1:min(6,length(s))]
-			title = string(θ)
 			plot_band_structure(Hv,Kdep,title,p)
 		end
 	else
@@ -236,8 +246,8 @@ function explore_band_structure_Heff()
 	end
 end
 
-computes_and_plots_effective_potentials()
-# explore_band_structure_Heff()
+# computes_and_plots_effective_potentials()
+explore_band_structure_Heff()
 # explore_band_structure_BM()
 
 

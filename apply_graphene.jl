@@ -5,13 +5,13 @@ include("graphene.jl")
 function produce_bloch_functions_and_potentials()
 	p = Params() # stores all we need to store
 	# Choose parameters
+	p.ecut = 10 # DFTK's ecut
 	p.a = 4.66 # length of the vectors of the fundamental cell
 	p.interlayer_distance = 6.45 # distance between the two layers
 	p.L = 20 # periodicity in z (both for mono and bilayer computations)
 	p.i_state = 4 # u1 will be the i^th eigenmode, u1 the (i+1)^th, u0 the (i-1)^th
-	p.ecut = 2 # DFTK's ecut
 	p.kgrid = [10,10,1] # for computing the KS potential
-	p.tol_scf = 1e-3
+	p.tol_scf = 1e-4
 	p.plots_cutoff = 7 # Fourier cutoff for plots
 	init_params(p)
 	compute_Vint = true
@@ -62,10 +62,10 @@ function produce_bloch_functions_and_potentials()
 	# Computes Vint (expensive in time)
 	if compute_Vint
 		px("Computes the Kohn-Sham potential of the bilayer at each disregistry (long step): ",p.N,"×",p.N,"=",p.N2d," steps")
-		# V_bilayer_Xs_fc = randn(p.N,p.N,p.Nz)
-		V_bilayer_Xs_fc = V_bilayer_Xs(p)
+		# p.V_bilayer_Xs_fc = randn(p.N,p.N,p.Nz)
+		compute_V_bilayer_Xs(p)
 		# Computes Vint(Xs,z)
-		Vint_Xs_fc = compute_Vint_Xs(V_bilayer_Xs_fc,p)
+		Vint_Xs_fc = compute_Vint_Xs(p)
 		# Computes Vint(z)
 		p.Vint_f = form_Vint_from_Vint_Xs(Vint_Xs_fc,p)
 		# Computes the dependency of Vint_Xs on Xs

@@ -1,6 +1,6 @@
 include("common_functions.jl")
 using DFTK, LinearAlgebra, FFTW, JLD
-# setup_threading()
+setup_threading()
 px = println
 
 mutable struct Params
@@ -40,6 +40,7 @@ mutable struct Params
 	interlayer_distance # physical distance between two layers
 	Vint_f
 	Vint_dir
+	V_bilayer_Xs_fc
 
 	# DFTK quantities
 	ecut; scfres; basis; atoms
@@ -281,7 +282,7 @@ end
 ######################### Computation of Vint
 
 # Long step, computation of a Kohn-Sham potential for each disregistry
-function V_bilayer_Xs(p) # hat(V)^{bilayer,s}_{0,M}
+function compute_V_bilayer_Xs(p) # hat(V)^{bilayer,s}_{0,M}
 	V = zeros(ComplexF64,p.N,p.N,p.Nz)
 	print("Step : ")
 	grid = [(six,siy) for six=1:p.N, siy=1:p.N]
@@ -293,19 +294,19 @@ function V_bilayer_Xs(p) # hat(V)^{bilayer,s}_{0,M}
 		V[six,siy,:] = v_fc[1,1,:]
 	end
 	print("\n")
-	V
+	p.V_bilayer_Xs_fc = V
 end
 
 # Computes Vint_Xs
-function compute_Vint_Xs(V_bil_Xs_fc,p)
+function compute_Vint_Xs(p)
 	Vint_Xs = zeros(ComplexF64,p.N,p.N,p.Nz)
 	app(mz) = 2*cos(mz*π*p.interlayer_distance/p.L)
 	V_app_k = p.v_monolayer_fc[1,1,:].*app.(p.kz_axis)
-	[V_bil_Xs_fc[six,siy,miz] - V_app_k[miz] for six=1:p.N, siy=1:p.N, miz=1:p.Nz]
+	[p.V_bilayer_Xs_fc[six,siy,miz] - V_app_k[miz] for six=1:p.N, siy=1:p.N, miz=1:p.Nz]/p.N^2
 end
 
 # Computes Vint
-form_Vint_from_Vint_Xs(Vint_Xs_fc,p) = [sum(Vint_Xs_fc[:,:,miz])/p.N^2 for miz=1:p.Nz]
+form_Vint_from_Vint_Xs(Vint_Xs_fc,p) = [sum(Vint_Xs_fc[:,:,miz]) for miz=1:p.Nz]/p.N^2
 
 # Computes the dependency of Vint_Xs on Xs
 function computes_δ_Vint(Vint_Xs_fc,Vint_f,p)
@@ -456,18 +457,20 @@ function rapid_plot(u,p;n_motifs=5,name="rapidplot",bloch_trsf=true,res=25)
 end
 
 function plot_Vint(p)
+	v_bilayer_f = [sum(p.V_bilayer_Xs_fc[:,:,miz]) for miz=1:p.Nz]/p.N^4
 	# average of v_monolayer
 	v_f = fft([sum(p.v_monolayer_dir[:,:,z]) for z=1:p.Nz])/p.N^2 
 	# shifts of ±d/2 of the monolayer KS potential
 	v_f_plus  = v_f.*cis.( 2π*p.kz_axis*p.interlayer_distance/(2*p.L))
 	v_f_minus = v_f.*cis.(-2π*p.kz_axis*p.interlayer_distance/(2*p.L))
 
-	res = 100
-	v_bilayer = eval_fun_to_plot_1d(p.Vint_f,res)
+	res = 700
+	v_int = eval_fun_to_plot_1d(p.Vint_f,res)
 	v_plus = eval_fun_to_plot_1d(v_f_plus,res)
 	v_minus = eval_fun_to_plot_1d(v_f_minus,res)
+	v_bilayer = eval_fun_to_plot_1d(v_bilayer_f,res)
 	z_axis = (0:res-1)*p.L/res
 
-	pl = plot(z_axis,[v_bilayer,v_plus,v_minus],label=["Vint" "τ_+ v_mono" "τ_- v_mono"])
+	pl = plot(z_axis,[v_int,v_plus,v_minus,v_bilayer],label=["Vint" "τ_+ v_mono" "τ_- v_mono" "v_bilayer"],size=(1000,1300))
 	savefig(pl,string(p.path_plots,"Vint.png"))
 end
