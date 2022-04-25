@@ -12,7 +12,9 @@ mutable struct Params
 	kz_axis
 	K_red
 	L # physical length of periodicity for the computations for a monolayer
-	cell_area; Vol
+	cell_area
+	Vol # Volume Ω×L of the direct lattice
+	Vol_recip # Volume of the reciprocal lattice
 
 	N; Nz; N2d; N3d
 	n_fball # size of the Fermi ball ∈ ℕ
@@ -35,6 +37,7 @@ mutable struct Params
 	# Kohn-Sham potential
 	v_monolayer_dir # in direct space
 	v_monolayer_fc # in the Fourier cube
+	shifts_atoms # coordinates in 3d of the shifts of the two atoms of the unitthe two atoms of the unit cell
 
 	### Bilayer quantities
 	interlayer_distance # physical distance between two layers
@@ -43,11 +46,14 @@ mutable struct Params
 	V_bilayer_Xs_fc
 
 	# DFTK quantities
-	ecut; scfres; basis; atoms
+	ecut; scfres; basis; atoms; psp
 	kgrid
 	Gvectors; Gvectors_cart; Gvectors_inv; Gplusk_vectors; Gplusk_vectors_cart # Gplusk is used to plot the e^{iKx} u(x) for instance
+	Gvectors_cart_fc # in the Fourier cube
 	recip_lattice; recip_lattice_inv # from k in reduced coords to a k in cartesian ones
 	tol_scf
+	non_local_coef
+	non_local_φ_fb; non_local_φ_fc
 
 	# Misc
 	ref_gauge # reference for fixing the phasis gauge freedom
@@ -63,12 +69,14 @@ function init_params(p)
 	init_cell_vectors(p)
 	# Bilayer parameter
 	p.M3d = [vcat(p.a1,[0]) vcat(p.a2,[0]) [0;0;p.L]]
+	p.Vol = DFTK.compute_unit_cell_volume(p.M3d)
+	p.Vol_recip = (2π)^3/p.Vol
 	p.recip_lattice = DFTK.compute_recip_lattice(p.M3d)
 	p.recip_lattice_inv = inv(p.recip_lattice)
 
 	# Dirac point
 	p.K_red_3d = vcat(p.K_red,[0])
-	p.K_coords_cart = k_red2cart(p.K_red_3d,p)
+	p.K_coords_cart = k_red2cart_3d(p.K_red_3d,p)
 	p.shift_K = [-1;0;0] # (1-R_{2π/3})K = -a_1^*, shift of this vector
 
 	# Paths
@@ -110,15 +118,16 @@ function OpL(u, p, L)
 	Lu
 end
 
-function R(u,p) # (Ru)_G = u_{M G} or (Ru)^D_m = u^D_{F^{-1} M F(m)}. 
+# (Ru)_G = u_{M G} or (Ru)^D_m = u^D_{F^{-1} M F(m)}
+function R(u,p) 
 	M = [0 -1 0;1 -1 0; 0 0 1]
 	L(G) = M*G
 	OpL(u,p,L)
 end
 
-# equivalent to multiplication by e^{i cart(k) x), where k is in reduced
+# Equivalent to multiplication by e^{i cart(k) x), where k is in reduced
 τ(u,k,p) = OpL(u,p,G -> G .- k)
-# parity(u,p) = OpL(u,p,G -> -G)
+# Parity(u,p) = OpL(u,p,G -> -G)
 
 z_translation(a,Z,p) = [a[x,y,mod1(z-Z,p.Nz)] for x=1:p.N, y=1:p.N, z=1:p.Nz]
 r_translation(a,s,p) = [a[mod1(x-s[1],p.N),mod1(y-s[2],p.N),z] for x=1:p.N, y=1:p.N, z=1:p.Nz] # s ∈ {0,…,p.N-1}^2, 0 for no translation
@@ -127,11 +136,14 @@ r_translation(a,s,p) = [a[mod1(x-s[1],p.N),mod1(y-s[2],p.N),z] for x=1:p.N, y=1:
 
 # Obtain the Kohn-Sham potential
 function scf_graphene_monolayer(p)
-	C = ElementPsp(:C, psp=load_psp("hgh/pbe/c-q4"))
+	p.psp = load_psp("hgh/pbe/c-q4")
+	C = ElementPsp(:C, psp=p.psp)
 	c1 = [1/3,1/3,0.0]; c2 = -c1
+	p.shifts_atoms = [c1,c2]
 	p.atoms = [C => [c1,c2]]
 	model = model_PBE(p.M3d, p.atoms; temperature=1e-3, smearing=Smearing.Gaussian())
 	basis = PlaneWaveBasis(model; Ecut=p.ecut, p.kgrid)
+	# px("Number of spin components ",model.n_spin_components)
 
 	(p.N,p.N,p.Nz) = basis.fft_size
 	p.N3d = p.N^2*p.Nz
@@ -147,15 +159,31 @@ function scf_graphene_monolayer(p)
 	px("Energies")
 	display(p.scfres.energies)
 	p.v_monolayer_dir = DFTK.total_local_potential(p.scfres.ham)[:,:,:,1]
-	p.v_monolayer_fc = fft(p.v_monolayer_dir)
+	p.v_monolayer_fc = myfft(p.v_monolayer_dir)
+
+	# Test potential energy
+	potential_energy(u_dir,p) = sum(abs2.(u_dir).*p.v_monolayer_dir)*p.dv
+	V_energy = 0
+	i_kpt = 1
+	# for i=1:length(basis.kpoints)
+		# px("i ",i," ",basis.kpoints[i].coordinate)
+	# end
+	kpt = basis.kpoints[i_kpt]
+	occupation = floor(Int,sum(p.scfres.ρ)*p.dv +0.5)
+	px("Occupation ",occupation)
+	for i=1:occupation
+		ui = p.scfres.ψ[i_kpt][:, i]
+		ui_dir = G_to_r(basis,kpt,ui)
+		V_energy += potential_energy(ui_dir,p)
+	end
+	px("Potential energy 'by hand': ",V_energy," in Kpt ",kpt.coordinate)
 end
 
 # Compute the band structure at momentum k
 function diag_monolayer_at_k(k,p;n_bands=10) # k is in reduced coordinates, n_bands is the number of eigenvalues we want
-	K_dirac_coord = [k]
 	# ksymops = [[DFTK.one(DFTK.SymOp)] for _ in 1:length(K_dirac_coord)]
-	ksymops  = [[DFTK.identity_symop()] for _ in 1:length(K_dirac_coord)]
-	basis = PlaneWaveBasis(p.scfres.basis, K_dirac_coord, ksymops)
+	# ksymops  = [[DFTK.identity_symop()] for _ in 1:length(K_dirac_coord)]
+	basis = PlaneWaveBasis(p.scfres.basis, [k], [1])
 	ham = Hamiltonian(basis; p.scfres.ρ)
 	# Diagonalize H_K_dirac
 	data = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands + 3; n_conv_check=n_bands, tol=p.tol_scf, show_progress=true)
@@ -165,8 +193,9 @@ function diag_monolayer_at_k(k,p;n_bands=10) # k is in reduced coordinates, n_ba
 	# Extracts solutions
 	sol = DFTK.select_eigenpairs_all_kblocks(data, 1:n_bands)
 	Es = sol.λ[1]
+	us = [sol.X[1][:,i] for i=1:size(sol.X[1],2)]
 	# px("Energies are ",Es)
-	(Es,sol.X[1],basis,ham)
+	(Es,us,basis,ham)
 end
 
 # Computes the Kohn-Sham potential of the bilayer at some stacking shift (disregistry)
@@ -189,11 +218,11 @@ function scf_graphene_bilayer(six,siy,p)
 
 	scfres = self_consistent_field(basis;tol=p.tol_scf,n_ep_extra=n_extra_states,eigensolver=lobpcg_hyper,maxiter=100,callback=x->nothing)
 	Vks_dir = DFTK.total_local_potential(scfres.ham)[:,:,:,1] # select first spin component
-	fft(Vks_dir)
+	myfft(Vks_dir)
 end
 
 # coords in reduced to coords in cartesian
-k_red2cart(k_red,p) = p.recip_lattice*k_red
+k_red2cart_3d(k_red,p) = p.recip_lattice*k_red
 # coords in cartesian to coords in reduced
 k_cart2red(k_cart,p) = p.recip_lattice_inv*k_cart
 
@@ -203,7 +232,7 @@ function get_dirac_eigenmodes(p)
 	p.basis = basis
 	p.K_kpt = basis.kpoints[1]
 	K_norm_cart = 4π/(3*p.a)
-	@assert abs(K_norm_cart - norm(p.K_kpt.coordinate_cart)) < 1e-10
+	@assert abs(K_norm_cart - norm(k_red2cart_3d(p.K_kpt.coordinate,p))) < 1e-10
 
 	p.Gvectors = collect(G_vectors(p.basis, p.K_kpt))
 	p.Gvectors_cart = collect(G_vectors_cart(p.basis, p.K_kpt))
@@ -212,8 +241,9 @@ function get_dirac_eigenmodes(p)
 
 	p.Gvectors_inv = inverse_dict_from_array(Tuple.(p.Gvectors)) # builds the inverse
 
+
 	n_eigenmodes = length(Es_K)
-	p.n_fball = size(us_K[:,1])[1] # size of the Fourier ball
+	p.n_fball = length(us_K[1]) # size of the Fourier ball
 	px("Size of Fourier ball: ",p.n_fball)
 	px("Size of Fourier cube: ",p.N,"×",p.N,"×",p.Nz)
 
@@ -221,22 +251,21 @@ function get_dirac_eigenmodes(p)
 	ref_vec = ones(p.N,p.N,p.Nz)
 	p.ref_gauge = ref_vec/norm(ref_vec) 
 	for i=1:n_eigenmodes
-		ui = us_K[:,i]
+		ui = us_K[i]
 		ui_dir = G_to_r(basis,p.K_kpt,ui)
 		λ = sum(conj(ui_dir).*p.ref_gauge)
 		c = λ/abs(λ)
 		ui_dir *= c
-		us_K[:,i] = r_to_G(basis,p.K_kpt,ui_dir)
+		us_K[i] = r_to_G(basis,p.K_kpt,ui_dir)
 	end
 
 	# Extracts relevant states
-	p.u0_fb = us_K[:,p.i_state-1]
+	p.u0_fb = us_K[p.i_state-1]
 	p.u0_dir = G_to_r(p.basis,p.K_kpt,p.u0_fb)
-	p.u0_fc = fft(p.u0_dir)
-	p.u0_fc /= norms_3d_four(p.u0_fc,p)
+	p.u0_fc = myfft(p.u0_dir)
 
-	p.u1_fb = us_K[:,p.i_state]
-	p.u2_fb = us_K[:,p.i_state+1]
+	p.u1_fb = us_K[p.i_state]
+	p.u2_fb = us_K[p.i_state+1]
 	H_K_dirac = ham.blocks[1]; Hmat = Array(H_K_dirac)
 
 	# Verifications
@@ -272,11 +301,8 @@ function rotate_u1_and_u2(p)
 	p.u1_dir = G_to_r(p.basis,p.K_kpt,p.u1_fb)
 	p.u2_dir = G_to_r(p.basis,p.K_kpt,p.u2_fb)
 	# Computes them in the Fourier cube
-	p.u1_fc = fft(p.u1_dir)
-	p.u2_fc = fft(p.u2_dir)
-	# Choose the right normalization
-	p.u1_fc /= norms_3d_four(p.u1_fc,p)
-	p.u2_fc /= norms_3d_four(p.u2_fc,p)
+	p.u1_fc = myfft(p.u1_dir)
+	p.u2_fc = myfft(p.u2_dir)
 end
 
 ######################### Computation of Vint
@@ -311,12 +337,8 @@ form_Vint_from_Vint_Xs(Vint_Xs_fc,p) = [sum(Vint_Xs_fc[:,:,miz]) for miz=1:p.Nz]
 # Computes the dependency of Vint_Xs on Xs
 function computes_δ_Vint(Vint_Xs_fc,Vint_f,p)
 	c = 0
-	for sx=1:p.N
-		for sy=1:p.N
-			for mz=1:p.Nz
-				c += abs2(Vint_Xs_fc[sx,sy,mz] - Vint_f[mz])
-			end
-		end
+	for sx=1:p.N, sy=1:p.N, mz=1:p.Nz
+		c += abs2(Vint_Xs_fc[sx,sy,mz] - Vint_f[mz])
 	end
 	px("Dependency of Vint_Xs on Xs, δ_Vint= ",c/(p.N^2*sum(abs2.(Vint_f))))
 end
@@ -327,6 +349,7 @@ function form_∇_term(u,w,j,p) # <u,(-i∂_j +K_j)w>
 	GpKj = [p.Gplusk_vectors_cart[iG][j] for iG=1:p.n_fball]
 	sum((conj.(u)) .* (GpKj.*w))
 end
+
 
 # 2×2 matrices <u,(-i∂_j +K_j)u>
 form_∇_one_matrix(u1,u2,j,p) = Hermitian([form_∇_term(u1,u1,j,p) form_∇_term(u1,u2,j,p);form_∇_term(u2,u1,j,p) form_∇_term(u2,u2,j,p)])
@@ -396,17 +419,100 @@ function compute_vF_with_diagonalization_doesnt_work(p)
 	px("Verifs id ",norm(W1'*W1 .- id)," ",norm(V1'*V1 .- id))
 end
 
+######################### Non local potential
+
+function FormNonLocal(basis,T)
+	model = basis.model
+
+	# keep only pseudopotential atoms and positions
+	psp_groups = [group for group in model.atom_groups
+		      if model.atoms[first(group)] isa ElementPsp]
+	psps          = [model.atoms[first(group)].psp      for group in psp_groups]
+	psp_positions = [model.positions[group] for group in psp_groups]
+
+	isempty(psp_groups) && return TermNoop()
+	ops = map(basis.kpoints) do kpt
+		P = DFTK.build_projection_vectors_(basis, kpt, psps, psp_positions)
+		D = DFTK.build_projection_coefficients_(T, psps, psp_positions)
+		DFTK.NonlocalOperator(basis, kpt, P, D)
+	end
+	DFTK.TermAtomicNonlocal(ops)
+end
+
+function extract_nonlocal(p)
+	# \text{Energy} = \sum_a \sum_{ij} \sum_{n} f_n <ψ_n|p_{ai}> D_{ij} <p_{aj}|ψ_n>
+	# Build projection vectors for a atoms array generated by term_nonlocal
+	# H_at  = sum_ij Cij |pi> <pj|
+	# H_per = sum_R sum_ij Cij |pi(x-R)> <pj(x-R)|
+	# <e_kG'|H_per|e_kG> = 1/Ω sum_ij Cij pihat(k+G') pjhat(k+G)^*
+	# where pihat(q) = ∫_R^3 pi(r) e^{-iqr} dr
+	# We store 1/√Ω pihat(k+G) in proj_vectors.
+
+	# psps = [p.psp,p.psp]; positions = [1,1] # POSITIONS ARE NOT USED IN DFTK
+	# coefs = DFTK.build_projection_coefficients_(ComplexF64,psps,positions)
+	# vecs = DFTK.build_projection_vectors_(p.basis,p.K_kpt,psps,positions)
+	# Builds coefficients and projection
+	px("Extracts non local potential")
+	basis = PlaneWaveBasis(p.scfres.basis, [p.K_red_3d], [1])
+	NLOp = FormNonLocal(basis,ComplexF64)
+	# We store 1/√Ω ∫_Ω pi(r) e^{-i(K+G)r} dr in proj_vectors"
+	# With our convention, we have fhat(k) ≃ (1/|Ω|) ∫_Ω pi(r) e^{-ikr} dr
+	# so we need to divide by another 1/sqrt(|Ω|)
+	vecs = NLOp.ops[1].P/sqrt(p.Vol)
+	coefs = NLOp.ops[1].D # indices are i,j not a the indice of atoms
+	px("Length projector ",size(vecs)," length coefs ",size(coefs)," values")
+	display(coefs)
+	p.non_local_coef = real(coefs[1,1])
+	@assert imag(p.non_local_coef) < 1e-6
+	@assert sum(abs.([coefs[1,1] 0;0 coefs[1,1]] .- coefs))/abs(coefs[1,1]) < 1e-8
+	@assert sum(abs.(vecs[:,1].-conj.(vecs)[:,2]))/sum(abs.(vecs[:,1])) < 1e-8
+	p.non_local_φ_fb = vecs[:,1]
+	non_local_φ_dir = G_to_r(p.basis,p.K_kpt,p.non_local_φ_fb)
+	p.non_local_φ_fc = myfft(non_local_φ_dir)
+end
+
+function non_local_energy(u,p) # <u_nk, (V_nl)_k u_nk>, u is the periodic Bloch function, in the Fourier ball
+	p.Vol_recip*
+	sum(sum([abs2(u[g].*conj.(p.non_local_φ_fb[g])
+		      .*cis(p.shifts_atoms[a]⋅p.Gvectors_cart[g])) for g=1:length(u)]) for a=1:2)
+end
+
+function non_local_deriv_energy(n_samplings_over_2,p) # <u_nk, ∇_k (V_nl)_k u_nk>, has to be computed by finite diff
+	@assert n_samplings_over_2 ≥ 4
+	n_samplings = 2*n_samplings_over_2+1 # has to be even
+	Dλ = 0.0001
+	start_λ = 1-Dλ; end_λ = 1+Dλ; dλ = (end_λ-start_λ)/(n_samplings-1)
+	set_coefs = [start_λ + i*dλ for i=0:n_samplings-1]
+	set_cart_K = [λ*p.K_coords_cart for λ in set_coefs]
+	values = []
+	for i=1:n_samplings
+		k = k_cart2red(set_cart_K[i],p)
+		us = (diag_monolayer_at_k(k,p))[2]
+		u = us[p.i_state]
+		val = non_local_energy(u,p)
+		push!(values,val)
+	end
+	Ipoint = Int(floor(n_samplings/4)-1)
+	dK = norm(set_cart_K[Ipoint+1]-set_cart_K[Ipoint])
+	x_axis = norm.(set_cart_K)
+	pl = plot(x_axis,values)
+	# savefig(pl,string(p.path_plots,"graph_non_loc_der.png"))
+	nld = (values[Ipoint+1]-values[Ipoint])/dK
+	px("Non local deriv: ",nld)
+	nld
+end
+
 ######################### Exports
 
-function exports_v_u1_u2(p)
-	filename = string(p.path_exports,"N",p.N,"_Nz",p.Nz,"_u1_u2_V.jld")
-	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"v_f",p.v_monolayer_fc,"u1_f",p.u1_fc,"u2_f",p.u2_fc,"v_fermi",p.v_fermi)
-	px("Exported : V, u1, u2 functions, and Fermi velocity, for N=",p.N,", Nz=",p.Nz)
+function exports_v_u1_u2_φ(p)
+	filename = string(p.path_exports,"N",p.N,"_Nz",p.Nz,"_u1_u2_V_nonLoc.jld")
+	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"v_f",p.v_monolayer_fc,"u1_f",p.u1_fc,"u2_f",p.u2_fc,"v_fermi",p.v_fermi,"φ_f",p.non_local_φ_fc,"non_local_coef",p.non_local_coef,"shifts_atoms",p.shifts_atoms,"interlayer_distance",p.interlayer_distance)
+	px("Exported : V, u1, u2 functions, Fermi velocity, and non local quantities, for N=",p.N,", Nz=",p.Nz)
 end
 
 function export_Vint(p)
 	filename = string(p.path_exports,"N",p.N,"_Nz",p.Nz,"_Vint.jld")
-	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"interlayer_distance",p.interlayer_distance,"Vint_f",p.Vint_f)
+	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"Vint_f",p.Vint_f)
 	px("Exported : Vint for N=",p.N,", Nz=",p.Nz)
 end
 
@@ -419,7 +525,7 @@ function test_rot_sym(p)
 	(Ru0,Tu0) = (R(p.u0_fb,p),τ(p.u0_fb,p.shift_K,p))
 
 	τau = cis(2π/3)
-	px("Test R φ0 = φ0 ",norm(Ru0.-Tu0)/norm(Ru0))
+	px("Test R φ0 =     φ0 ",norm(Ru0.-Tu0)/norm(Ru0))
 	px("Test R φ1 = τ   φ1 ",norm(RS.-τau*TS)/norm(RS))
 	px("Test R φ2 = τ^2 φ2 ",norm(RW.-τau^2*TW)/norm(RW))
 end
@@ -459,7 +565,7 @@ end
 function plot_Vint(p)
 	v_bilayer_f = [sum(p.V_bilayer_Xs_fc[:,:,miz]) for miz=1:p.Nz]/p.N^4
 	# average of v_monolayer
-	v_f = fft([sum(p.v_monolayer_dir[:,:,z]) for z=1:p.Nz])/p.N^2 
+	v_f = myfft([sum(p.v_monolayer_dir[:,:,z]) for z=1:p.Nz])/p.N^2 
 	# shifts of ±d/2 of the monolayer KS potential
 	v_f_plus  = v_f.*cis.( 2π*p.kz_axis*p.interlayer_distance/(2*p.L))
 	v_f_minus = v_f.*cis.(-2π*p.kz_axis*p.interlayer_distance/(2*p.L))

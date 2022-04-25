@@ -55,21 +55,32 @@ function T_BM(N,a,α,β)
 	T
 end
 
-function T_BM_four(N,α,β)
+
+function T_BM_four(N,α,β;scale=false)
+	kv(k) = Int(mod(k,N))+1
 	(T1,T2,T3) = Ts(α,β)
 	m = zeros(ComplexF64,N,N)
 	T = fill2d(m,2)
+
+	q1 = [-1;-1]; q2 = [0;1]; q3 = [1;0]
+	L = scale ? -[1 -2;2 -1] : [1 0;0 1]
+	q1,q2,q3 = L*q1,L*q2,L*q3
+	q1i1,q1i2 = kv(q1[1]),kv(q1[2])
+	q2i1,q2i2 = kv(q2[1]),kv(q2[2])
+	q3i1,q3i2 = kv(q3[1]),kv(q3[2])
 	for i=1:2
 		for j=1:2
 			# T[i,j][2,2] = T1[i,j]; T[i,j][1,end] = T2[i,j]; T[i,j][end,1] = T3[i,j]
-			T[i,j][end,end] = T1[i,j]; T[i,j][1,2] = T2[i,j]; T[i,j][2,1] = T3[i,j]
+			T[i,j][q1i1,q1i2] = T1[i,j]
+			T[i,j][q2i1,q2i2] = T2[i,j]
+			T[i,j][q3i1,q3i2] = T3[i,j]
 		end
 	end
 	T
 end
 
-function build_BM(α,β,p)
-	T = T_BM_four(p.N,α,β)
+function build_BM(α,β,p;scale=false)
+	T = T_BM_four(p.N,α,β;scale=scale)
 	[T[1,1],T[1,2],T[2,1],T[2,2]]
 end
 

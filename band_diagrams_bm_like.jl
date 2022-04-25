@@ -21,23 +21,31 @@ mutable struct Basis
 	# Parameters for the 4×4 matrix
 	N2d; Mfull
 	Li_tot; Li_k; Ci_tot; Ci_k; k2lin
-	H0
 	S # part_hole matrix
 	l; l1; l2; n_l
 	ISΣ # S^{-1/2}
 	solver
 	Iα; Iβ
+	fermi_velocity
+	double_dirac # true if 4×4 matrix, false if 2×2 matrix
+	coef_derivations # applies a coefficient to all derivation operator
 
 	# Parameters for plots
 	root_path
 	energy_center; energy_scale
 	folder_plots_bands
 	resolution_bands
+	energy_unit_plots # ∈ ["eV","Hartree"]
+	hartree_to_ev
+	ev_to_hartree
 	function Basis()
 		p = new()
+		p.double_dirac = true
 		p
 	end
 end
+
+energy_factor(p) = p.energy_unit_plots == "eV" ? p.hartree_to_ev : 1
 
 function init_basis(p)
 	### Parameters of the 2d cell
@@ -48,16 +56,19 @@ function init_basis(p)
 	p.S = nothing
 
 	### Parameters for the 4×4 matrix
-	p.N2d = p.N^2; p.Mfull = 4*p.N2d
+	number_of_states = p.double_dirac ? 4 : 2
+	p.N2d = p.N^2; p.Mfull = number_of_states*p.N2d
 
-	ref = zeros(4,p.N,p.N); ref_k = zeros(p.N,p.N)
+	ref = zeros(number_of_states,p.N,p.N); ref_k = zeros(p.N,p.N)
 	p.Li_tot = LinearIndices(ref);    p.Li_k = LinearIndices(ref_k)
 	p.Ci_tot = CartesianIndices(ref); p.Ci_k = CartesianIndices(ref_k)
 	init_klist2(p)
 
-	p.H0 = create_H0(p)
-	p.ISΣ = -1 # matrix (1+Σ)^(-1/2)
+	p.ISΣ = -1 # matrix (1+S_Σ)^(-1/2)
 	p.solver = "LOBPCG"
+	p.fermi_velocity = 0.38
+	p.hartree_to_ev = 27.2114
+	p.ev_to_hartree = 1/p.hartree_to_ev
 
 	# Matrices to apply weights
 	init_matrices_weights(p)
@@ -66,23 +77,29 @@ function init_basis(p)
 	p.l1 = floor(Int,p.Mfull/2) - p.l
 	p.l2 = floor(Int,p.Mfull/2) + p.l
 	p.n_l = 2*p.l + 1
-
 end
+
+reload_a(p) = init_cell_vectors(p)
 
 ######################### Main functions, to plot band diagrams
 
 function plot_band_structure(Hv,Kdep,name,p)
-	Γ0 = [0,0.0]
-	K0 = [2/3,1/3]
-	M0 = [1/2,0]
-	K = K0 - K0
-	Γ = Γ0 - K0
-	M = M0 - K0
-	Klist = [Γ,K,M]
-	σ_on_path = spectrum_on_a_path(Hv,Kdep,Klist,p)
+	Γ = [0,0.0]
+	K = p.K_red
+	M = [0,1/2]
+	Klist = [Γ,K,M]; Klist_names = ["Γ","K","M"]
+	Klist = [[0.0,0.0],[2/3,-2/3],M]; Klist_names = ["Γ","K","M"]
+	dif = true
+	if dif
+		Γ -= K; M -= K; K -= K
+		Klist = [K,Γ,M]; Klist_names = ["K","Γ","M"]
+		Klist = [Γ,2*K,8*M]; Klist_names = ["Γ","2K","4K"]
+		# Klist = [Γ,K,M]; Klist_names = ["Γ","K","M"]
+	end
 
-	Klist_names = ["Γ","K","M"]
-	pl = plot_band_diagram(σ_on_path,Klist,Klist_names,p)
+
+	σ_on_path = spectrum_on_a_path(Hv,Kdep,Klist,p)
+	pl = plot_band_diagram(σ_on_path,Klist,Klist_names,p)#;K_relative=p.K_red)
 	path = string(p.root_path,p.folder_plots_bands)
 	create_dir(path)
 	savefig(pl,string(path,"/band_struct_",name,".png"))
@@ -115,11 +132,16 @@ function lin_k2coord_ik(c_lin,p)
 end
 
 k_axis(pix,piy,p) = (p.k_axis[pix],p.k_axis[piy])
-
 vec2C(k) = k[1]+im*k[2]
 
 # pix,piy is a 2d moment (the labels) in reduced coords
-coords_ik2full_i(mi1,mi2,p) = (p.Li_tot[1,mi1,mi2],p.Li_tot[2,mi1,mi2],p.Li_tot[3,mi1,mi2],p.Li_tot[4,mi1,mi2])
+function coords_ik2full_i(mi1,mi2,p)
+	if p.double_dirac
+		return (p.Li_tot[1,mi1,mi2],p.Li_tot[2,mi1,mi2],p.Li_tot[3,mi1,mi2],p.Li_tot[4,mi1,mi2])
+	else
+		return (p.Li_tot[1,mi1,mi2],p.Li_tot[2,mi1,mi2])
+	end
+end
 # k_inv(m,p) = Int(mod(m,p.N))+1
 
 ######################### Functions coordinates change
@@ -145,38 +167,20 @@ end
 # actionV(Vfour,Xfour,p) = vcat(cyclic_conv(Vfour,Xfour)/length(Vfour)...)
 # actionH(Vfour,p) = X -> p.k2lin.*X .+ actionV(Vfour,Reshape(X,p),p) # X = Xlin, v in direct space
 
-# Creates [-iσ∇    0]
-#         [0    -iσ∇]
-function create_H0(p)
-	n = p.Mfull
-	H0 = zeros(ComplexF64,n,n)
-	for ck_lin=1:p.N2d
-		(mi1,mi2) = lin_k2coord_ik(ck_lin,p)
-		(c1,c2,c3,c4) = coords_ik2full_i(mi1,mi2,p)
-		(m1,m2) = k_axis(mi1,mi2,p)
-		vC = vec2C(m1*p.a1_star + m2*p.a2_star)# + kC
-		H0[c1,c2] = conj(vC)
-		H0[c2,c1] = vC
-		H0[c3,c4] = conj(vC)
-		H0[c4,c3] = vC
-	end
-	# test_hermitianity(H0,"Dirac order 0")
-	# save_H(H0,"H0",p)
-	H0
-end
-
-# Creates [σk    0]
-#         [0    σk]
+# Creates [σ(-i∇+k)        0]
+#         [0        σ(-i∇+k)]
 function Dirac_k(κ,p) # κ in reduced coordinates, κ_cart = κ_red_1 a1_star + κ_red_2 a2_star
 	n = p.Mfull
 	H = zeros(ComplexF64,n,n)
-	kC = vec2C(κ[1]*p.a1_star + κ[2]*p.a2_star); ckC = conj(kC)
+	kC = vec2C(κ[1]*p.a1_star + κ[2]*p.a2_star)
 	for ck_lin=1:p.N2d
 		(mi1,mi2) = lin_k2coord_ik(ck_lin,p)
+		(m1,m2) = k_axis(mi1,mi2,p)
+		vC = vec2C(m1*p.a1_star + m2*p.a2_star)*p.coef_derivations + kC
 		(c1,c2,c3,c4) = coords_ik2full_i(mi1,mi2,p)
-		H[c1,c2] = ckC; H[c2,c1] = kC; H[c3,c4] = ckC; H[c4,c3] = kC
+		H[c1,c2] = conj(vC); H[c2,c1] = vC; H[c3,c4] = conj(vC); H[c4,c3] = vC
 	end
-	# test_hermitianity(H,"k shift of Dirac")
+	# test_hermitianity(H,"Kinetic Dirac part")
 	Hermitian(H)
 end
 
@@ -189,7 +193,7 @@ function mΔ(k,p)
 		(mi1,mi2) = lin_k2coord_ik(ck_lin,p)
 		(c1,c2,c3,c4) = coords_ik2full_i(mi1,mi2,p)
 		(m1,m2) = k_axis(mi1,mi2,p)
-		vC = norm(m1*p.a1_star + m2*p.a2_star .+ kC)^2
+		vC = norm((m1*p.a1_star + m2*p.a2_star)*p.coef_derivations .+ kC)^2
 		Δ[c1,c1],Δ[c2,c2],Δ[c3,c3],Δ[c4,c4] = vC,vC,vC,vC
 	end
 	# test_hermitianity(Δ,"Δ order 1")
@@ -207,7 +211,7 @@ function J_Dirac_k(k,p)
 		(mi1,mi2) = lin_k2coord_ik(ck_lin,p)
 		(c1,c2,c3,c4) = coords_ik2full_i(mi1,mi2,p)
 		(m1,m2) = k_axis(mi1,mi2,p)
-		vC = vec2C(m1*p.a1_star + m2*p.a2_star) + kC
+		vC = vec2C(m1*p.a1_star + m2*p.a2_star)*p.coef_derivations + kC
 		H[c1,c2] = im*conj(vC)
 		H[c2,c1] = -im*vC
 		H[c3,c4] = -im*conj(vC)
@@ -301,6 +305,9 @@ function A_offdiag_matrix(Aa1,Aa2,k,p)
 			Pi1,Pi2 = k_inv(n1-m2,  n2-m2,p)
 			Ki1,Ki2 = k_inv(-n1+m1,-n2+m2,p)
 
+			m1 *= p.coef_derivations
+			m2 *= p.coef_derivations
+
 			if α ≥ 3 && β ≤ 2
 				c = (m1*p.a1_star[1]+m2*p.a2_star[1]+k1)*conj(A1[β,α-2][Ki1,Ki2])
 				+ (m1*p.a1_star[2]+m2*p.a2_star[2]+k2)*conj(A2[β,α-2][Ki1,Ki2])
@@ -339,7 +346,7 @@ function VΔ_offdiag_matrix(V0,k,p)
 			elseif α ≤ 2 && β ≥ 3
 				c = V[α,β-2][Pi1,Pi2]
 			end
-			r = norm(m1*p.a1_star+m2*p.a2_star+K_cart)^2
+			r = norm((m1*p.a1_star+m2*p.a2_star)*p.coef_derivations + K_cart)^2
 			H[n_lin,m_lin] = r*c
 		end
 	end
@@ -350,6 +357,51 @@ function VΔ_offdiag_matrix(V0,k,p)
 	Hermitian(H)
 end
 
+# Creates σ(-i∇+k)
+function free_Dirac_k_monolayer(κ,p)
+	n = p.Mfull
+	H = zeros(ComplexF64,n,n)
+	kC = vec2C(κ[1]*p.a1_star + κ[2]*p.a2_star)
+	for ck_lin=1:p.N2d
+		(mi1,mi2) = lin_k2coord_ik(ck_lin,p)
+		(m1,m2) = k_axis(mi1,mi2,p)
+		vC = vec2C(m1*p.a1_star + m2*p.a2_star)*p.coef_derivations + kC
+		(c1,c2) = coords_ik2full_i(mi1,mi2,p)
+		H[c1,c2] = conj(vC); H[c2,c1] = vC
+	end
+	display(H)
+	# test_hermitianity(H,"Kinetic Dirac part")
+	# save_H(H,p,"free_dirac")
+	# rhm = heatmap(real.(H))
+	# ihm = heatmap(imag.(H))
+	# ahm = heatmap(abs.(H))
+	# pl = plot(rhm,ihm,ahm,size=(1000,700))
+	# savefig(pl,"free_dirac.png")
+	Hermitian(H)
+end
+
+# Creates (-i∇+k)^2 𝕀_2×2
+function free_Schro_k_monolayer(κ,p)
+	n = p.Mfull
+	H = zeros(ComplexF64,n,n)
+	kC = κ[1]*p.a1_star + κ[2]*p.a2_star
+	for ck_lin=1:p.N2d
+		(mi1,mi2) = lin_k2coord_ik(ck_lin,p)
+		(m1,m2) = k_axis(mi1,mi2,p)
+		v = norm((m1*p.a1_star + m2*p.a2_star)*p.coef_derivations + kC)^2
+		(c1,c2) = coords_ik2full_i(mi1,mi2,p)
+		H[c1,c1] = v; H[c2,c2] = v
+	end
+	display(H)
+	# test_hermitianity(H,"Kinetic Dirac part")
+	# save_H(H,p,"free_dirac")
+	# rhm = heatmap(real.(H))
+	# ihm = heatmap(imag.(H))
+	# ahm = heatmap(abs.(H))
+	# pl = plot(rhm,ihm,ahm,size=(1000,700))
+	# savefig(pl,"free_dirac.png")
+	Hermitian(H)
+end
 
 ######################### Add weights
 
@@ -383,7 +435,7 @@ end
 # Applies LOBPCG
 function apply_lobpcg(H,l,p,X0,maxiter=100,tol=1e-6)
 	L = X -> H*X
-	(λs,φs,cv,Xf) = solve_lobpcg(L,p.Mfull,l,p.k2lin;maxiter=maxiter,tol=tol,X0=X0,full_diag=true)
+	(λs,φs,cv,Xf) = solve_lobpcg(L,l,p.k2lin;maxiter=maxiter,tol=tol,X0=X0,full_diag=true)
 	ψs_four = [lin2four(φs[i],p) for i=1:l]
 	(λs,ψs_four,cv,Xf)
 end
@@ -392,7 +444,7 @@ end
 function solve_one(HvK,p,X0=-1) # l is the number of eigenvalues we want
 	X = []
 	if X0 == -1
-		X = randn(ComplexF64,p.Mfull,p.l2)
+		X = randn(ComplexF64,size(HvK,1),p.l2)
 	else
 		X = X0
 	end
@@ -401,6 +453,8 @@ function solve_one(HvK,p,X0=-1) # l is the number of eigenvalues we want
 	else
 		(E,φs) = eigen(HvK)
 		E = E[1:p.l2]; φs = φs[:,1:p.l2] # Peut etre pas bon pour φs mais on s'en sert pas
+		px(E)
+		Xf = -1
 	end
 	(E,Xf)
 end
@@ -420,10 +474,13 @@ function spectrum_on_a_path(Hv,Kdep,Klist,p)
 	X = -1
 	graphs = zeros(n_path_points,p.n_l)
 	for Ki=1:n
-		K0 = Klist[Ki]; K1 = Klist[mod1(Ki+1,n)]
+		K0 = Klist[Ki]
+		K1 = Klist[mod1(Ki+1,n)]
 		path = [(1-t/res)*K0 .+ (t/res)*K1 for t=0:res-1]
 		Threads.@threads for s=1:res
+		# for s=1:res
 			HvK = Hv + Kdep(path[s])
+			# px("K ",K0," ",K1)
 			# test_hermitianity(HvK,"Hvk")
 			# test_part_hole_sym_matrix(HvK,p,"Hvk")
 			(E,Xf) = solve_one(Hermitian(HvK),p,X)
@@ -440,12 +497,12 @@ function spectrum_on_a_path(Hv,Kdep,Klist,p)
 end
 
 # From the numbers of the band diagram, produces a plot of it
-function plot_band_diagram(graphs,Klist,Knames,p)
+function plot_band_diagram(graphs,Klist,Knames,p;K_relative=[0.0,0.0])
 	n = length(Klist)
 	res = p.resolution_bands
 	n_path_points = res*n
 	ylims = p.energy_center-p.energy_scale,p.energy_center+p.energy_scale
-	lengths_paths = [norm(Klist[mod1(i+1,n)].-Klist[i]) for i=1:n]
+	lengths_paths = [norm(k_red2cart(Klist[mod1(i+1,n)]-K_relative,p) .- k_red2cart(Klist[i]-K_relative,p)) for i=1:n]
 	lengths_paths /= sum(lengths_paths)
 	dx_list = lengths_paths/res
 	x_list = []; starts_x = []; end_x = 0
@@ -456,11 +513,11 @@ function plot_band_diagram(graphs,Klist,Knames,p)
 		push!(starts_x,end_x)
 		end_x += res*dx
 	end
-	pl = plot(size=(1000,1100),ylims=ylims,legend=false)#:topright)
+	pl = plot(size=(1000,1100),ylims=ylims,legend=false) #:topright)
 	for l=1:p.n_l
-		plot!(pl,x_list,graphs[:,l],xticks=nothing)
+		plot!(pl,x_list,graphs[:,l]*energy_factor(p),xticks=nothing)
 	end
-	colors = [:green,:yellow,:blue]
+	colors = [:green,:cyan,:blue]
 	for Ki=1:n
 		x = starts_x[Ki]
 		plot!(pl,[x], seriestype="vline", label=Knames[Ki], color=colors[Ki])

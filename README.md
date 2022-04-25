@@ -23,8 +23,8 @@ git clone https://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@github.com/lgarrigue/
 ## Organization of the code
 
 ### Scripts to compute the monolayer functions
-**graphene.jl** computes the potentials and Dirac eigenfunctions of the monolayer graphene, and the KS potential of the shifted bilayer  
-**apply_graphene.jl** applies the functions of the previous script, with some definite parameters  
+**graphene.jl** computes the potentials and Dirac eigenfunctions of the monolayer graphene, and the KS potential of the shifted bilayer Vint
+**apply_graphene.jl** applies the functions of the previous script, with some definite parameters, and exports the functions
 
 ### Scripts to compute effective potentials and bands
 **effective_potentials.jl** computes the effective potentials  

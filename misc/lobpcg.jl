@@ -451,7 +451,8 @@ function linmap2mat(L,n) # linear map action to its n × n matrix
 	matL
 end
 
-function solve_lobpcg(H,n,l,k_list_squared;maxiter=100,tol=1e-5,X0=-1,full_diag=false) # Finds the first l eigenmodes of the action H. Full diagonalization if the dimension is too low
+function solve_lobpcg(H,l,k_list_squared;maxiter=100,tol=1e-5,X0=-1,full_diag=false) # Finds the first l eigenmodes of the action H. Full diagonalization if the dimension is too low
+	n = length(k_list_squared)
 	if X0 == -1
 		X0 = randn(ComplexF64,n,l)
 	end

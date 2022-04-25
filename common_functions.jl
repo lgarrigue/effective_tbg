@@ -10,7 +10,6 @@ rotM(θ) = [cos(θ) -sin(θ);sin(θ) cos(θ)]
 scale_fun2d(f,λ) = (x,y) -> f(λ*x,λ*y) # x -> f(λx)
 scale_fun3d(f,λ) = (x,y,z) -> f(λ*x,λ*y,λ*z)
 
-
 # Creates a dictionary which inverts an array, for instance [5,4,1] will give Dict(5 => 1, 2 => 4, 3 => 1)
 inverse_dict_from_array(a) = Dict(value => key for (key, value) in Dict(zip((1:length(a)), a)))
 
@@ -39,18 +38,24 @@ end
 function init_cell_vectors(p) # needs a
 	a1_unit = [sqrt(3)/2; 1/2]
 	a2_unit = [sqrt(3)/2;-1/2]
-	a1s0 = [-1; 1/sqrt(3)]
-	a2s0 = [ 1; 1/sqrt(3)]
-	p.a1 = p.a*a1_unit
-	p.a2 = p.a*a2_unit
-	p.a1_star = (2π/p.a)*a1s0
-	p.a2_star = (2π/p.a)*a2s0
+	p.a1,p.a2 = p.a.*(a1_unit,a2_unit)
+	a1s_unit = [1/2; sqrt(3)/2]
+	a2s_unit = [1/2;-sqrt(3)/2]
+	pref = 4π/(p.a*sqrt(3))
+	p.a1_star,p.a2_star = pref.*(a1s_unit,a2s_unit)
 	J = rotM(π/2)
-	# p.a1_star = J*p.a1_star
-	# p.a2_star = J*p.a2_star
+	# p.a1_star = J*p.a1_star; p.a2_star = J*p.a2_star
 
 	p.K_red = [-1/3;1/3]
 end
+
+function k_red2cart_list(k1,k2,p)
+	k_cart = k1*p.a1_star+k2*p.a2_star
+	(k_cart[1],k_cart[2])
+end
+
+k_red2cart(k,p) = k[1]*p.a1_star + k[2]*p.a2_star
+k_ind2cart(mix,miy,p) = p.k_axis[mix]*p.a1_star + p.k_axis[miy]*p.a2_star # indices to cartesian vector G
 
 fill2d(x,n) = [copy(x) for i=1:n, j=1:n]
 fill1d(x,n) = [copy(x) for i=1:n]
@@ -58,26 +63,28 @@ init_vec(p) = fill2d(zeros(ComplexF64,p.N,p.N),4)
 
 cyclic_conv(a,b) = prod(size(a))*fft(ifft(a).*ifft(b))
 
-####################################### 2d functions
+function scaprod(ϕ,ψ,p,four=true)
+	d = length(size(ϕ))
+	@assert d==length(size(ψ))
+	dVol = d==1 ? p.dx : d==2 ? p.dS : p.dv
+	four_coef = d==1 ? p.N : d==2 ? p.N2d : p.N3d
+	dVol*(four ? four_coef : 1)*ϕ⋅ψ
+end
 
-integral2d(ϕ,p,four=true) = p.dS*sum(ϕ)/(!four ? 1 : p.N2d)
-sca2d(ϕ,ψ,p,four=true) = p.dS*ϕ⋅ψ/(!four ? 1 : p.N2d)
-norm2_2d(ϕ,p,four=true) = real(sca2d(ϕ,ϕ,p,four))
-norms2d(ϕ,p,four=true) = sqrt(norm2_2d(ϕ,p,four))
+function test_scaprod_fft_commutation(p)
+	ϕ = randn(p.N,p.N)
+	ψ = randn(p.N,p.N)
+	c = scaprod(ϕ,ψ,p,false) - scaprod(myfft(ϕ),myfft(ψ),p)
+	px("Test scalar product ",c)
+end
+
+norm2(ϕ,p,four=true) = real(scaprod(ϕ,ϕ,p,four))
+norms(ϕ,p,four=true) = sqrt(norm2(ϕ,p,four))
 
 ####################################### 3d functions
 
 intZ(f,p) = p.dz*[sum(f[x,y,:]) for x=1:size(f,1), y=1:size(f,2)]
 intXY(f,p) = p.dS*[sum(f[:,:,z]) for z=1:size(f,3)]
-
-integral3d(ϕ,p,four=true) = p.dv*sum(ϕ)/(!four ? 1 : p.N3d)
-sca3d(ϕ,ψ,p,four=true) = p.dv*ϕ⋅ψ/(!four ? 1 : p.N3d)
-norm2_3d(ϕ,p,four=true) = real(sca3d(ϕ,ϕ,p,four))
-norms3d(ϕ,p,four=true) = sqrt(norm2_3d(ϕ,p,four))
-
-sca3d_four(f,g,p) = p.Vol*f⋅g
-norm2_3d_four(f,p) = real(sca3d_four(f,f,p))
-norms_3d_four(f,p) = sqrt(norm2_3d_four(f,p))
 
 axis2grid_ar(ax) = [[ax[i],ax[j]] for i=1:length(ax), j=1:length(ax)]
 
@@ -97,25 +104,23 @@ function test_k_inv()
 			c = false
 		end
 	end
-	px("Test k inv ",c)
+	px("Test k inv: ",c ? "good" : "problem")
 end
 
 # tests whether u(-z) = ε u(z)
 
+# ∇f = i ∑_{m,m_z} hat(f)_m [ma^*[1];ma^*[2];m_z (2π/L)]
 function ∇(f_four,p) # returns (∂1 f,∂2 f, ∂3 f)
 	g1 = similar(f_four); g2 = similar(f_four); g3 = similar(f_four)
-	for m=1:p.N
-		for n=1:p.N
-			# Under cart-to-red change, ∇ calK^{-1} = calK^{-1} (K^*)^{-1} ∇
-			(m0,n0) = p.k_grid[m,n]
-			k = m0*p.a1_star .+ n0*p.a2_star
-			# px("GRID ",p.k_grid[m,n]," ",a)
-			g1[m,n,:] = im*2π*f_four[m,n,:]*k[1]
-			g2[m,n,:] = im*2π*f_four[m,n,:]*k[2]
-			g3[m,n,:] = im*2π*f_four[m,n,:] .* p.kz_axis
-		end
+	for m=1:p.N, n=1:p.N
+		(m0,n0) = p.k_grid[m,n]
+		k = m0*p.a1_star .+ n0*p.a2_star
+		c = f_four[m,n,:]
+		g1[m,n,:] = c.*k[1]
+		g2[m,n,:] = c.*k[2]
+		g3[m,n,:] = c.*(2π/p.L).*p.kz_axis
 	end
-	(g1,g2,p.L*g3)
+	im.*(g1,g2,g3)
 end
 
 function Kinetic(u_four,p) # kinetic energy of u
@@ -130,19 +135,34 @@ J_four(a,p) = apply_map_four(X -> -[1 -2;2 -1]*X,a,p) # rotation of -π/2, in Fo
 parity_four(a,p) = apply_map_four(X -> -X,a,p)
 σ1_four(a,p) = apply_map_four(X -> [0 1;1 0]*X,a,p)
 
-function apply_map_four(L,u,p) 
-	a = similar(u)
-	# a = zeros(ComplexF64,p.N,p.N)
-	for K=1:p.N
-		for P=1:p.N
-			k0 = p.k_axis[K]; p0 = p.k_axis[P]
-			c = L([k0,p0]); k1 = c[1]; p1 = c[2]
-			(k2,p2) = k_inv(k1,p1,p)
-			a[K,P] = u[k2,p2]
-		end
+function apply_map_four(L,u,p) # res_m = u_{Lm}
+	a = zeros(typeof(u[1]),p.N,p.N)
+	for K=1:p.N, P=1:p.N
+		k0 = p.k_axis[K]; p0 = p.k_axis[P]
+		c = L([k0,p0]); k1 = c[1]; p1 = c[2]
+		(k2,p2) = k_inv(k1,p1,p)
+		# x = u[k2,p2]
+		# if abs(x) > 0.1
+			# px(x)
+		# end
+		a[K,P] = u[k2,p2]
+		# a[k2,p2] = u[K,P]
 	end
 	a
 end
+
+function apply_map_four_back(L,u,p) # res_{Lm} = u_m
+	a = zeros(typeof(u[1]),p.N,p.N)
+	for K=1:p.N, P=1:p.N
+		k0 = p.k_axis[K]; p0 = p.k_axis[P]
+		c = L([k0,p0]); k1 = c[1]; p1 = c[2]
+		(k2,p2) = k_inv(k1,p1,p)
+		a[k2,p2] = u[K,P]
+	end
+	a
+end
+
+J_four_back(a,p) = apply_map_four_back(X -> -[1 -2;2 -1]*X,a,p) # rotation of -π/2, in Fourier space, with scaling of sqrt(3)
 
 ####################################### Operations on functions in direct space
 
@@ -150,15 +170,13 @@ function apply_coordinates_operation_direct(M,p) # (Op f)(x) = f(Mx), 2d or 3d
 	function f(ϕ,p)
 		ψ = similar(ϕ)
 		dim = length(size(ϕ))
-		for xi=1:p.N
-			for yi=1:p.N
-				X = Int.(M([xi2x(xi,p);xi2x(yi,p)]))
-				Xi = x2xi(X[1],p); Yi = x2xi(X[2],p)
-				if dim == 3
-					ψ[xi,yi,:] = ϕ[Xi,Yi,:]
-				else
-					ψ[xi,yi] = ϕ[Xi,Yi]
-				end
+		for xi=1:p.N, yi=1:p.N
+			X = Int.(M([xi2x(xi,p);xi2x(yi,p)]))
+			Xi = x2xi(X[1],p); Yi = x2xi(X[2],p)
+			if dim == 3
+				ψ[xi,yi,:] = ϕ[Xi,Yi,:]
+			else
+				ψ[xi,yi] = ϕ[Xi,Yi]
 			end
 		end
 		ψ
@@ -202,17 +220,15 @@ end
 function apply_Op_B(M,k,p) 
 	function f(u,k,p)
 		ψ = similar(u)
-		for xi=1:p.N
-			for yi=1:p.N
-				# Rotation
-				RX = Int.(M([xi2x(xi,p);xi2x(yi,p)]))
-				Xpi = X2Xpi(RX[1],p); Ypi = X2Xpi(RX[2],p)
+		for xi=1:p.N, yi=1:p.N
+			# Rotation
+			RX = Int.(M([xi2x(xi,p);xi2x(yi,p)]))
+			Xpi = X2Xpi(RX[1],p); Ypi = X2Xpi(RX[2],p)
 
-				# Phasis
-				X = Xpi2Xred(Xpi,p); Y = Xpi2Xred(Ypi,p)
-				φ = cis(2π*k⋅[X;Y])
-				ψ[xi,yi,:] = φ*u[Xpi[1],Ypi[1],:]
-			end
+			# Phasis
+			X = Xpi2Xred(Xpi,p); Y = Xpi2Xred(Ypi,p)
+			φ = cis(2π*k⋅[X;Y])
+			ψ[xi,yi,:] = φ*u[Xpi[1],Ypi[1],:]
 		end
 		ψ
 	end
@@ -234,7 +250,7 @@ function test_x_parity(u,p;name="") # Tests u(-x) = u(x) (or u(-x,z) = u(x,z)), 
 	px("Test ",name,"(-x) = ",name,"(x) : ",c)
 end
 
-test_z_parity(u,ε,p;name="function") = px("Test ",name,"(-z) = ",ε==-1 ? "-" : "",name,"(z) : ",norm2_3d(u.- ε*parity_z(u,p),p)/norm2_3d(u,p))
+test_z_parity(u,ε,p;name="function") = px("Test ",name,"(-z) = ",ε==-1 ? "-" : "",name,"(z) : ",norm2(u.- ε*parity_z(u,p),p)/norm2(u,p))
 
 # Bloch transform and Rotation, RBu = Rexp(...) * Ru. We obtain (RBu)(x,y) for (x,y) ∈ x_grid_red
 RB(u,k,p) = apply_Op_B(X -> p.mat_R*X,k,p)(u,k,p)
@@ -298,6 +314,12 @@ function mat_on_ki(Q,ki,p)
 	fun2d(k_nat2ki,Q*k,p.N)
 end
 
+######################## Fourier transforms
+# If a_i = f(x_i) are the true values of function f in direct space, then myfft(f) gives the true Fourier coefficients
+# where (𝔽f)_m := 1/|Ω| ∫_Ω f(x) e^{-ima^*x} dx are those coefficients, actually myfft(a)[m] = (𝔽f)_{m-1}
+myfft(f) = fft(f)/length(f)
+myifft(f) = ifft(f)*length(f)
+
 ######################## Plot function 1d
 
 function red_arr2fun_red_1d(ψ_four) 
@@ -354,18 +376,14 @@ end
 
 function plot_H(H,f,b)
 	A = fill2d(zeros(ComplexF64,b.N,b.N),4)
-	for i=1:4
-		for j=1:4
-			for ck_lin=1:b.N2d
-				(pix,piy) = lin_k2coord_ik(ck_lin,b)
-				c1 = b.Li_tot[i,pix,piy]
-				c2 = b.Li_tot[j,pix,piy]
-				A[i,j][pix,piy] = H[c1,c2]
-				# if i==4 && j==4
-					# px(H[c1,c2])
-				# end
-			end
-		end
+	for i=1:4, j=1:4, ck_lin=1:b.N2d
+		(pix,piy) = lin_k2coord_ik(ck_lin,b)
+		c1 = b.Li_tot[i,pix,piy]
+		c2 = b.Li_tot[j,pix,piy]
+		A[i,j][pix,piy] = H[c1,c2]
+		# if i==4 && j==4
+		# px(H[c1,c2])
+		# end
 	end
 	pl = plotVeff(A,f,b)
 	savefig(pl,"H.png")

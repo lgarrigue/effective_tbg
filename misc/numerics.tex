@@ -5,6 +5,13 @@
 
 \usepackage{stmaryrd}
 
+%% Julia definition for Listings package (c) 2014 Jubobs
+\usepackage{beramono,listings}
+\lstdefinelanguage{Julia}%
+  {morekeywords={abstract,break,case,catch,const,continue,do,else,elseif,end,export,false,for,function,immutable,import,importall,if,in,macro,module,otherwise,quote,return,switch,true,try,type,typealias,using,while},sensitive=true,alsoother={$},morecomment=[l]\#,morecomment=[n]{\#=}{=\#},morestring=[s]{"}{"},morestring=[m]{'}{'},}[keywords,comments,strings]
+\lstset{language= Julia,basicstyle= \ttfamily,keywordstyle= \bfseries\color{blue},stringstyle= \color{magenta},commentstyle = \color{ForestGreen},showstringspaces = false,}
+%% END Julia
+
 %%%%%%%%%%%%%%%%%%%% Standard macros
 % Environments
 \newtheorem{theorem}{Theorem}[section]\newtheorem{definition}[theorem]{Definition}\newtheorem{lemma}[theorem]{Lemma}\newtheorem{example}[theorem]{Example}\newtheorem{proposition}[theorem]{Proposition}\newtheorem{corollary}[theorem]{Corollary}\newtheorem{conjecture}[theorem]{Conjecture}\newtheorem{remark}[theorem]{Remark}
@@ -120,25 +127,33 @@ and
 	2\pi \pa{\cM^{-1}}^* = \mat{a_1^* & a_2^*} = \f{2\pi}a \mat{\f{1}{\sqrt 3} & \f{1}{\sqrt 3} \\ 1 & -1} =: S
 \end{align*}
 
+\subsection{Dirac point}%
+\label{sub:dirac_point}
+
+We have
+\begin{align*}
+K = \f{-a_1^* +a_2^*}{3}, \qquad a_1^*\cdot a_2^* = -\f{|a_j^*|^2}{2}, \qquad \ab{K} = \f{|a_j^*|}{\sqrt 3}
+\end{align*}
+
 \subsection{Fourier conventions}%
 \label{sub:fourier_conventions}
 
 We will manipulate functions which are $\Omega$-periodic in $\bx$, but not in $z$, our Fourier transform conventions will be
 \begin{align*}
-	\pa{\cF f}_G(k_z) := \f{1}{2\pi \ab{\Omega}} \int_{\Omega\times\R} e^{-i\pa{k \bx + k_z z}} f(\bx,z) \d \bx \d z
+	\pa{\cF f}_m(k_z) := \f{1}{2\pi \ab{\Omega}} \int_{\Omega\times\R} e^{-i\pa{ma^* \bx + k_z z}} f(\bx,z) \d \bx \d z
 \end{align*}
 hence any function can be decomposed as
 \begin{align*}
-f(\bx,z) = \sum_{\bG \in \L^*} \int_\R e^{i\pa{\bG\bx + k_z z}} f_\bG(k_z) \d k_z
+f(\bx,z) = \sum_{m \in \Z^d} \int_\R e^{i\pa{ma^* \bx + k_z z}} f_\bG(k_z) \d k_z
 \end{align*}
 We also recall that $\int_\R e^{ipz} \d z = 2\pi \delta(p)$.
 
 
-Now we consider that $f$ and $g$ are $L$-periodic in $z$,
+Now we consider that $f$ and $g$ are $L$-periodic in $z$, and $\int_\R \d z \simeq \int_{[0,L]} \d z$ so the Fourier transform is
 \begin{align*}
-f(\bx,z) = \sum_{\bG,G_z} e^{i\pa{\bG \bx + G_z z}} \widehat{f}_{\bG,G_z}
+	\boxed{\pa{\cF f}_{m,m_z} := \f{1}{L\ab{\Omega}} \int_{\Omega\times [0,L]} e^{-i\pa{ma^* \bx + m_z \f{2\pi}{L} z}} f(\bx,z) \d \bx \d z}
 \end{align*}
-or, in reduced coordinates,
+and the reconstruction formula is
 \begin{align}\label{eq:dec_four}
 \boxed{f(\bx,z) =  \sum_{\substack{\bmm \in \Z^2 \\ m_z \in \Z}}  e^{i\pa{\bmm \ba^* \cdot \bx + m_z \f{2\pi}L z}} \widehat{f}_{\bmm,m_z}}
 \end{align}
@@ -152,6 +167,12 @@ and compute Plancherel's formula
 \end{align}
 Hence, as a verification, we test that the normalization of the $\widehat{u_j}$'s is the right one by checking that $\nor{u_j}{L^2}^2 = 1$ via \eqref{eq:plancherel}.
 
+We implement the Fourier transform
+\begin{lstlisting}
+myfft(a) = fft(a)/length(a)
+myifft(a) = ifft(a)*length(a)
+\end{lstlisting}
+so that if $a_i = f(x_i)$ are the actual values of the functions, then $myfft(a)[m] \simeq \pa{\cF f}_{m-1}$ up to Riemann series errors.
 
 
 \subsection{Rotation action}%
@@ -173,8 +194,14 @@ Similarly, $R_{\f{\pi}2}  \pa{ma^* } = \pa{R_{\f{\pi}2}^{\text{red}} m} a^*$ whe
 \end{align*}
 and
 \begin{align*}
-\cR_{\f{\pi}2} f(x) = \sum_m f_m e^{i \pa{R_{\f{\pi}2}^{\text{red}} m} a^* \cdot x} = \sum_m f_{M m} e^{i \f{1}{\sqrt 3} m a^* \cdot x}
+\cR_{\f{\pi}2} f(x) = \sum_m f_m e^{i \pa{R_{\f{\pi}2}^{\text{red}} m} a^* \cdot x} = \sum_m f_{M m} e^{i \f{1}{\sqrt 3} m a^* \cdot x} = \cL f\pa{\f{x}{\sqrt 3}}
 \end{align*}
+where $\cL$ is the action of $M$ on the Fourier coefficients of $f$.
+
+\section{Comparision with existing results}%
+\label{sec:comparision_with_existing_results}
+
+From \cite{FanCarZhu19}, we verified that with $T=0$, we have Fig 3(a), with the right energies
 
 
 
@@ -514,6 +541,24 @@ For a general $V = \sum_m \widehat{V}_m e^{ima^*\cdot x}$, we have $V^* = \sum_m
 =  \pa{ma^* +k}^2 \pa{\delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}} \pa{\widehat{V}_{n-m}}_{\alpha_1 \beta_2} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}}   \overline{\pa{\widehat{V}_{m-n}}_{\beta_1 \alpha_2}}}
 \end{multline*}
 
+\section{Renormalization of the equation}%
+\label{sec:renormalization_of_the_equation}
+
+We know that
+\begin{align*}
+\pa{-i\na +k + A(x) \pa{-i\na} +v(x)} \p = E \p
+\end{align*}
+with $x=\lambda y$, we define $\phi(y) := \p(\lambda y)$ and
+\begin{align*}
+\pa{\pa{\pa{-i\na +k} + A(\lambda y) \pa{-i\na} +v(\lambda y)} \p}(\lambda y) = E \p(\lambda y)
+\end{align*}
+but $\pa{\na \p}(\lambda y) = \f{1}{\lambda} \na \phi(y)$, so
+\begin{align*}
+\pa{\f{-i\na}{\lambda}+k+ \f{A(\lambda y)}{\lambda} \pa{-i\na} + v(\lambda y)} \phi =   E \phi
+\end{align*}
+We enter $V\pa{\f{3}{2}J X}$ for each potential $V$, hence we need to apply a coefficient $\f{2}{3}$ to each derivation operator.
+
+
 
 \section{Symmetries}%
 \label{sec:symmetries}
@@ -540,6 +585,36 @@ We compute
 	\cS_{IJ} &= \ps{e_{\alpha,n},\cS e_{\beta,m}} = i \ps{e_{\alpha,n}, \mat{-e_{\beta_2,-m} \\ e_{\beta_1,-m}}} \\
 &= i \delta_{m+n} \pa{\delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}} \delta_{\beta_1-\alpha_2} -\delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}}\delta_{\beta_2-\alpha_1}}
 \end{align*}
+
+
+
+For any function $B$ and any vector function $\bm{A}$, we have
+\begin{align*}
+	\cS \mat{0 & B(\bX) \\ B^*(\bX) & 0} \cS &= -\mat{0 & B^*(-\bX) \\ B(-\bX) & 0} \\
+	\cS \mat{0 & B(\bX) \Delta \\ B^*(\bX)\Delta & 0} \cS &= -\mat{0 & B^*(-\bX)\Delta \\ B(-\bX)\Delta & 0} \\
+	\cS\mat{0 & i\bm{A}(\bX) \cdot \na \\ i\bm{A}(\bX)^* \cdot \na & 0} \cS &= \mat{0 & i \bm{A}(-\bX)^* \cdot \na \\ i\bm{A}(-\bX) \cdot \na & 0},
+\end{align*}
+we also compute that
+\begin{align*}
+	\cS \mat{\sigma \cdot \na & 0 \\ 0 & \sigma \cdot \na} \cS &= - \mat{\sigma \cdot \na & 0 \\ 0 & \sigma \cdot \na},
+\end{align*}
+hence if the operator $\Gamma$ is a linear combination of the terms
+\begin{multline*}
+\mat{\sigma \cdot \pa{-i\na} & 0 \\ 0 & \sigma \cdot \pa{-i\na}}, \mat{\sigma \cdot J\pa{-i\na} & 0 \\ 0 & \sigma \cdot J\pa{-i\na}}, \\
+\mat{0 & \bbV \\ \bbV^* & 0}, \mat{0 & \Sigma \\ \Sigma^* & 0}, \mat{0 & \Sigma \Delta	 \\ \Sigma^* \Delta & 0}
+\end{multline*}
+it satisfies the symmetry $\cS \Gamma \cS = - \Gamma$, and those are the particle-hole symmetric terms of our effective Hamiltonian. However, if $\Gamma$ is a linear combination of the operators
+\begin{align*}
+	\mat{0 & \bm{\cA}\cdot\pa{-i\na} \\ \bm{\cA}^* \cdot \pa{-i\na} & 0}, \mat{0 & \bm{\cA}\cdot J\pa{-i\na} \\ \bm{\cA}^* \cdot J\pa{-i\na} & 0},  \\
+	\mat{ -\f 12 \Delta & 0 \\ 0 & -\f 12 \Delta}, \mat{\bbW & 0 \\ 0 & \bbW^*}, \mat{\1_{2\times 2} & 0 \\ 0 & \1_{2\times 2}}
+\end{align*}
+of the effective Hamiltonian $\cH_{d,\theta}$, it satisfies $\cS \Gamma \cS = \Gamma$ and hence break the particle-hole symmetry.
+
+But now we also compute that
+\begin{multline*}
+	\cS \mat{k & 0 \\ 0 & k} \cS = k, \\
+	\cS \mat{\sigma \pa{-i\na +k} & 0 \\ 0 & \sigma\pa{-i\na +k}} \cS = -\mat{\sigma\pa{-i\na -k} & 0 \\ 0 & \sigma\pa{-i\na -k}}
+\end{multline*}
 
 \subsection{Mirror}%
 \label{sub:mirror}
@@ -578,6 +653,44 @@ where $M = \mat{1 & 0 \\ 0 & -1}$,
 \begin{align*}
 M^r = S^{-1} M S = \cM^* M \pa{\cM^*}^{-1} = \sigma_1
 \end{align*}
+
+
+\section{Non Local term}%
+\label{sec:non_local_term}
+
+From the theoretical investigations, we have
+\begin{align*}
+F_0^{\eta,j,s}(\bX) := \int_{\R^3} \overline{\vp_{\text{Bl}}(\by,z)} \Phi_j\pa{\by +\ba_s -2\eta J \bX,z-\eta d} \d \by \d z
+\end{align*}
+and
+\begin{align*}
+\bbW_{\text{nl},-1}^\eta\pa{\bX}_{jj'} := \f{v_0}{\ab{\Omega}} \sum_{s \in \{1,2\}} \overline{F_0^{\eta,j,s}(\bX)} F_0^{\eta,j',s}(\bX).
+\end{align*}
+
+Since $\vp_{\text{Bl}}$ is localized, we periodize it and we make the approximation
+\begin{align*}
+F_0^{\eta,j,s}(\bX) \simeq \int_{\Omega \times [0,L]} \overline{\vp_{\text{Bl}}(\by,z)} \Phi_j\pa{\by +\ba_s -2\eta J \bX,z-\eta d} \d \by \d z
+\end{align*}
+and we define $\vp$ such that $\vp_{\text{Bl}} = e^{i \bK \by} \vp$, because it is $\widehat{\vp}$ which is stored by DFTK, so
+\begin{align*}
+\vp_{\text{Bl}}(\by,z)& = \sum_{\bG, G_z} e^{i\pa{(\bG + \bK)\by + G_z z}} \widehat{\vp}_{\bG,G_z}, \\
+\Phi_j(\by,z) &= \sum_{\bG, G_z} e^{i\pa{(\bG + \bK)\by + G_z z}} \widehat{\pa{u_j}}_{\bG,G_z}
+\end{align*}
+where $\bK$ is the Dirac point, thus
+\begin{align*}
+F_0^{\eta,j,s}(\bX) &= L\ab{\Omega}  \sum_{\bG, G_z} e^{i\pa{\bG \pa{\ba_s - 2\eta J \bX} - \eta G_z d}} \overline{\widehat{\vp}}_{\bG,G_z} \widehat{\pa{u_j}}_{\bG,G_z} \\
+F^{\eta,j,s}\pa{\bX} & := F_0^{\eta,j,s}\pa{-\tfrac{3}{2} J\bX} \\
+		     &= L\ab{\Omega} \sum_{\bG, G_z} e^{i\pa{\bG \pa{\ba_s - 3\eta \bX} - \eta G_z d}} \overline{\widehat{\vp}}_{\bG,G_z}\widehat{\pa{u_j}}_{\bG,G_z}\\
+&= L\ab{\Omega} \sum_{\bG, G_z} e^{i\pa{\bG \pa{-\eta \f{\ba_s}3 + \bX} - \eta G_z d}} \overline{\widehat{\vp}}_{-\f{\eta}{3}\bG,G_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} \bG,G_z}
+\end{align*}
+has Fourier coefficients
+\begin{align*}
+	\widehat{\pa{F^{\eta,j,s}}}_{\bG} &= L\ab{\Omega} \sum_{G_z} e^{-i \eta \pa{\bG  \f{\ba_s}3 + G_z d}} \overline{\widehat{\vp}}_{-\f{\eta}{3}\bG,G_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} \bG,G_z} \\
+	\widehat{\pa{F^{\eta,j,s}}}_{m}& = L\ab{\Omega} \sum_{m_z} e^{-i \eta \pa{ma^*  \f{\ba_s}3 + \f{2\pi}{L} m_z d}} \overline{\widehat{\vp}}_{-\f{\eta}{3}m,m_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} m,m_z} \\
+& = L\ab{\Omega} \sum_{m_z} e^{-i \eta \pa{2\pi m \f{\ba^{\text{red}}_s}3 + \f{2\pi}{L} m_z d}} \overline{\widehat{\vp}}_{-\f{\eta}{3}m,m_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} m,m_z}
+\end{align*}
+
+
 
 
 \section{Change of basis for getting $\Phi_j \in L^2_{\tau,\overline{\tau}}$}%

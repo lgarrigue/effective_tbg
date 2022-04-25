@@ -4,28 +4,46 @@ include("band_diagrams_bm_like.jl")
 
 function computes_and_plots_effective_potentials()
 	# Parameters
-	N = 8; Nz = 27
-	# N = 9; Nz = 36
+	# N = 8; Nz = 27
+	# N = 9;  Nz = 36
 	# N = 12; Nz = 45
 	# N = 15; Nz = 60
+	# N = 20; Nz = 72
+	# N = 24; Nz = 90
+	# N = 24; Nz = 96
+	N = 32; Nz = 135
+	# N = 40; Nz = 160
+	# N = 45; Nz = 192
+
+	px("N ",N,", Nz ",Nz)
 	p = EffPotentials()
 	p.plots_cutoff = 7
 	p.plots_res = 50
 	p.plots_n_motifs = 6
-	produce_plots = false
+	produce_plots = true
+	p.compute_Vint = false
 
 	# Initializations
-	import_u1_u2_V(N,Nz,p)
+	import_u1_u2_V_φ(N,Nz,p)
 	import_Vint(p)
 	init_EffPot(p)
 	# px("Test norm ",norms3d(p.u1_dir,p,false)," and in Fourier ",norms3d(p.u1_f,p))
 
 	# True BM potential
+	# ONLY FOR N NZ SMALL, THE RELATION A_Lm = u_m HAS TO BE CORRECTED OTHERWISE 
+	# ONLY FOR N NZ SMALL, THE RELATION A_Lm = u_m HAS TO BE CORRECTED OTHERWISE 
+	# ONLY FOR N NZ SMALL, THE RELATION A_Lm = u_m HAS TO BE CORRECTED OTHERWISE 
+	# ONLY FOR N NZ SMALL, THE RELATION A_Lm = u_m HAS TO BE CORRECTED OTHERWISE 
+	# ONLY FOR N NZ SMALL, THE RELATION A_Lm = u_m HAS TO BE CORRECTED OTHERWISE 
 	α = 0.5; β = 1.0
-	T = hermitian_block(build_BM(α,β,p))
-	T = app_block(J_four,T,p) # rotates T of J and rescales space of sqrt(3)
-	T = app_block(J_four,T,p) # rotates T of J and rescales space of sqrt(3)
-	T = app_block(J_four,T,p) # rotates T of J and rescales space of sqrt(3)
+	T = hermitian_block(build_BM(α,β,p;scale=true))
+	# T = app_block(J_four_back,T,p) # rotates T of J and rescales space of sqrt(3)
+	# T = app_block(J_four_back,T,p) # rotates T of J and rescales space of sqrt(3)
+	# T = app_block(J_four_back,T,p) # rotates T of J and rescales space of sqrt(3)
+	plot_block_reduced(T,p;title="T")
+	px(sum(abs.(T[1]) .+ abs.(T[2])))
+	# T = app_block(J_four,T,p) # rotates T of J and rescales space of sqrt(3)
+	# T = app_block(J_four,T,p) # rotates T of J and rescales space of sqrt(3)
 
 	# if false # tests Cm_s
 		# P1 = build_potential_direct(p.u1v_f,p.u1_f,p)
@@ -35,25 +53,24 @@ function computes_and_plots_effective_potentials()
 		# display(Cm)
 	# end
 
+	p.add_non_local_W = false
 	build_blocks_potentials(p) # computes Wplus, 𝕍_V and Σ
 	build_block_𝔸(p) # computes 𝔸
-	multiply_potentials(p.N^2,p)
-	test_sym_Wplus_Wminus(p)
+	plot_block_cart(p.𝕍_V,p;title="V_V")
+	# plot_block_cart(T,p;title="T")
 	# p.𝕍 = app_block(J_four,p.𝕍,p) # rotates T of J and rescales space of sqrt(3)
 	
 	# Compares functions of T and 𝕍
-	compare_blocks(T,p.𝕍,p)
-	compare_to_BM(p.𝕍,p)
+	px("Comparision to BM")
+	compare_blocks(T,p.𝕍_V,p)
+	compare_blocks(T,p.Σ,p)
+	compare_to_BM(p.𝕍_V,p)
 	compare_to_BM(p.Σ,p)
 
-	px("\nW_Vint matrix\n",p.W_Vint_matrix,"\n")
+	px("\nW_Vint matrix")
+	display(p.W_Vint_matrix)
 
-	px("|<u1,u2>| = ",abs(sca3d(p.u1_dir,p.u2_dir,p,false)))
-	(∂1_u2_f,∂2_u2_f,∂3_u2_f) = ∇(p.u2_f,p)
-	c1 = 2im*sca3d(p.u1_f,∂1_u2_f,p,true)
-	c2 = 2im*sca3d(p.u1_f,∂2_u2_f,p,true)
-	# c3 = 2im*sca3d(p.u1_f,∂3_u2_f,p,true)
-	px("2i<u1,∇r u2> = [",c1,",",c2,"] ; ratio ",c1/c2," ; |c1|=",abs(c1)," ; |c2|=",abs(c2)," ; should be 0.42")
+
 
 	test_z_parity(p.u1_dir,-1,p;name="u1")
 	test_z_parity(p.u2_dir,-1,p;name="u2")
@@ -63,7 +80,7 @@ function computes_and_plots_effective_potentials()
 	px("\nTests particle-hole symmetry")
 	test_particle_hole_block(T,p;name="T")
 	test_particle_hole_block(p.𝕍,p;name="V")
-	test_particle_hole_block(p.Wplus_tot,p;name="W")
+	test_particle_hole_block_W(p)
 	test_particle_hole_block(p.Σ,p;name="Σ")
 	test_particle_hole_block(p.𝔸1,p;name="A1")
 	test_particle_hole_block(p.𝔸2,p;name="A2")
@@ -71,11 +88,15 @@ function computes_and_plots_effective_potentials()
 	# Parity-time
 	px("\nTests PT symmetry")
 	test_PT_block(T,p;name="T")
-	test_PT_block(p.Wplus_tot,p;name="W")
+	test_PT_block(p.Wplus_tot,p;name="W+")
+	test_PT_block(p.Wminus_tot,p;name="W-")
 	test_PT_block(p.𝕍,p;name="V")
 	test_PT_block(p.𝔸1,p;name="A1")
 	test_PT_block(p.𝔸2,p;name="A2")
 	test_PT_block(p.Σ,p;name="Σ")
+
+	# Special symmetry of W
+	test_sym_Wplus_Wminus(p)
 
 	# Mirror
 	px("\nTests mirror symmetry")
@@ -132,6 +153,8 @@ function computes_and_plots_effective_potentials()
 		plot_block_cart(p.𝕍_V,p;title="V_V")
 		plot_block_cart(p.𝕍_Vint,p;title="V_Vint")
 		plot_block_cart(p.Σ,p;title="Σ")
+		plot_block_cart(p.W_non_local_plus,p;title="W_nl_plus")
+		plot_block_cart(p.W_non_local_moins,p;title="W_nl_moins")
 		plot_magnetic_block_cart(p.𝔸1,p.𝔸2,p;title="A") 
 		# plot_magnetic_block_cart(p.𝔹1,p.𝔹2,p;title="B") 
 		# plot_block_cart(p.𝔹1,p;title="B1")
@@ -144,25 +167,39 @@ end
 function explore_band_structure_BM()
 	p = Basis()
 	p.N = 7
-	p.a = 4.66
-	p.l = 12 # number of eigenvalues we compute
+	p.a = 4π/sqrt(3)
+	# p.a = 4.66
+	p.l = 14 # number of eigenvalues we compute
 	init_basis(p)
 	α = 0.0 # anti-chiral / AA stacking weight
-	p.resolution_bands = 3
-
+	p.resolution_bands = 6
+	p.energy_unit_plots = "eV"
 	p.folder_plots_bands = "bands_BM"
 	p.energy_center = 0
-	p.energy_scale = 2
-	for β in (0:0.05:5) # chiral / AB stacking weight
+	p.energy_scale = 0.3
+	p.solver = "Exact"
+	mult_by_vF = true
+	# 1° × 2π/360 = 0.017 rad
+	# for β in vcat((0.1:0.1:1)) # chiral / AB stacking weight
+	for β in (0.01:0.001:0.01) # °
 	# for β in vcat((0:0.05:6),(1.2:0.001:1.25)) # chiral / AB stacking weight
 		print(" ",β)
-		T = V_offdiag_matrix(build_BM(α,β,p),p)
+		p.a = sqrt(3)*4.66/(2*sin(β/2))
+		p.a = 4.66
+		reload_a(p)
+
+		T = build_BM(1,1,p)
+		T = hermitian_block(T)
+		T = app_block(J_four,T,p) # rotates T of J and rescales space of sqrt(3)
+		T = app_block(J_four,T,p) # rotates T of J and rescales space of sqrt(3)
+		T = app_block(J_four,T,p) # rotates T of J and rescales space of sqrt(3)
+		T = V_offdiag_matrix(T,p)
 
 		# px("mass V ",sum(abs.(T)))
 		# K-dependent part
-		Kdep(k_red) = Dirac_k(k_red,p)
+		Kdep(k_red) = 0.01*(mult_by_vF ? p.fermi_velocity : 1)*Dirac_k(k_red,p)
 		# K-independent part
-		Hv = p.H0 + T
+		Hv = 0*0.11*p.ev_to_hartree*T
 		# test_hermitianity(Hv); test_part_hole_sym_matrix(Hv,p,"Hv")
 		# test_hermitianity(Hv)
 		s = string(β,"00000000000")
@@ -172,6 +209,31 @@ function explore_band_structure_BM()
 	p
 end
 
+function explore_free_graphene_bands()
+	p = Basis()
+	p.N = 8
+	p.a = 4.66
+	# p.a = 4.66
+	p.l = p.N^2-1 # number of eigenvalues we compute
+	p.double_dirac = false
+	init_basis(p)
+	p.resolution_bands = 11
+	p.energy_unit_plots = "eV"
+	p.folder_plots_bands = "bands_free_graphene"
+	p.energy_scale = 10
+	p.energy_center = 0
+	p.solver = "Exact"
+	mult_by_vF = true
+
+	Kdep(k_red) = 0.5*(mult_by_vF ? p.fermi_velocity : 1)*free_Dirac_k_monolayer(k_red,p)
+	# Kdep(k_red) = 0.05*free_Schro_k_monolayer(k_red,p)
+	# K-independent part
+	Hv = 0*Kdep([0,0.0])
+	plot_band_structure(Hv,Kdep,"free",p)
+	p
+end
+
+# CHOQUANT : Σ = T !!!!!!!!!!!?!!!!
 function explore_band_structure_Heff()
 	N = 8; Nz = 27
 
@@ -181,6 +243,7 @@ function explore_band_structure_Heff()
 	p = Basis()
 	p.N = N; p.a = EffV.a
 	p.l = 12 # number of eigenvalues we compute
+	p.coef_derivations = 2/3
 	init_basis(p)
 
 	######## Base Hamiltonian
@@ -197,13 +260,13 @@ function explore_band_structure_Heff()
 	V = V_offdiag_matrix(EffV.𝕍,p)
 
 	# Other parameters
-	p.solver=="Exact"
+	p.solver="Exact"
 
 	p.folder_plots_bands = "bands_eff"
 	p.energy_center = -0.5
 	p.energy_scale = 2
 	p.resolution_bands = 5
-
+	p.energy_unit = "eV"
 
 	method = "natural" # ∈ ["weight","natural"]
 	if method=="natural"
@@ -225,7 +288,7 @@ function explore_band_structure_Heff()
 			end
 
 			# K-independent part
-			Hv = p.ISΣ*( (1/εθ)*(V+ 0*W) + EffV.v_fermi*cθ*p.H0 )*p.ISΣ
+			Hv = p.ISΣ*( (1/εθ)*(V+ 0*W) )*p.ISΣ
 
 			# px("mass W ",sum(abs.(W)))
 			# test_hermitianity(Hv)#; test_part_hole_sym_matrix(W,p,"W")
@@ -248,12 +311,15 @@ function explore_band_structure_Heff()
 	end
 end
 
-# computes_and_plots_effective_potentials()
-explore_band_structure_Heff()
+computes_and_plots_effective_potentials()
+# explore_band_structure_Heff()
 # explore_band_structure_BM()
-
+# explore_free_graphene_bands()
+nothing
 
 #### Todo
+# voir si \cA peut pas etre sous la forme sum_123 A_j e^{ix qj}
+#
 # ajouter effet du terme non local
 # cube Fourier pour plus de symétrie
 # Ht_a ≂̸ t_a H comme dit par Watson, regarder son papier sur l'existence des magic angles
