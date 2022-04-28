@@ -64,6 +64,7 @@ function T_BM_four(N,α,β;scale=false)
 
 	q1 = [-1;-1]; q2 = [0;1]; q3 = [1;0]
 	L = scale ? -[1 -2;2 -1] : [1 0;0 1]
+	# Lq : L q1 = [-1,1], L q2 = [2,1], L q3 = [-1,-2]
 	q1,q2,q3 = L*q1,L*q2,L*q3
 	q1i1,q1i2 = kv(q1[1]),kv(q1[2])
 	q2i1,q2i2 = kv(q2[1]),kv(q2[2])

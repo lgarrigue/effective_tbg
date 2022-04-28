@@ -1,5 +1,6 @@
 include("common_functions.jl")
 using DFTK, LinearAlgebra, FFTW, JLD
+using SharedArrays, Distributed
 setup_threading()
 px = println
 
@@ -37,6 +38,7 @@ mutable struct Params
 	# Kohn-Sham potential
 	v_monolayer_dir # in direct space
 	v_monolayer_fc # in the Fourier cube
+	v_monolayer_fb # in the Fourier cube
 	shifts_atoms # coordinates in 3d of the shifts of the two atoms of the unitthe two atoms of the unit cell
 
 	### Bilayer quantities
@@ -101,7 +103,7 @@ end
 
 ######################### Operations on functions
 
-# Generates U_m := U_{L m}
+# Generates V_m := U_{L m}
 # L is an action on the reduced Fourier space
 function OpL(u, p, L) 
 	Lu = zero(u)
@@ -125,7 +127,7 @@ function R(u,p)
 	OpL(u,p,L)
 end
 
-# Equivalent to multiplication by e^{i cart(k) x), where k is in reduced
+# Equivalent to multiplication by e^{i cart(k) x), where k is in reduced, e^{im0 a^*⋅x} u = ∑ e^{ima^*⋅x} u_{m-m0}
 τ(u,k,p) = OpL(u,p,G -> G .- k)
 # Parity(u,p) = OpL(u,p,G -> -G)
 
@@ -146,6 +148,9 @@ function scf_graphene_monolayer(p)
 	# px("Number of spin components ",model.n_spin_components)
 
 	(p.N,p.N,p.Nz) = basis.fft_size
+	p.path_plots = string(p.root_path,"plots_N",p.N,"_Nz",p.Nz,"/")
+	create_dir(p.path_plots)
+	
 	p.N3d = p.N^2*p.Nz
 	p.x_axis_red = ((0:p.N-1))/p.N
 	p.z_axis_red = ((0:p.Nz-1))/p.Nz
@@ -154,21 +159,24 @@ function scf_graphene_monolayer(p)
 	init_cell_infinitesimals(p)
 	@assert abs(p.dv - basis.dvol) < 1e-10
 
+	# Extracts kpoint
+	i_kpt = 1
+	kpt = basis.kpoints[i_kpt]
+
 	# Run SCF
 	p.scfres = self_consistent_field(basis)
 	px("Energies")
 	display(p.scfres.energies)
 	p.v_monolayer_dir = DFTK.total_local_potential(p.scfres.ham)[:,:,:,1]
 	p.v_monolayer_fc = myfft(p.v_monolayer_dir)
+	# p.v_monolayer_fb = r_to_G(basis,kpt,p.v_monolayer_dir)
 
 	# Test potential energy
 	potential_energy(u_dir,p) = sum(abs2.(u_dir).*p.v_monolayer_dir)*p.dv
 	V_energy = 0
-	i_kpt = 1
 	# for i=1:length(basis.kpoints)
 		# px("i ",i," ",basis.kpoints[i].coordinate)
 	# end
-	kpt = basis.kpoints[i_kpt]
 	occupation = floor(Int,sum(p.scfres.ρ)*p.dv +0.5)
 	px("Occupation ",occupation)
 	for i=1:occupation
@@ -266,6 +274,11 @@ function get_dirac_eigenmodes(p)
 
 	p.u1_fb = us_K[p.i_state]
 	p.u2_fb = us_K[p.i_state+1]
+	p.u1_dir = G_to_r(p.basis,p.K_kpt,p.u1_fb)
+	p.u2_dir = G_to_r(p.basis,p.K_kpt,p.u2_fb)
+	p.u1_fc = myfft(p.u1_dir)
+	p.u2_fc = myfft(p.u2_dir)
+
 	H_K_dirac = ham.blocks[1]; Hmat = Array(H_K_dirac)
 
 	# Verifications
@@ -295,7 +308,9 @@ function rotate_u1_and_u2(p)
 
 	I = argmin([norm(RU.-τau *TU),norm(RV.-τau *TV)])
 	p.u1_fb = I == 1 ? U : V
-	p.u2_fb = conj.(p.u1_fb) # conj ∘ parity is conj in Fourier
+	# ϕ2(x) = conj(ϕ1(-x)) ⟹ u2(x) = conj(u1(-x))
+	# # conj ∘ parity is conj in Fourier
+	p.u2_fb = conj.(p.u1_fb)
 
 	# Computes them in direct space
 	p.u1_dir = G_to_r(p.basis,p.K_kpt,p.u1_fb)
@@ -303,6 +318,7 @@ function rotate_u1_and_u2(p)
 	# Computes them in the Fourier cube
 	p.u1_fc = myfft(p.u1_dir)
 	p.u2_fc = myfft(p.u2_dir)
+	# px("LA ",norm(p.u0_fb)," ",norm(p.u1_fb)," ",norm(p.u0_dir)," ",norm(p.u1_dir)," ",norm(p.u0_fc)," ",norm(p.u1_fc))
 end
 
 ######################### Computation of Vint
@@ -520,20 +536,35 @@ end
 
 function test_rot_sym(p)
 	# Tests
-	(RS,TS) = (R(p.u1_fb,p),τ(p.u1_fb,p.shift_K,p))
-	(RW,TW) = (R(p.u2_fb,p),τ(p.u2_fb,p.shift_K,p))
-	(Ru0,Tu0) = (R(p.u0_fb,p),τ(p.u0_fb,p.shift_K,p))
+	(Ru0,Tu0) = (R(p.u0_fb,p),τ(p.u0_fb,p.shift_K,p)) # u0
+	(RS,TS) = (R(p.u1_fb,p),τ(p.u1_fb,p.shift_K,p))   # u1
+	(RW,TW) = (R(p.u2_fb,p),τ(p.u2_fb,p.shift_K,p))   # u2
 
 	τau = cis(2π/3)
 	px("Test R φ0 =     φ0 ",norm(Ru0.-Tu0)/norm(Ru0))
-	px("Test R φ1 = τ   φ1 ",norm(RS.-τau*TS)/norm(RS))
+	px("Test R φ1 = τ   φ1 ",norm(RS.-τau*TS)/norm(RS)) # R u1 = τ e^{ix⋅(1-R_{2π/3})K} u1 = τ e^{ix⋅[-1,0,0]a^*} u1
 	px("Test R φ2 = τ^2 φ2 ",norm(RW.-τau^2*TW)/norm(RW))
 end
 
 ######################### Plot functions
 
-# fun in cart coords to fun in red coords
-function arr2fun(u,p;bloch_trsf=true) # u in the Fourier ball, to function in cartesian
+# array of Fourier coefs to cartesian direct function
+function arr2fun(u_fc,p;bloch_trsf=true) # u in the Fourier ball, to function in cartesian
+	K_cart = k_red2cart(p.K_red,p)
+	plus_k = bloch_trsf ? K_cart : [0,0] # EQUIVALENT TO APPLY e^{iKx} !
+	f(x,y,z) = 0
+	for imx=1:p.N, imy=1:p.N, imz=1:p.Nz
+		mx,my,mz = p.k_axis[imx],p.k_axis[imy],p.kz_axis[imz]
+		if norm([mx,my,mz])<p.plots_cutoff
+			ma = mx*p.a1_star + my*p.a2_star + plus_k
+			g(x,y,z) = u_fc[imx,imy,imz]*cis([ma[1],ma[2],0]⋅[x,y,z])
+			f = f+g
+		end
+	end
+	f
+end
+
+function arr2fun_Gvectors(u,p;bloch_trsf=true) # u in the Fourier ball, to function in cartesian
 	Gs = bloch_trsf ? p.Gplusk_vectors_cart : p.Gvectors_cart # EQUIVALENT TO APPLY e^{iKx} !
 	f(x,y,z) = 0
 	for iG=1:length(Gs)
@@ -545,21 +576,54 @@ function arr2fun(u,p;bloch_trsf=true) # u in the Fourier ball, to function in ca
 	f
 end
 
+function eval_f(g,res,p)
+	# a = SharedArray{ComplexF64}(res,res,p.Nz)
+	a = zeros(ComplexF64,res,res,p.Nz)
+	indices = [(i,j,kiz) for i=0:res-1, j=0:res-1, kiz=1:p.Nz]
+	aa = p.a
+	kt = p.kz_axis
+	# for l=1:length(indices) # 9.5s
+	# @time @distributed for l=1:length(indices) # 
+	Threads.@threads for l=1:length(indices) # 5s
+		(i,j,kiz) = indices[l]
+		# px("truc ",a[i,j,kiz])
+		a[i+1,j+1,kiz] = g(i*aa/res,j*aa/res,kt[kiz])
+	end
+	a
+end
+
+# eval_f(g,res,p) = [g(i*p.a/res,j*p.a/res,p.kz_axis[kiz]) for i=0:res-1, j=0:res-1, kiz=1:p.Nz]
+
 function simple_plot(u,fun,Z,p;n_motifs=3,bloch_trsf=true,res=25)
 	f = arr2fun(u,p;bloch_trsf=bloch_trsf)
 	g = scale_fun3d(f,n_motifs)
-	a = fun.([g(i/res,j/res,Z) for i=0:res-1, j=0:res-1])
-	heatmap(a,size=(1000,1000))
+	a = fun.(eval_f(g,res,p))
+	b = intZ(abs.(a),p)
+	# b = a[:,:,Z]
+	heatmap(b,size=(1000,1000))
 end
 
 function rapid_plot(u,p;n_motifs=5,name="rapidplot",bloch_trsf=true,res=25)
-	Z = 0
+	Z = 10
 	funs = [abs,real,imag]
 	hm = [simple_plot(u,fun,Z,p;n_motifs=n_motifs,bloch_trsf=bloch_trsf,res=res) for fun in funs]
+	plot_z = plot(intXY(real.(ifft(u)),p))
+	push!(hm,plot_z)
 	size = 600
-	r = length(funs)
-	pl = plot(hm...,layout=(1,r),size=(r*size,size-200),legend=false)
-	savefig(pl,string(p.path_plots,name,".png"))
+	r = length(hm)
+	pl = plot(hm...,layout=(r,1),size=(size+100,r*size),legend=false)
+	# pl = plot(hm...,layout=(1,r),size=(r*size,size-200),legend=false)
+	full_name = string(p.path_plots,name,"_N",p.N,"_Nz",p.Nz)
+	savefig(pl,string(full_name,".png"))
+
+	# Fourier
+	uXY = intZ(abs.(u),p)
+	uZ = intXY(abs.(u),p)
+	plXY = heatmap(uXY,size=(1500,1000))
+	plZ = plot(uZ,size=(1500,1000))
+	pl = plot(plXY,plZ)
+	savefig(pl,string(full_name,"_fourier.png"))
+	px("Plot of ",name," done")
 end
 
 function plot_Vint(p)

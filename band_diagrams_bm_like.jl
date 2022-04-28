@@ -93,15 +93,16 @@ function plot_band_structure(Hv,Kdep,name,p)
 	if dif
 		Γ -= K; M -= K; K -= K
 		Klist = [K,Γ,M]; Klist_names = ["K","Γ","M"]
-		Klist = [Γ,2*K,8*M]; Klist_names = ["Γ","2K","4K"]
+		# Klist = [Γ,2*K,8*M]; Klist_names = ["Γ","2K","4K"]
 		# Klist = [Γ,K,M]; Klist_names = ["Γ","K","M"]
 	end
-
-
 	σ_on_path = spectrum_on_a_path(Hv,Kdep,Klist,p)
 	pl = plot_band_diagram(σ_on_path,Klist,Klist_names,p)#;K_relative=p.K_red)
 	path = string(p.root_path,p.folder_plots_bands)
 	create_dir(path)
+
+	s = string(name,"00000000000")
+	title = s[1:min(6,length(s))]
 	savefig(pl,string(path,"/band_struct_",name,".png"))
 end
 
@@ -453,7 +454,7 @@ function solve_one(HvK,p,X0=-1) # l is the number of eigenvalues we want
 	else
 		(E,φs) = eigen(HvK)
 		E = E[1:p.l2]; φs = φs[:,1:p.l2] # Peut etre pas bon pour φs mais on s'en sert pas
-		px(E)
+		# px(E)
 		Xf = -1
 	end
 	(E,Xf)

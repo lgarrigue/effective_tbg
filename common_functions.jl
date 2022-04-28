@@ -237,6 +237,15 @@ end
 
 ######################## Symmetry tests
 
+function distance(f,g)
+	nor = norm(f)
+	if abs(nor) < 1e-15
+		px("Division by zero in distance")
+		return 0
+	end
+	norm(f.-g)/nor
+end
+
 function test_hermitianity(M,name="")
 	n = size(M,1)
 	@assert size(M) == (n,n)

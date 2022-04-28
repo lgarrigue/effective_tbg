@@ -5,11 +5,15 @@ include("misc/create_bm_pot.jl")
 
 ################## Imports graphene.jl quantities (u1, u2, V, Vint) and produces effective potentials without plotting and tests
 
-function import_and_computes(N,Nz)
+function import_and_computes(N,Nz,compute_Vint)
 	p = EffPotentials()
-	import_u1_u2_V(N,Nz,p)
+	p.compute_Vint = compute_Vint
+	p.add_non_local_W = false
+	import_u1_u2_V_φ(N,Nz,p)
 	import_Vint(p)
 	init_EffPot(p)
+	optimize_gauge_and_create_T_BM_with_θ_α(false,p)
+	optimize_gauge_and_create_T_BM_with_α(true,p)
 	build_blocks_potentials(p)
 	build_block_𝔸(p)
 	p
@@ -44,7 +48,7 @@ mutable struct EffPotentials
 	J𝔸1; J𝔸2
 	W_non_local_plus; W_non_local_moins 
 	add_non_local_W; compute_Vint # ∈ [true,false]
-
+	T_BM
 
 	# Plots
 	plots_cutoff
@@ -85,11 +89,21 @@ end
 
 # Builds the Fourier coefficients 
 # C_m = ∑_M conj(hat(g))_{m,M} hat(f)_{m,M} e^{i η d q_M 2π/L}, η ∈ {-1,1}
-function build_Cm(g,f,p;η=1) 
-	C = zeros(ComplexF64,p.N,p.N)
+function build_Cm(g,f,p;η=1,prt=false) 
 	app(kz) = cis(2*η*p.interlayer_distance*kz*π/p.L)
 	expo = app.(p.kz_axis)
-	p.L*[sum(conj.(g[m,n,:]).*f[m,n,:].*expo) for m=1:p.N, n=1:p.N]
+	C = p.L*[sum(conj.(g[m,n,:]).*f[m,n,:].*expo) for m=1:p.N, n=1:p.N]
+
+	if prt
+		x = C[2,1]
+		px("MASS ",sum(abs.(C))," x ",x," abs(x) ",abs(x))
+		for i=1:p.N, j=1:p.N
+			if abs(C[i,j])> 1e-4
+				px("ij ",i," ",j)
+			end
+		end
+	end
+	C
 end
 
 function div_three(m,n,p) # Test whether [m;n] is in 3ℤ^2, returns [m;n]/3 if yes
@@ -104,8 +118,9 @@ function div_three(m,n,p) # Test whether [m;n] is in 3ℤ^2, returns [m;n]/3 if 
 end
 
 # 2 × 2 matrix, magnetic ∈ {"no","1","2"}, f and g are in Fourier. transl is for diagonal blocks
-function build_potential(g,f,p;magnetic="no",transl=true,η=1) # η ∈ {-1,+1}
-	C = build_Cm(g,f,p;η=1)
+function build_potential(g,f,p;magnetic="no",transl=true,η=1,prt=false) # η ∈ {-1,+1}
+	C = build_Cm(g,f,p;η=1,prt=prt)
+
 	# px("Mass Cm for η=",η," ",sum(abs.(C)))
 	P = zeros(ComplexF64,p.N,p.N)
 	# Fills P_n^D = C^D_{F^{-1} J^{*,-1} F(n)}
@@ -125,6 +140,7 @@ function build_potential(g,f,p;magnetic="no",transl=true,η=1) # η ∈ {-1,+1}
 			P[m,n] = magn_fact*C[m3,n3]
 		end
 	end
+	# there is no loss if p.N is large enough !
 	return P
 end
 
@@ -155,18 +171,39 @@ function build_block_𝔸(p)
 	(p.J𝔸1,p.J𝔸2) = rot_block(π/2,p.𝔸1,p.𝔸2,p)
 end
 
+
+function change_gauge_wavefunctions(θ,p)
+	p.u1_f *= cis(θ)
+	p.u2_f *= cis(-θ)
+
+	p.u1_dir = myifft(p.u1_f)
+	p.u2_dir = myifft(p.u2_f)
+	p.u1v_dir = p.v_dir.*p.u1_dir
+	p.u2v_dir = p.v_dir.*p.u2_dir
+	p.u1v_f = myfft(p.u1v_dir)
+	p.u2v_f = myfft(p.u2v_dir)
+	p.prods_dir = [abs2.(p.u1_dir), conj.(p.u1_dir).*p.u2_dir, conj.(p.u2_dir).*p.u1_dir, abs2.(p.u2_dir)]
+	p.prods_f = myfft.(p.prods_dir)
+end
+
+
+create_Σ(u1,u2,p) = [build_potential(u1,u1,p), build_potential(u1,u2,p),
+		     build_potential(u2,u1,p), build_potential(u2,u2,p)]
+
+create_V_V(u1,u2,p) = [build_potential(p.u1v_f,p.u1_f,p), build_potential(p.u1v_f,p.u2_f,p),
+		       build_potential(p.u2v_f,p.u1_f,p), build_potential(p.u2v_f,p.u2_f,p)]
+
 function build_blocks_potentials(p)
+	p.Σ = create_Σ(p.u1_f,p.u2_f,p)
+	
 	# Computes blocks without Vint
-	p.𝕍_V = [build_potential(p.u1v_f,p.u1_f,p), build_potential(p.u1v_f,p.u2_f,p),
-		 build_potential(p.u2v_f,p.u1_f,p), build_potential(p.u2v_f,p.u2_f,p)]
+	p.𝕍_V = create_V_V(p.u1_f,p.u2_f,p)
 	p.Wplus = [build_potential(p.v_f,p.prods_f[1],p;transl=false), build_potential(p.v_f,p.prods_f[2],p;transl=false),
 		   build_potential(p.v_f,p.prods_f[3],p;transl=false), build_potential(p.v_f,p.prods_f[4],p;transl=false)]
 	p.Wminus = [build_potential(p.v_f,p.prods_f[1],p;transl=false,η=-1), build_potential(p.v_f,p.prods_f[2],p;transl=false,η=-1),
 		    build_potential(p.v_f,p.prods_f[3],p;transl=false,η=-1), build_potential(p.v_f,p.prods_f[4],p;transl=false,η=-1)]
 	# p.W_minus = [build_potential(p.prods_f[1],p.v_f,p;η=-1,transl=false), build_potential(p.prods_f[2],p.v_f,p;η=-1,transl=false),
 	# build_potential(p.prods_f[3],p.v_f,p;η=-1,transl=false), build_potential(p.prods_f[4],p.v_f,p;η=-1,transl=false)]
-	p.Σ = [build_potential(p.u1_f,p.u1_f,p), build_potential(p.u1_f,p.u2_f,p),
-	       build_potential(p.u2_f,p.u1_f,p), build_potential(p.u2_f,p.u2_f,p)]
 
 	# Computes blocks with Vint
 	u1Vint_f = zeros(ComplexF64,p.N,p.N); u2Vint_f = zeros(ComplexF64,p.N,p.N)
@@ -284,7 +321,7 @@ end
 
 function compare(u,v)
 	α0 = [1.0]
-	f(α) = norm(α[1]*u .- v)^2/norm(v)^2
+	f(α) = norm(α[1]*u .- v)/norm(v)
 	res = optimize(f, α0)
 	minimum(res)
 end
@@ -296,23 +333,68 @@ function compare_blocks(A,B,p)
 	end
 end
 
-function compare_to_BM(A,p)
-	n1 = norm(A[1])^2; n2 = norm(A[2])^2
+function compare_one_block(A,n,p) # A is the function, not a 4×4 block
+	n1 = norm(A)
 	function dist(α)
-		T = hermitian_block(build_BM(α[1],α[2],p))
-		T = app_block(J_four,T,p)
-		T = app_block(J_four,T,p)
-		T = app_block(J_four,T,p)
-		norm(T[1] .- A[1])^2/n1 + norm(T[2] .- A[2])^2/n2
+		T = hermitian_block(build_BM(α[1],α[2],p;scale=true))
+		norm(T[n] .- A)/n1
 	end
 	α0 = [1.0,1.0]
 	res = optimize(dist, α0)
 	m = minimum(res)
 	α = Optim.minimizer(res)
-	px("Distance to BM ",m," with coefs (α,β)=(",α[1],",",α[2],")")
+	(m,α)
+end
+
+function compare_to_BM(A,p)
+	function dist(α)
+		T = hermitian_block(build_BM(α[1],-α[1],p;scale=true))
+		relative_distance_blocks(A,T)
+	end
+	res = optimize(dist, [1.0])
+	m = minimum(res)
+	α = Optim.minimizer(res)[1]
+	T = hermitian_block(build_BM(α,-α,p;scale=true))
+	(m,α,T)
+	# px("Distance to BM ",m," with coefs (α,β)=(",α[1],",",α[2],")")
+end
+
+function compare_to_BM_infos(A,p,name)
+	(m,α,T) = compare_to_BM(A,p)
+	d1 = distance(T[1],A[1])
+	d2 = distance(T[2],A[2])
+	px("Distances blocks 1 and 2 between ",name," and optimally rescaled T_BM: ",d1," ",d2," obtained with ",α)
+end
+
+function optimize_gauge_and_create_T_BM_with_θ_α(V_V_or_Σ,p) # does u1 -> u1 e^{iθx}, u2 -> u2 e^{iθx} so that it fixed the gauge
+	# This optimizing procedure is not very precise !
+	γ(θ) = V_V_or_Σ ? create_V_V(p.u1_f*cis(θ),p.u2_f*cis(-θ),p) : create_Σ(p.u1_f*cis(θ),p.u2_f*cis(-θ),p)
+	comp(x) = x
+	function f(λ) 
+		T = hermitian_block(build_BM(comp(λ[1]),-comp(λ[1]),p;scale=true))
+		relative_distance_blocks(γ(λ[2]),T)
+	end
+	start = V_V_or_Σ ? [1.6e-4,1] : [1e-3,1]
+	res = optimize(f,start)
+	λ = res.minimizer
+	θ = λ[2]
+	α = comp(λ[1])
+
+	p.T_BM = hermitian_block(build_BM(α,-α,p;scale=true))
+	# px("MIN with α and θ",res.minimum," with ",α)
+
+	change_gauge_wavefunctions(θ,p)
+end
+
+function optimize_gauge_and_create_T_BM_with_α(V_V_or_Σ,p)
+	A = V_V_or_Σ ? create_V_V(p.u1_f,p.u2_f,p) : create_Σ(p.u1_f,p.u2_f,p)
+	(m,α,p.T_BM) = compare_to_BM(A,p)
+	# px("MIN with only α ",m," with ",α)
 end
 
 ################## Symmetry tests
+
+
 
 function relative_distance_blocks(B,C)
 	count = 0; tot = 0
@@ -443,6 +525,8 @@ function import_u1_u2_V_φ(N,Nz,p)
 	p.v_dir = myifft(p.v_f)
 	p.u1_dir = myifft(p.u1_f)
 	p.u2_dir = myifft(p.u2_f)
+	# pl = heatmap(real.([p.u1_f[x,y,5] for x=1:p.N,y=1:p.N]))
+	# savefig(pl,"lala.png")
 
 	p.u1v_dir = p.v_dir.*p.u1_dir
 	p.u2v_dir = p.v_dir.*p.u2_dir
