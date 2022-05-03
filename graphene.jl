@@ -55,7 +55,8 @@ mutable struct Params
 	recip_lattice; recip_lattice_inv # from k in reduced coords to a k in cartesian ones
 	tol_scf
 	non_local_coef
-	non_local_φ_fb; non_local_φ_fc
+	non_local_φ1_fb; non_local_φ1_fc
+	non_local_φ2_fb; non_local_φ2_fc
 
 	# Misc
 	ref_gauge # reference for fixing the phasis gauge freedom
@@ -68,7 +69,7 @@ mutable struct Params
 end
 
 function init_params(p)
-	init_cell_vectors(p)
+	init_cell_vectors(p;rotate=false)
 	# Bilayer parameter
 	p.M3d = [vcat(p.a1,[0]) vcat(p.a2,[0]) [0;0;p.L]]
 	p.Vol = DFTK.compute_unit_cell_volume(p.M3d)
@@ -482,14 +483,17 @@ function extract_nonlocal(p)
 	@assert imag(p.non_local_coef) < 1e-6
 	@assert sum(abs.([coefs[1,1] 0;0 coefs[1,1]] .- coefs))/abs(coefs[1,1]) < 1e-8
 	@assert sum(abs.(vecs[:,1].-conj.(vecs)[:,2]))/sum(abs.(vecs[:,1])) < 1e-8
-	p.non_local_φ_fb = vecs[:,1]
-	non_local_φ_dir = G_to_r(p.basis,p.K_kpt,p.non_local_φ_fb)
-	p.non_local_φ_fc = myfft(non_local_φ_dir)
+	p.non_local_φ1_fb = vecs[:,1]
+	p.non_local_φ2_fb = vecs[:,2]
+	non_local_φ1_dir = G_to_r(p.basis,p.K_kpt,p.non_local_φ1_fb)
+	non_local_φ2_dir = G_to_r(p.basis,p.K_kpt,p.non_local_φ2_fb)
+	p.non_local_φ1_fc = myfft(non_local_φ1_dir)
+	p.non_local_φ2_fc = myfft(non_local_φ2_dir)
 end
 
 function non_local_energy(u,p) # <u_nk, (V_nl)_k u_nk>, u is the periodic Bloch function, in the Fourier ball
 	p.Vol_recip*
-	sum(sum([abs2(u[g].*conj.(p.non_local_φ_fb[g])
+	sum(sum([abs2(u[g].*conj.(p.non_local_φ1_fb[g])
 		      .*cis(p.shifts_atoms[a]⋅p.Gvectors_cart[g])) for g=1:length(u)]) for a=1:2)
 end
 
@@ -522,7 +526,7 @@ end
 
 function exports_v_u1_u2_φ(p)
 	filename = string(p.path_exports,"N",p.N,"_Nz",p.Nz,"_u1_u2_V_nonLoc.jld")
-	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"v_f",p.v_monolayer_fc,"u1_f",p.u1_fc,"u2_f",p.u2_fc,"v_fermi",p.v_fermi,"φ_f",p.non_local_φ_fc,"non_local_coef",p.non_local_coef,"shifts_atoms",p.shifts_atoms,"interlayer_distance",p.interlayer_distance)
+	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"v_f",p.v_monolayer_fc,"u1_f",p.u1_fc,"u2_f",p.u2_fc,"v_fermi",p.v_fermi,"φ1_f",p.non_local_φ1_fc,"φ2_f",p.non_local_φ2_fc,"non_local_coef",p.non_local_coef,"shifts_atoms",p.shifts_atoms,"interlayer_distance",p.interlayer_distance)
 	px("Exported : V, u1, u2 functions, Fermi velocity, and non local quantities, for N=",p.N,", Nz=",p.Nz)
 end
 
@@ -539,11 +543,17 @@ function test_rot_sym(p)
 	(Ru0,Tu0) = (R(p.u0_fb,p),τ(p.u0_fb,p.shift_K,p)) # u0
 	(RS,TS) = (R(p.u1_fb,p),τ(p.u1_fb,p.shift_K,p))   # u1
 	(RW,TW) = (R(p.u2_fb,p),τ(p.u2_fb,p.shift_K,p))   # u2
+	(Rφ1,Tφ1) = (R(p.non_local_φ1_fb,p),τ(p.non_local_φ1_fb,p.shift_K,p))
+	(Rφ2,Tφ2) = (R(p.non_local_φ2_fb,p),τ(p.non_local_φ2_fb,p.shift_K,p))
 
 	τau = cis(2π/3)
-	px("Test R φ0 =     φ0 ",norm(Ru0.-Tu0)/norm(Ru0))
-	px("Test R φ1 = τ   φ1 ",norm(RS.-τau*TS)/norm(RS)) # R u1 = τ e^{ix⋅(1-R_{2π/3})K} u1 = τ e^{ix⋅[-1,0,0]a^*} u1
-	px("Test R φ2 = τ^2 φ2 ",norm(RW.-τau^2*TW)/norm(RW))
+	# p.non_local_φ_fb = conj.(p.non_local_φ_fb)
+	
+	px("Test R Φ0 =     Φ0 ",norm(Ru0.-Tu0)/norm(Ru0))
+	px("Test R Φ1 = τ   Φ1 ",norm(RS.-τau*TS)/norm(RS)) # R u1 = τ e^{ix⋅(1-R_{2π/3})K} u1 = τ e^{ix⋅[-1,0,0]a^*} u1
+	px("Test R Φ2 = τ^2 Φ2 ",norm(RW.-τau^2*TW)/norm(RW))
+	px("Test R φ1 = τ   φ1 ",norm(Rφ1.- τau*Tφ1)/norm(Rφ1))
+	px("Test R φ2 = τ^2 φ2 ",norm(Rφ2.- τau^2*Tφ2)/norm(Rφ2))
 end
 
 ######################### Plot functions

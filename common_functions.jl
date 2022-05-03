@@ -35,16 +35,27 @@ function init_cell_infinitesimals(p) # needs a, N, Nz
 	p.Vol = p.cell_area*p.L
 end
 
-function init_cell_vectors(p) # needs a
-	a1_unit = [sqrt(3)/2; 1/2]
-	a2_unit = [sqrt(3)/2;-1/2]
-	p.a1,p.a2 = p.a.*(a1_unit,a2_unit)
-	a1s_unit = [1/2; sqrt(3)/2]
-	a2s_unit = [1/2;-sqrt(3)/2]
+function init_cell_vectors(p;rotate=false) # needs a
+	a1_unit = [-1/2; sqrt(3)/2]
+	a2_unit = [ 1/2; sqrt(3)/2]
+	p.a1,p.a2 = p.a.*(a1_unit,a2_unit) # not used
+	a1s_unit = [-sqrt(3)/2; 1/2]
+	a2s_unit = [ sqrt(3)/2; 1/2]
 	pref = 4π/(p.a*sqrt(3))
 	p.a1_star,p.a2_star = pref.*(a1s_unit,a2s_unit)
 	J = rotM(π/2)
-	# p.a1_star = J*p.a1_star; p.a2_star = J*p.a2_star
+	if rotate
+		p.a1_star = -J*p.a1_star
+		p.a2_star = -J*p.a2_star
+		p.a1 = J*p.a1
+		p.a2 = J*p.a2
+	end
+
+
+	a1s_unit = [ sqrt(3)/2; 3/2]
+	a2s_unit = [-sqrt(3)/2; 3/2]
+	pref = 4π/(p.a*sqrt(3))
+	p.a1_star,p.a2_star = pref.*(a1s_unit,a2s_unit)
 
 	p.K_red = [-1/3;1/3]
 end
@@ -133,6 +144,7 @@ end
 R_four(a,p) = apply_map_four(X -> [0 -1;1 -1]*X,a,p) # rotation of 2π/3, in Fourier space
 J_four(a,p) = apply_map_four(X -> -[1 -2;2 -1]*X,a,p) # rotation of -π/2, in Fourier space, with scaling of sqrt(3)
 parity_four(a,p) = apply_map_four(X -> -X,a,p)
+conj_four(a,p) = apply_map_four(X -> -X,conj.(a),p) # if f is in direct space, and g(x) := conj.(f(x)), hat(g)_m = conj(hat(f))_{-m}
 σ1_four(a,p) = apply_map_four(X -> [0 1;1 0]*X,a,p)
 
 function apply_map_four(L,u,p) # res_m = u_{Lm}

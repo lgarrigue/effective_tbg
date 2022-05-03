@@ -5,7 +5,7 @@ include("graphene.jl")
 function produce_bloch_functions_and_potentials()
 	p = Params() # stores all we need to store
 	# Choose parameters
-	p.ecut = 10 # DFTK's ecut, convergence of u's for ecut ≃ 15
+	p.ecut = 50 # DFTK's ecut, convergence of u's for ecut ≃ 15
 	px("ecut ",p.ecut)
 	p.a = 4.66 # length of the vectors of the fundamental cell
 	p.interlayer_distance = 6.45 # distance between the two layers
@@ -65,12 +65,12 @@ function produce_bloch_functions_and_potentials()
 	px("Makes plots")
 	resolution = 30
 	n_motifs = 2
-	rapid_plot(p.u0_fc,p;n_motifs=n_motifs,name="ϕ0",res=resolution,bloch_trsf=true)
-	rapid_plot(p.u1_fc,p;n_motifs=n_motifs,name="ϕ1",res=resolution,bloch_trsf=true)
+	# rapid_plot(p.u0_fc,p;n_motifs=n_motifs,name="ϕ0",res=resolution,bloch_trsf=true)
+	# rapid_plot(p.u1_fc,p;n_motifs=n_motifs,name="ϕ1",res=resolution,bloch_trsf=true)
 	# if the plot of u1 is small, this is probably because of it's antisymmetry in z, and because the dominating Fourier transform coefficients are away from 0 and cut by plot_cutoff
-	rapid_plot(p.u2_fc,p;n_motifs=n_motifs,name="ϕ2",res=resolution,bloch_trsf=true)
-	rapid_plot(p.v_monolayer_fc,p;n_motifs=n_motifs,name="v",res=resolution,bloch_trsf=false)
-	rapid_plot(p.non_local_φ_fc,p;n_motifs=n_motifs,name="non_local_φ",res=resolution,bloch_trsf=true)
+	# rapid_plot(p.u2_fc,p;n_motifs=n_motifs,name="ϕ2",res=resolution,bloch_trsf=true)
+	# rapid_plot(p.v_monolayer_fc,p;n_motifs=n_motifs,name="v",res=resolution,bloch_trsf=false)
+	# rapid_plot(p.non_local_φ_fc,p;n_motifs=n_motifs,name="non_local_φ",res=resolution,bloch_trsf=true)
 
 	# Computes Vint (expensive in time)
 	if compute_Vint

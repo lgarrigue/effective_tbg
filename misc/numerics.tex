@@ -116,6 +116,14 @@ We recall that
 a_1 = a \mat{ \f{\sqrt 3}2 \\ \f 12}, \qquad a_2 = a \mat{ \f{\sqrt 3}2 \\ -\f 12} \\
 a^*_1 = \f{2\pi}{a} \mat{ \f{1}{\sqrt 3} \\ 1}= \f{4\pi}{a\sqrt{3}} \mat{ \f{1}{2} \\ \f{\sqrt{3}}{2}}, \qquad a^*_2 = \f{2\pi}{a} \mat{ \f{1}{\sqrt 3} \\ -1}= \f{4\pi}{a\sqrt{3}} \mat{ \f{1}{2} \\ -\f{\sqrt{3}}{2}}
 \end{multline*}
+and for the moiré cell, we take
+\begin{multline*}
+b_1 = b \mat{ -\f 12 \\ \f{\sqrt 3}{2}  }, \qquad b_2 = b \mat{ \f 12 \\ \f{\sqrt 3}2}, \quad b^*_1 = \f{4\pi}{b\sqrt{3}} \mat{- \f{\sqrt{3}}{2}\\ \f{1}{2} }, \qquad b^*_2 = \f{4\pi}{b\sqrt{3}} \mat{\f{\sqrt{3}}{2} \\ \f{1}{2} }
+\end{multline*}
+so $-J b_j^* = \f{a}{b} a_j^*$ and $J b_j = \f{b}{a} a_j$ and 
+\begin{align*}
+	\cM_b := \mat{b_1 & b_2} = \f{b}{2} \mat{-1 & 1 \\ \sqrt 3 & \sqrt 3}
+\end{align*}
 
 In reduced coordinates, with 
 \begin{multline*}
@@ -441,7 +449,7 @@ For $A = (A_1,A_2)$ and $A_j = \sum_\ell \pa{\widehat{A_j}}_\ell e^{i \ell a^*\c
 = \pa{\widehat{A_1}}_{n-m} \pa{ma^* + k}_1 + \pa{\widehat{A_2}}_{n-m} \pa{ma^* + k}_2 = \widehat{A}_{n-m} \cdot \pa{ma^*+k}
 \end{multline*}
 
-For $V = \sum_\ell \widehat{V}_\ell e^{i\ell a^*x}$, we have
+For $V = \sum_\ell \widehat{V}_\ell e^{i\ell a^*x}$, we have $\ps{e_n,V e_m} = \widehat{V}_{n-m}$ and
 \begin{align*}
 \ps{e_n,V (-i\na + k)^2 e_m} =  \pa{ma^*+k}^2\widehat{V}_{n-m}
 \end{align*}
@@ -668,36 +676,57 @@ M^r = S^{-1} M S = \cM^* M \pa{\cM^*}^{-1} = \sigma_1
 
 From the theoretical investigations, we have
 \begin{align*}
-F_0^{\eta,j,s}(\bX) := \int_{\R^3} \overline{\vp_{\text{Bl}}(\by,z)} \Phi_j\pa{\by +\ba_s -2\eta J \bX,z-\eta d} \d \by \d z
+F_0^{\eta,j,s}(\bX) := \int_{\R^3} \overline{\vp_{\text{Bl},s}(\by,z)} \Phi_j\pa{\by +\ba_s -2\eta J \bX,z-\eta d} \d \by \d z
 \end{align*}
 and
 \begin{align*}
 \bbW_{\text{nl},-1}^\eta\pa{\bX}_{jj'} := \f{v_0}{\ab{\Omega}} \sum_{s \in \{1,2\}} \overline{F_0^{\eta,j,s}(\bX)} F_0^{\eta,j',s}(\bX).
 \end{align*}
 
-Since $\vp_{\text{Bl}}$ is localized, we periodize it and we make the approximation
+Since $\vp_{\text{Bl},s}$ is localized, we periodize it and we make the approximation
 \begin{align*}
-F_0^{\eta,j,s}(\bX) \simeq \int_{\Omega \times [0,L]} \overline{\vp_{\text{Bl}}(\by,z)} \Phi_j\pa{\by +\ba_s -2\eta J \bX,z-\eta d} \d \by \d z
+	F_0^{\eta,j,s}(\bX) &\simeq \int_{\Omega \times [0,L]} \overline{\vp_{\text{Bl},s}(\by,z)} \Phi_j\pa{\by +\ba_s -2\eta J \bX,z-\eta d} \d \by \d z \\
+&=\int_{\Omega \times [0,L]} \overline{\vp_{s}(\by,z)} u_j\pa{\by +\ba_s -2\eta J \bX,z-\eta d} \d \by \d z
 \end{align*}
-and we define $\vp$ such that $\vp_{\text{Bl}} = e^{i \bK \by} \vp$, because it is $\widehat{\vp}$ which is stored by DFTK, so
+and we define $\vp$ such that $\vp_{\text{Bl},s} = e^{i \bK \by} \vp_s$, because it is $\widehat{\vp_s}$ which is stored by DFTK, so
 \begin{align*}
-\vp_{\text{Bl}}(\by,z)& = \sum_{\bG, G_z} e^{i\pa{(\bG + \bK)\by + G_z z}} \widehat{\vp}_{\bG,G_z}, \\
-\Phi_j(\by,z) &= \sum_{\bG, G_z} e^{i\pa{(\bG + \bK)\by + G_z z}} \widehat{\pa{u_j}}_{\bG,G_z}
+\vp_{s}(\by,z) = \sum_{\bG, G_z} e^{i\pa{\bG \by + G_z z}} \widehat{\vp}_{s,\bG,G_z}, \qquad u_j(\by,z) = \sum_{\bG, G_z} e^{i\pa{\bG \by + G_z z}} \widehat{\pa{u_j}}_{\bG,G_z}
 \end{align*}
 where $\bK$ is the Dirac point, thus
 \begin{align*}
-F_0^{\eta,j,s}(\bX) &= L\ab{\Omega}  \sum_{\bG, G_z} e^{i\pa{\bG \pa{\ba_s - 2\eta J \bX} - \eta G_z d}} \overline{\widehat{\vp}}_{\bG,G_z} \widehat{\pa{u_j}}_{\bG,G_z} \\
+F_0^{\eta,j,s}(\bX) &= L\ab{\Omega}  \sum_{\bG, G_z} e^{i\pa{\bG \pa{\ba_s - 2\eta J \bX} - \eta G_z d}} \overline{\widehat{\vp}}_{s,\bG,G_z} \widehat{\pa{u_j}}_{\bG,G_z} \\
 F^{\eta,j,s}\pa{\bX} & := F_0^{\eta,j,s}\pa{-\tfrac{3}{2} J\bX} \\
-		     &= L\ab{\Omega} \sum_{\bG, G_z} e^{i\pa{\bG \pa{\ba_s - 3\eta \bX} - \eta G_z d}} \overline{\widehat{\vp}}_{\bG,G_z}\widehat{\pa{u_j}}_{\bG,G_z}\\
-&= L\ab{\Omega} \sum_{\bG, G_z} e^{i\pa{\bG \pa{-\eta \f{\ba_s}3 + \bX} - \eta G_z d}} \overline{\widehat{\vp}}_{-\f{\eta}{3}\bG,G_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} \bG,G_z}
+		     &= L\ab{\Omega} \sum_{\bG, G_z} e^{i\pa{\bG \pa{\ba_s - 3\eta \bX} - \eta G_z d}} \overline{\widehat{\vp}}_{s,\bG,G_z}\widehat{\pa{u_j}}_{\bG,G_z}\\
+&= L\ab{\Omega} \sum_{\bG, G_z} e^{i\pa{\bG \pa{-\eta \f{\ba_s}3 + \bX} - \eta G_z d}} \overline{\widehat{\vp}}_{s,-\f{\eta}{3}\bG,G_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} \bG,G_z}
 \end{align*}
 has Fourier coefficients
 \begin{align*}
-	\widehat{\pa{F^{\eta,j,s}}}_{\bG} &= L\ab{\Omega} \sum_{G_z} e^{-i \eta \pa{\bG  \f{\ba_s}3 + G_z d}} \overline{\widehat{\vp}}_{-\f{\eta}{3}\bG,G_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} \bG,G_z} \\
-	\widehat{\pa{F^{\eta,j,s}}}_{m}& = L\ab{\Omega} \sum_{m_z} e^{-i \eta \pa{ma^*  \f{\ba_s}3 + \f{2\pi}{L} m_z d}} \overline{\widehat{\vp}}_{-\f{\eta}{3}m,m_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} m,m_z} \\
-& = L\ab{\Omega} \sum_{m_z} e^{-i \eta \pa{2\pi m \f{\ba^{\text{red}}_s}3 + \f{2\pi}{L} m_z d}} \overline{\widehat{\vp}}_{-\f{\eta}{3}m,m_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} m,m_z}
+	\widehat{\pa{F^{\eta,j,s}}}_{\bG} &= L\ab{\Omega} \sum_{G_z} e^{-i \eta \pa{\bG  \f{\ba_s}3 + G_z d}} \overline{\widehat{\vp}}_{s,-\f{\eta}{3}\bG,G_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} \bG,G_z} \\
+	\widehat{\pa{F^{\eta,j,s}}}_{m}& = L\ab{\Omega} \sum_{m_z} e^{-i \eta \pa{ma^*  \f{\ba_s}3 + \f{2\pi}{L} m_z d}} \overline{\widehat{\vp}}_{s,-\f{\eta}{3}m,m_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} m,m_z} \\
+& = L\ab{\Omega} \sum_{m_z} e^{-i \eta \pa{2\pi m \f{\ba^{\text{red}}_s}3 + \f{2\pi}{L} m_z d}} \overline{\widehat{\vp}}_{s,-\f{\eta}{3}m,m_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} m,m_z}
 \end{align*}
 
+On the functions given by DFTK, we remark that $\vp_s[m]$ given is periodic and that 
+\begin{align*}
+\cR_{\f{2\pi}{3}} \vp_{\text{Bl},s} = \tau^s \vp_{\text{Bl},s}.
+\end{align*}
+
+
+
+
+\subsection{Symmetries}%
+\label{sub:symmetries}
+
+We have
+\begin{align*}
+	\cR_{\f{2\pi}{3}} F_0^{\eta,j,s} &= \int_{\R^3} \overline{\vp_{\text{Bl},s}(\by,z)} \Phi_j \pa{R_{-\f{2\pi}3} \pa{R_{\f{2\pi}{3}}\by + R_{\f{2\pi}{3}} \ba_s -2\eta J \bX},z-\eta d} \d \by \d z \\
+ &= \int_{\R^3} \overline{\cR_{\f{2\pi}{3}}\vp_{\text{Bl},s}(\by,z)} \pa{\cR_{\f{2\pi}{3}} \Phi_j} \pa{\by + R_{\f{2\pi}{3}} \ba_s -2\eta J \bX,z-\eta d} \d \by \d z \\
+	&= \tau^{j-s} \int_{\R^3} \overline{ \vp_{\text{Bl},s}(\by,z)} \Phi_j \pa{\by + R_{\f{2\pi}{3}} \ba_s -2\eta J \bX,z-\eta d} \d \by \d z \\
+\end{align*}
+and if $\vp_{\text{Bl},s}(y + R_{\f{2\pi}{3}} a_s) = \vp_{\text{Bl},s}(y + a_s)$, then 
+\begin{align*}
+\cR_{\f{2\pi}{3}} \pa{ \overline{F_0^{\eta,j,s}} F_0^{\eta,j',s}} = \tau^{j'-j} \; \overline{F_0^{\eta,j,s}} F_0^{\eta,j',s}
+\end{align*}
 
 
 
@@ -784,16 +813,33 @@ is constant in $\theta$.
 
 From \cite{TarKruVis19}, we have
 \begin{align*}
-T(x) = \sum_j T_j e^{-iq_j x}, q_1 = \mat{0 \\ -1}, q_{2,3} = \mat{\pm\f{\sqrt 3}{2} \\ \f{1}{2}}, q_1 = -q_2 - q_3
+T_a(x) = \sum_j T_j e^{-iq_j^a x}, q^a_1 = \mat{0 \\ -1}, q^a_{2,3} = \mat{\pm\f{\sqrt 3}{2} \\ \f{1}{2}}, q^a_1 = -q^a_2 - q^a_3
+\end{align*}
+but it is adapted to $a^*$, not $b^*$, hence we do a rotation, $q_j := -J q^a_j$,
+\begin{align*}
+q_1 = \mat{-1 \\ 0}, \qquad q_{2,3} = \mat{\f 12 \\ \mp \f{\sqrt 3}{2} }, \qquad  q_1 = -q_2 - q_3
+\end{align*}
+\begin{align*}
+T(x) := \cJ T_a(x) = \sum_j T_j e^{-iq_j x}
 \end{align*}
 so from \eqref{eq:inv_q} we deduce that
 \begin{align*}
-T(x) = \sum_j T_j e^{im_{q_j} a^* x}
+T(x) = \sum_j T_j e^{i\widetilde{m}_{q_j} b^* x}
 \end{align*}
-where $k_D = 4\pi/(3a)$
+where $b=a$, $k_D = 4\pi/(3a)$, $\widetilde{m}_{q_j} = -\f{1}{2\pi} \cM_b^* q_j$,
 \begin{align*}
-m_{q_1} = \f{1}{3k_D} \mat{1 \\ -1}, \qquad m_{q_2} = 
+\widetilde{m}_{q_1} = \f{1}{3k_D} \mat{-1 \\ 1}, \qquad \widetilde{m}_{q_2} = \f{1}{3k_D} \mat{2 \\ 1}, \qquad \widetilde{m}_{q_3} =  \f{1}{3k_D} \mat{-1 \\ -2}
 \end{align*}
+and we redefine
+\begin{align*}
+m_{q_1} =  \mat{-1 \\ 1}, \qquad m_{q_2} =  \mat{2 \\ 1}, \qquad m_{q_3} =   \mat{-1 \\ -2}
+\end{align*}
+so
+\begin{align*}
+T(x) = \sum_j T_j e^{i m_{q_j} \f{b^*}{3k_D} x}
+\end{align*}
+
+
 
 We compute, for $j \in \acs{1,2,3}$,
 \begin{align*}
@@ -825,7 +871,7 @@ and
 
 We consider the rescaling
 \begin{align*}
-Su(x) := u\pa{\f{x}{k_\theta}}, \qquad S^*u(y) = k_\theta u\pa{k_\theta y}, \qquad S S^* = k_\theta
+Su(x) := u\pa{\f{x}{k_\theta}}, \qquad S^*u(y) = k_\theta^2 u\pa{k_\theta y}, \qquad S S^* = k_\theta^2
 \end{align*}
 where we defined $S^*$ as $\int_\Omega \overline{f} \; Sg = \int_{L\Omega/k_\theta} g \; \overline{S^*f}$.
 
@@ -835,7 +881,7 @@ T(y) := \sum_j T_j e^{im_{q_j} a^*_M y}
 \end{align*}
 We have $\na S^* = k_\theta^2 S \na$ so $S \na S^* = k_\theta^2 \na$ and $SfS^* = k_\theta f\pa{\f{x}{k_\theta}}$ so when $x = y k_\theta$ is the microscopic scale
 \begin{align*}
-	\f{1}{k_\theta^2 v_0} S \pa{\mat{-i v_0 \sigma \na & w_1 T(k_\theta x) \\ w_1 T^*(k_\theta x) & -iv_0 \sigma \na} -E} S^* = \mat{-i\sigma \na & \alpha T\pa{x} \\ \alpha T^*(x) & -i\sigma \na} - \ep
+	\f{1}{k_\theta^3 v_0} S \pa{\mat{-i v_0 \sigma \na & w_1 T(k_\theta x) \\ w_1 T^*(k_\theta x) & -iv_0 \sigma \na} -E} S^* = \mat{-i\sigma \na & \alpha T\pa{x} \\ \alpha T^*(x) & -i\sigma \na} - \ep
 \end{align*}
 where $\alpha := \f{w_1}{k_\theta^2 v_0}$ where $\ep = \f{E}{v_0 k_\theta}$ is the unit of \cite[Fig 1]{TarKruVis19} defined in the caption. %Hence we need to multiply our energies by $v_0 k_\theta \ll 1$ to obtain the true ones. 
 In \cite{TarKruVis19} below (3) they define $k_D = 4\pi/(3a)$ which corresponds to our situation.

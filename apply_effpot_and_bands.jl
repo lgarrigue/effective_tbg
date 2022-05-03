@@ -5,13 +5,13 @@ include("band_diagrams_bm_like.jl")
 function computes_and_plots_effective_potentials()
 	# Parameters
 	# N = 8; Nz = 27
-	N = 9;  Nz = 36
+	# N = 9;  Nz = 36
 	# N = 12; Nz = 45
 	# N = 15; Nz = 60
 	# N = 20; Nz = 72
 	# N = 24; Nz = 90
 	# N = 24; Nz = 96
-	# N = 32; Nz = 135
+	N = 32; Nz = 135 # ecut 50
 	# N = 40; Nz = 160
 	# N = 45; Nz = 192
 	# N = 48; Nz = 200
@@ -19,7 +19,7 @@ function computes_and_plots_effective_potentials()
 	px("N ",N,", Nz ",Nz)
 	p = EffPotentials()
 	p.plots_cutoff = 7
-	p.plots_res = 30
+	p.plots_res = 60
 	p.plots_n_motifs = 6
 	produce_plots = false
 	p.compute_Vint = false
@@ -34,7 +34,7 @@ function computes_and_plots_effective_potentials()
 	optimize_gauge_and_create_T_BM_with_α(true,p)
 
 	plot_block_reduced(p.T_BM,p;title="T")
-	p.add_non_local_W = false
+	p.add_non_local_W = true
 	build_blocks_potentials(p) # computes Wplus, 𝕍_V and Σ
 	px("Distance between Σ and T_BM ",relative_distance_blocks(p.Σ,p.T_BM)) # MAYBE NOT PRECISE !
 	px("Distance between V_V and T_BM ",relative_distance_blocks(p.𝕍_V,p.T_BM))
@@ -45,12 +45,16 @@ function computes_and_plots_effective_potentials()
 	compare_to_BM_infos(p.Σ,p,"Σ")
 
 	build_block_𝔸(p) # computes 𝔸
-	plot_block_cart(p.𝕍_V,p;title="V_V")
+	# plot_block_cart(p.𝕍_V,p;title="V_V")
 	# plot_block_cart(p.Wplus,p;title="W_plus")
-	plot_block_cart(p.Σ,p;title="Σ")
-	plot_block_reduced(p.𝕍,p;title="V")
-	plot_block_cart(p.T_BM,p;title="T")
+	# plot_block_cart(p.Σ,p;title="Σ")
+	# plot_block_reduced(p.𝕍,p;title="V")
+	# plot_block_cart(p.T_BM,p;title="T")
 	# p.𝕍 = app_block(J_four,p.𝕍,p) # rotates T of J and rescales space of sqrt(3)
+	# test_equality_all_blocks(p.Wplus_tot,p;name="W")
+	plot_block_cart(p.W_non_local_plus,p;title="W_nl_plus")
+
+	# testit(p)
 
 	px("\nW_Vint matrix")
 	display(p.W_Vint_matrix)
@@ -63,7 +67,8 @@ function computes_and_plots_effective_potentials()
 	px("\nTests particle-hole symmetry")
 	test_particle_hole_block(p.T_BM,p;name="T")
 	test_particle_hole_block(p.𝕍,p;name="V")
-	test_particle_hole_block_W(p)
+	test_particle_hole_block_W(p.W_V_plus,p.W_V_minus,p;name="W_V")
+	test_particle_hole_block_W(p.W_non_local_plus,p.W_non_local_minus,p;name="Wnl")
 	test_particle_hole_block(p.Σ,p;name="Σ")
 	test_particle_hole_block(p.𝔸1,p;name="A1")
 	test_particle_hole_block(p.𝔸2,p;name="A2")
@@ -77,6 +82,8 @@ function computes_and_plots_effective_potentials()
 	test_PT_block(p.𝔸1,p;name="A1")
 	test_PT_block(p.𝔸2,p;name="A2")
 	test_PT_block(p.Σ,p;name="Σ")
+	test_PT_block(p.W_non_local_plus,p;name="Wnl+")
+	test_PT_block(p.W_non_local_minus,p;name="Wnl-")
 
 	# Special symmetry of W
 	test_sym_Wplus_Wminus(p)
@@ -94,6 +101,8 @@ function computes_and_plots_effective_potentials()
 	test_mirror_block(p.𝔸2,p;name="A2",herm=false)
 	test_mirror_block(p.Σ,p;name="Σ",herm=true)
 	test_mirror_block(p.Σ,p;name="Σ",herm=false)
+	test_mirror_block(p.W_non_local_plus,p;name="Wnl+",herm=false)
+	test_mirror_block(p.W_non_local_minus,p;name="Wnl-",herm=false)
 
 	# R
 	px("\nTests R symmetry")
@@ -102,15 +111,17 @@ function computes_and_plots_effective_potentials()
 	test_R_block(p.𝕍,p;name="V")
 	test_R_magnetic_block(p.𝔸1,p.𝔸2,p;name="A")
 	test_R_block(p.Σ,p;name="Σ")
+	test_R_block(p.W_non_local_plus,p;name="Wnl+")
+	test_R_block(p.W_non_local_minus,p;name="Wnl-")
 
 	# Equalities inside blocks
-	px("\nTests equality inside blocks")
-	test_equality_all_blocks(p.T_BM,p;name="T")
-	test_equality_all_blocks(p.Wplus_tot,p;name="W")
-	test_equality_all_blocks(p.𝕍,p;name="V")
-	test_equality_all_blocks(p.Σ,p;name="Σ")
-	test_equality_all_blocks(p.𝔸1,p;name="A1")
-	test_equality_all_blocks(p.𝔸2,p;name="A2")
+	# px("\nTests equality inside blocks")
+	# test_equality_all_blocks(p.T_BM,p;name="T")
+	# test_equality_all_blocks(p.Wplus_tot,p;name="W")
+	# test_equality_all_blocks(p.𝕍,p;name="V")
+	# test_equality_all_blocks(p.Σ,p;name="Σ")
+	# test_equality_all_blocks(p.𝔸1,p;name="A1")
+	# test_equality_all_blocks(p.𝔸2,p;name="A2")
 	# px("Equality blocks V and V_minus ",relative_distance_blocks(V,V_minus))
 
 	# Hermitianity
@@ -150,34 +161,26 @@ end
 function explore_band_structure_BM()
 	p = Basis()
 	p.N = 7
-	p.a = 3
-	p.l = 14 # number of eigenvalues we compute
+	p.a = 4. # decreasing a makes band energies increase
+	p.l = 8 # number of eigenvalues we compute
 	init_basis(p)
 	α = 0.0 # anti-chiral / AA stacking weight
-	p.resolution_bands = 6
+	p.resolution_bands = 4
 	p.energy_unit_plots = "Hartree"
 	p.folder_plots_bands = "bands_BM"
 	p.energy_center = 0
-	p.energy_scale = 0.3
+	p.energy_scale = 1.5
 	p.solver = "Exact"
 	mult_by_vF = true
 	p.coef_derivations = 1
 	# 1° × 2π/360 = 0.017 rad
 	# for β in vcat((0.1:0.1:1)) # chiral / AB stacking weight
-	for β in (1:0.5:10)
-	# for β in vcat((0:0.05:6),(1.2:0.001:1.25)) # chiral / AB stacking weight
+	# for β in (0:0.05:1.2)
+	# for β in vcat((0:0.05:1.2),(0.85:0.01:1)) # chiral / AB stacking weight
+	for β in (0:0.1:7)
 		print(" ",β)
-
-		# kθ = (4π/(3*p.a))*2*sin(
-		T = build_BM(α,β,p)
-		# T = hermitian_block(build_BM(α,β,p;scale=true))
-		T = V_offdiag_matrix(T,p)
-		# px("mass V ",sum(abs.(T)))
-		# K-dependent part
-		Kdep(k_red) = (1/sqrt(3))*Dirac_k(k_red,p)
-		# K-independent part
-		# test_hermitianity(Hv); test_part_hole_sym_matrix(Hv,p,"Hv")
-		# test_hermitianity(Hv)
+		T = V_offdiag_matrix(build_BM(α,β,p;scale=false),p)
+		Kdep(k_red) = Dirac_k(k_red,p)
 		plot_band_structure(T,Kdep,β,p)
 	end
 	p
@@ -192,14 +195,15 @@ function explore_free_graphene_bands()
 	p.double_dirac = false
 	init_basis(p)
 	p.resolution_bands = 11
-	p.energy_unit_plots = "eV"
+	p.energy_unit_plots = "Hartree"
 	p.folder_plots_bands = "bands_free_graphene"
-	p.energy_scale = 10
+	p.energy_scale = 2
 	p.energy_center = 0
 	p.solver = "Exact"
 	mult_by_vF = true
+	p.coef_derivations = 1
 
-	Kdep(k_red) = 0.5*(mult_by_vF ? p.fermi_velocity : 1)*free_Dirac_k_monolayer(k_red,p)
+	Kdep(k_red) = free_Dirac_k_monolayer(k_red,p)
 	# Kdep(k_red) = 0.05*free_Schro_k_monolayer(k_red,p)
 	# K-independent part
 	Hv = 0*Kdep([0,0.0])
@@ -210,16 +214,18 @@ end
 # CHOQUANT : Σ = T !!!!!!!!!!!?!!!!
 function explore_band_structure_Heff()
 	N = 8; Nz = 27
+	N = 32; Nz = 135
 
 	# Imports u1, u2, V, Vint, v_fermi and computes the effective potentials
 
 	compute_Vint = false
 	EffV = import_and_computes(N,Nz,compute_Vint)
+	p.add_non_local_W = true
 
 	p = Basis()
 	p.N = N; p.a = EffV.a
 	p.l = 12 # number of eigenvalues we compute
-	p.coef_derivations = 2/3
+	p.coef_derivations = 1
 	init_basis(p)
 
 	######## Base Hamiltonian
@@ -247,7 +253,7 @@ function explore_band_structure_Heff()
 	method = "natural" # ∈ ["weight","natural"]
 	if method=="natural"
 		# for θ in (0.01:0.01:0.3) # 1° × 2π/360 = 0.017 rad
-		for θ_degres in (0.1:0.1:5)
+		for θ_degres in (0.1:0.2:3)
 		# for θ in (0.0001:0.0001:0.001)
 			θ = 0.017*θ_degres
 			print(" ",θ)
@@ -306,3 +312,5 @@ nothing
 #
 # Régler pb de la convergence des pot effectifs quand N est grand
 # Reproduire diagramme de bandes de Tarnopolsky
+#
+# Does non local φ depends on the gauge we choose on wavefunctions ? in this case we should adapt it when we fix the gauge

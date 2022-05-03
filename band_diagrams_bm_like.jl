@@ -17,6 +17,7 @@ mutable struct Basis
 	# Useless parameters
 	Nz; L; dz
 	kz_axis
+	rotate_cell
 
 	# Parameters for the 4×4 matrix
 	N2d; Mfull
@@ -52,7 +53,8 @@ function init_basis(p)
 	p.k_axis = Int.(fftfreq(p.N)*p.N)
 	p.root_path = "band_diagrams_bm_like/"
 	create_dir(p.root_path)
-	init_cell_vectors(p)
+	p.rotate_cell = false
+	init_cell_vectors(p;rotate=p.rotate_cell)
 	p.S = nothing
 
 	### Parameters for the 4×4 matrix
@@ -79,7 +81,7 @@ function init_basis(p)
 	p.n_l = 2*p.l + 1
 end
 
-reload_a(p) = init_cell_vectors(p)
+reload_a(p) = init_cell_vectors(p;rotate=p.rotate_cell)
 
 ######################### Main functions, to plot band diagrams
 
@@ -87,23 +89,27 @@ function plot_band_structure(Hv,Kdep,name,p)
 	Γ = [0,0.0]
 	K = p.K_red
 	M = [0,1/2]
-	Klist = [Γ,K,M]; Klist_names = ["Γ","K","M"]
-	Klist = [[0.0,0.0],[2/3,-2/3],M]; Klist_names = ["Γ","K","M"]
-	dif = true
-	if dif
-		Γ -= K; M -= K; K -= K
-		Klist = [K,Γ,M]; Klist_names = ["K","Γ","M"]
-		# Klist = [Γ,2*K,8*M]; Klist_names = ["Γ","2K","4K"]
-		# Klist = [Γ,K,M]; Klist_names = ["Γ","K","M"]
-	end
+
+	A = [1/3,2/3] # K'
+	B = p.K_red # K
+	C = 2 .*B .- A # Γ1
+	M = C/2
+	D = Γ
+	Klist = [A,B,C,M,D]; Klist_names = ["A","B","C","M","D"]
+	# Klist = [K,Γ,M]; Klist_names = ["K","Γ","M"]
+	# Klist = [Γ,K,M]; Klist_names = ["Γ","K","M"]
+	# Klist = [Γ,M,K]; Klist_names = ["M","K","Γ"]
+
+
+	# Klist = [Klist[i] .- p.K_red for i=1:length(Klist)] # don't do that
 	σ_on_path = spectrum_on_a_path(Hv,Kdep,Klist,p)
 	pl = plot_band_diagram(σ_on_path,Klist,Klist_names,p)#;K_relative=p.K_red)
 	path = string(p.root_path,p.folder_plots_bands)
 	create_dir(path)
 
-	s = string(name,"00000000000")
+	s = string(name,"000000000")
 	title = s[1:min(6,length(s))]
-	savefig(pl,string(path,"/band_struct_",name,".png"))
+	savefig(pl,string(path,"/band_struct_",title,".png"))
 end
 
 function do_one_value(HvK,p)
@@ -370,7 +376,7 @@ function free_Dirac_k_monolayer(κ,p)
 		(c1,c2) = coords_ik2full_i(mi1,mi2,p)
 		H[c1,c2] = conj(vC); H[c2,c1] = vC
 	end
-	display(H)
+	# display(H)
 	# test_hermitianity(H,"Kinetic Dirac part")
 	# save_H(H,p,"free_dirac")
 	# rhm = heatmap(real.(H))
@@ -475,8 +481,7 @@ function spectrum_on_a_path(Hv,Kdep,Klist,p)
 	X = -1
 	graphs = zeros(n_path_points,p.n_l)
 	for Ki=1:n
-		K0 = Klist[Ki]
-		K1 = Klist[mod1(Ki+1,n)]
+		K0 = Klist[Ki]; K1 = Klist[mod1(Ki+1,n)]
 		path = [(1-t/res)*K0 .+ (t/res)*K1 for t=0:res-1]
 		Threads.@threads for s=1:res
 		# for s=1:res
@@ -518,7 +523,10 @@ function plot_band_diagram(graphs,Klist,Knames,p;K_relative=[0.0,0.0])
 	for l=1:p.n_l
 		plot!(pl,x_list,graphs[:,l]*energy_factor(p),xticks=nothing)
 	end
-	colors = [:green,:cyan,:blue]
+	colors = [:green,:cyan,:blue,:red,:yellow]
+	if length(colors) < length(Knames)
+		px("NOT ENOUGH COLORS IN plot_band_diagram")
+	end
 	for Ki=1:n
 		x = starts_x[Ki]
 		plot!(pl,[x], seriestype="vline", label=Knames[Ki], color=colors[Ki])

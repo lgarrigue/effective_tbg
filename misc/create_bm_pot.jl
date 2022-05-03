@@ -2,6 +2,7 @@
 fill2d(x,n) = [copy(x) for i=1:n, j=1:n]
 
 function Ts(α,β) # α,β = 1,0 is the anti-chiral model, α,β = 0,1 is the chiral one (with vanishing bands)
+	# Form taken from Becker, Embree, Wittsen, Zworski : Spectral characterization of magic angles in TBG, eq (15) and after
 	σ0 = [1 0;0 1]; σ1 = [0 1; 1 0]; σ2 = [0 -im; im 0]
 	T1 = α*σ0 + β*σ1
 	T2 = α*σ0 + β*(-(1/2)*σ1 + (sqrt(3)/2)*σ2)
@@ -72,9 +73,10 @@ function T_BM_four(N,α,β;scale=false)
 	for i=1:2
 		for j=1:2
 			# T[i,j][2,2] = T1[i,j]; T[i,j][1,end] = T2[i,j]; T[i,j][end,1] = T3[i,j]
-			T[i,j][q1i1,q1i2] = T1[i,j]
-			T[i,j][q2i1,q2i2] = T2[i,j]
-			T[i,j][q3i1,q3i2] = T3[i,j]
+			T[i,j][2,2] = T1[i,j]; T[i,j][3,end] = T2[i,j]; T[i,j][end,3] = T3[i,j]
+			# T[i,j][q1i1,q1i2] = T1[i,j]
+			# T[i,j][q2i1,q2i2] = T2[i,j]
+			# T[i,j][q3i1,q3i2] = T3[i,j]
 		end
 	end
 	T

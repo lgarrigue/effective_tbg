@@ -35,3 +35,6 @@ git clone https://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@github.com/lgarrigue/
 **misc/lobpcg.jl** is the LOBPCG solver taken from DFTK  
 **misc/create_bm_pot.jl** enables to create the true Bistritzer-MacDonald potential, for comparisions purposes  
 **common_functions.jl** are low-level functions shared by all the main scripts
+
+### Bugs
+Verify that the rotation on cell vectors is alright, bad band diagrams can come from this

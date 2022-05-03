@@ -37,16 +37,18 @@ mutable struct EffPotentials
 	v_f; u1_f; u2_f; u1v_f; u2v_f; prods_f; Vint_f
 	v_dir; u1_dir; u2_dir; u1v_dir; u2v_dir; prods_dir; Vint_dir
 	v_fermi # Fermi velocity
-	non_local_coef; non_local_φ_f
+	non_local_coef
+	non_local_φ1_f
+	non_local_φ2_f
 	shifts_atoms_red 
 
 	# Effective potentials
 	Σ # Σ = <<u_j, u_{j'}>>^+-
 	𝕍_V; 𝕍_Vint; 𝕍 # 𝕍_V = <<u_j, V u_{j'}>>^+-, 𝕍_Vint = <<u_j, Vint u_{j'}>>^+-, 𝕍 = 𝕍_V + 𝕍_Vint
-	Wplus; Wplus_tot; Wminus; Wminus_tot; W_Vint_matrix # Wplus = << overline(u_j) u_{j'}, V >>^++, Wminus = << overline(u_j) u_{j'}, V >>^--, W_Vint_matrix = <u_j,Vint u_{j'}>, Wplus_tot = Wplus + W_Vint_matrix, Wminus_tot = Wminus + W_Vint_matrix
+	W_V_plus; Wplus_tot; W_V_minus; Wminus_tot; W_Vint_matrix # W_V_plus = << overline(u_j) u_{j'}, V >>^++, W_V_minus = << overline(u_j) u_{j'}, V >>^--, W_Vint_matrix = <u_j,Vint u_{j'}>, Wplus_tot = W_V_plus + W_Vint_matrix, Wminus_tot = W_V_minus + W_Vint_matrix
 	𝔸1; 𝔸2; 𝔹1; 𝔹2
 	J𝔸1; J𝔸2
-	W_non_local_plus; W_non_local_moins 
+	W_non_local_plus; W_non_local_minus 
 	add_non_local_W; compute_Vint # ∈ [true,false]
 	T_BM
 
@@ -67,7 +69,7 @@ mutable struct EffPotentials
 end
 
 function init_EffPot(p)
-	init_cell_vectors(p)
+	init_cell_vectors(p;rotate=true)
 	init_cell_infinitesimals(p)
 	p.root_path = "effective_potentials/"
 	create_dir(p.root_path)
@@ -80,7 +82,7 @@ end
 function multiply_potentials(γ,p)
 	p.Σ *= γ
 	p.𝕍_V *= γ; p.𝕍_Vint *= γ; p.𝕍 *= γ
-	p.Wplus *= γ; p.Wplus_tot *= γ; p.Wminus *= γ; p.Wminus_tot *= γ; p.W_Vint_matrix *= γ
+	p.W_V_plus *= γ; p.Wplus_tot *= γ; p.W_V_minus *= γ; p.Wminus_tot *= γ; p.W_Vint_matrix *= γ
 	p.𝔸1 *= γ; p.𝔸2 *= γ; p.𝔹1 *= γ; p.𝔹2 *= γ
 	p.J𝔸1 *= γ; p.J𝔸2 *= γ
 end
@@ -173,9 +175,14 @@ end
 
 
 function change_gauge_wavefunctions(θ,p)
+	# Change gauge on wavefunctions
 	p.u1_f *= cis(θ)
 	p.u2_f *= cis(-θ)
 
+	p.non_local_φ1_f *= cis(θ)
+	p.non_local_φ2_f *= cis(-θ)
+
+	# Consequences
 	p.u1_dir = myifft(p.u1_f)
 	p.u2_dir = myifft(p.u2_f)
 	p.u1v_dir = p.v_dir.*p.u1_dir
@@ -198,9 +205,9 @@ function build_blocks_potentials(p)
 	
 	# Computes blocks without Vint
 	p.𝕍_V = create_V_V(p.u1_f,p.u2_f,p)
-	p.Wplus = [build_potential(p.v_f,p.prods_f[1],p;transl=false), build_potential(p.v_f,p.prods_f[2],p;transl=false),
+	p.W_V_plus = [build_potential(p.v_f,p.prods_f[1],p;transl=false), build_potential(p.v_f,p.prods_f[2],p;transl=false),
 		   build_potential(p.v_f,p.prods_f[3],p;transl=false), build_potential(p.v_f,p.prods_f[4],p;transl=false)]
-	p.Wminus = [build_potential(p.v_f,p.prods_f[1],p;transl=false,η=-1), build_potential(p.v_f,p.prods_f[2],p;transl=false,η=-1),
+	p.W_V_minus = [build_potential(p.v_f,p.prods_f[1],p;transl=false,η=-1), build_potential(p.v_f,p.prods_f[2],p;transl=false,η=-1),
 		    build_potential(p.v_f,p.prods_f[3],p;transl=false,η=-1), build_potential(p.v_f,p.prods_f[4],p;transl=false,η=-1)]
 	# p.W_minus = [build_potential(p.prods_f[1],p.v_f,p;η=-1,transl=false), build_potential(p.prods_f[2],p.v_f,p;η=-1,transl=false),
 	# build_potential(p.prods_f[3],p.v_f,p;η=-1,transl=false), build_potential(p.prods_f[4],p.v_f,p;η=-1,transl=false)]
@@ -220,11 +227,11 @@ function build_blocks_potentials(p)
 
 	# Adds the other terms for W
 	compute_non_local_W(p)
-	p.Wplus_tot = add_cst_block(p.Wplus,p.W_Vint_matrix,p)
-	p.Wminus_tot = add_cst_block(p.Wminus,p.W_Vint_matrix,p)
+	p.Wplus_tot = add_cst_block(p.W_V_plus,p.W_Vint_matrix,p)
+	p.Wminus_tot = add_cst_block(p.W_V_minus,p.W_Vint_matrix,p)
 	if p.add_non_local_W
 		p.Wplus_tot .+= p.W_non_local_plus
-		p.Wminus_tot .+= p.W_non_local_moins
+		p.Wminus_tot .+= p.W_non_local_minus
 	end
 end
 
@@ -241,28 +248,32 @@ end
 function compute_non_local_F_term(η,j,s,p) # η ∈ {±}, j,s ∈ {1,2}
 	F = zeros(ComplexF64,p.N,p.N)
 	u = j==1 ? p.u1_f : p.u2_f
+	φ = s==1 ? p.non_local_φ1_f : p.non_local_φ2_f
+	# φ = s==1 ? p.u1_f : p.u2_f
 	for mix=1:p.N, miy=1:p.N
 		(m0,n0) = p.k_grid[mix,miy]
 		(m1,n1) = (-η*m0,-η*n0)
 		(B,m2,n2) = div_three(m1,n1,p)
-		(m3,n3) = k_inv(m2,n2,p)
+		if B
+			(m3,n3) = k_inv(m2,n2,p)
 
-		F[mix,miy] = sum(cis(-η*(2π*[m0,n0,0]⋅p.shifts_atoms_red[s]/3 + (2π/p.L)*p.interlayer_distance*p.kz_axis[miz]))
-				 *conj(p.non_local_φ_f[m3,n3,miz])*u[m3,n3,miz] for miz=1:p.Nz)
+			F[mix,miy] = sum(cis(-η*(2π*[m0,n0,0]⋅p.shifts_atoms_red[s]/3 + (2π/p.L)*p.interlayer_distance*p.kz_axis[miz]))*conj(φ[m3,n3,miz])*u[m3,n3,miz] for miz=1:p.Nz)
+		end
 	end
 	p.Vol*F
 end
 
+prod_four(a,b) = length(a)*fft(ifft(a).*ifft(b))
+
+W_non_local_terms(η,i,j,p) = p.non_local_coef*(1/p.cell_area)*
+sum(prod_four(conj_four(compute_non_local_F_term(η,i,s,p),p),compute_non_local_F_term(η,j,s,p)) for s=1:2)
+
 # returns W_nl^{η}_{j,j'} in Fourier
-prod_four(a,b) = fft(ifft(a)*ifft(b))*length(a)
-
-W_non_local_terms(η,i,j,p) = p.non_local_coef*(1/p.cell_area)*prod_four(compute_non_local_F_term(η,i,1,p),compute_non_local_F_term(η,i,2,p)) .+ prod_four(compute_non_local_F_term(η,j,1,p),compute_non_local_F_term(η,j,2,p))
-
 W_non_local_plus_minus(η,p) = [W_non_local_terms(η,1,1,p), W_non_local_terms(η,1,2,p), W_non_local_terms(η,2,1,p), W_non_local_terms(η,2,2,p)] # η ∈ {±}
 	
 function compute_non_local_W(p)
-	p.W_non_local_plus = W_non_local_plus_minus(1,p)
-	p.W_non_local_moins = W_non_local_plus_minus(-1,p)
+	p.W_non_local_plus  = W_non_local_plus_minus( 1,p)
+	p.W_non_local_minus = W_non_local_plus_minus(-1,p)
 end
 
 ################## Operations on functions
@@ -394,8 +405,6 @@ end
 
 ################## Symmetry tests
 
-
-
 function relative_distance_blocks(B,C)
 	count = 0; tot = 0
 	for i=1:4
@@ -410,17 +419,16 @@ function test_particle_hole_block(B,p;name="B")
 	px("Test ",name,"(-x)^* = ",name,"(x) ",relative_distance_blocks(B,PB_four))
 end
 
-function test_particle_hole_block_W(p)
-	Wm = p.Wminus_tot # anti_transpose(p.Wminus_tot)
-	P_Wplus = app_block(parity_four,p.Wplus_tot,p)
-	px("Test W+(-x) = W-(x) ",relative_distance_blocks(Wm,P_Wplus))
+function test_particle_hole_block_W(W_plus,W_minus,p;name="W")
+	P_Wplus = app_block(parity_four,W_plus,p)
+	px("Test ",name,"+(-x) = ",name,"-(x) ",relative_distance_blocks(W_minus,P_Wplus))
 end
 
 function test_sym_Wplus_Wminus(p)
-	Wm = p.Wminus
+	Wm = p.W_V_minus
 	TW = [Wm[4],Wm[2],Wm[3],Wm[1]]
-	d = relative_distance_blocks(p.Wplus,TW)
-	px("Test antitranspose(Wminus) = Wplus : ",d)
+	d = relative_distance_blocks(p.W_V_plus,TW)
+	px("Test antitranspose(W_V_minus) = W_V_plus : ",d)
 end
 
 function test_PT_block_direct(B,p;name="B")
@@ -517,7 +525,8 @@ function import_u1_u2_V_φ(N,Nz,p)
 	p.u2_f = load(f,"u2_f")
 	p.v_fermi = load(f,"v_fermi")
 	p.non_local_coef = load(f,"non_local_coef")
-	p.non_local_φ_f = load(f,"φ_f")
+	p.non_local_φ1_f = load(f,"φ1_f")
+	p.non_local_φ2_f = load(f,"φ2_f")
 	p.shifts_atoms_red = load(f,"shifts_atoms")
 	p.interlayer_distance = load(f,"interlayer_distance")
 
