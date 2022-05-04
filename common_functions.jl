@@ -52,10 +52,10 @@ function init_cell_vectors(p;rotate=false) # needs a
 	end
 
 
-	a1s_unit = [ sqrt(3)/2; 3/2]
-	a2s_unit = [-sqrt(3)/2; 3/2]
-	pref = 4π/(p.a*sqrt(3))
-	p.a1_star,p.a2_star = pref.*(a1s_unit,a2s_unit)
+	# a1s_unit = [ sqrt(3)/2; 3/2]
+	# a2s_unit = [-sqrt(3)/2; 3/2]
+	# pref = 4π/(p.a*sqrt(3))
+	# p.a1_star,p.a2_star = pref.*(a1s_unit,a2s_unit)
 
 	p.K_red = [-1/3;1/3]
 end
@@ -141,7 +141,8 @@ end
 
 ####################################### Operations on functions in Fourier space
 
-R_four(a,p) = apply_map_four(X -> [0 -1;1 -1]*X,a,p) # rotation of 2π/3, in Fourier space
+R_four(a,p) = apply_map_four(X ->  [0 -1;1 -1]*X,a,p) # rotation of 2π/3, in Fourier space
+M_four(a,p) = apply_map_four(X ->  [0 -1;-1 0]*X,a,p) # Mu(x,y) := u(-x,y), a1 = [sqrt(3)/2;1/2], a2 = [sqrt(3)/2;-1/2]
 J_four(a,p) = apply_map_four(X -> -[1 -2;2 -1]*X,a,p) # rotation of -π/2, in Fourier space, with scaling of sqrt(3)
 parity_four(a,p) = apply_map_four(X -> -X,a,p)
 conj_four(a,p) = apply_map_four(X -> -X,conj.(a),p) # if f is in direct space, and g(x) := conj.(f(x)), hat(g)_m = conj(hat(f))_{-m}

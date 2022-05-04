@@ -73,10 +73,10 @@ function T_BM_four(N,α,β;scale=false)
 	for i=1:2
 		for j=1:2
 			# T[i,j][2,2] = T1[i,j]; T[i,j][1,end] = T2[i,j]; T[i,j][end,1] = T3[i,j]
-			T[i,j][2,2] = T1[i,j]; T[i,j][3,end] = T2[i,j]; T[i,j][end,3] = T3[i,j]
-			# T[i,j][q1i1,q1i2] = T1[i,j]
-			# T[i,j][q2i1,q2i2] = T2[i,j]
-			# T[i,j][q3i1,q3i2] = T3[i,j]
+			# T[i,j][2,2] = T1[i,j]; T[i,j][3,end] = T2[i,j]; T[i,j][end,3] = T3[i,j]
+			T[i,j][q1i1,q1i2] = T1[i,j]
+			T[i,j][q2i1,q2i2] = T2[i,j]
+			T[i,j][q3i1,q3i2] = T3[i,j]
 		end
 	end
 	T

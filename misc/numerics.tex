@@ -17,7 +17,7 @@
 \newtheorem{theorem}{Theorem}[section]\newtheorem{definition}[theorem]{Definition}\newtheorem{lemma}[theorem]{Lemma}\newtheorem{example}[theorem]{Example}\newtheorem{proposition}[theorem]{Proposition}\newtheorem{corollary}[theorem]{Corollary}\newtheorem{conjecture}[theorem]{Conjecture}\newtheorem{remark}[theorem]{Remark}
 
 % Mathbb
-\let\C\relax\newcommand{\C}{\mathbb{C}}\newcommand{\Z}{\mathbb{Z}}\newcommand{\R}{\mathbb{R}}\newcommand{\N}{\mathbb{N}}\newcommand{\Q}{\mathbb{Q}}
+\let\C\relax\newcommand{\C}{\mathbb{C}}\newcommand{\Z}{\mathbb{Z}}\newcommand{\R}{\mathbb{R}}\newcommand{\N}{\mathbb{N}}\newcommand{\Q}{\mathbb{Q}}\newcommand{\bbM}{\mathbb{M}}
 
 % Mathcal
 \newcommand\cA{\mathcal{A}}\newcommand\cB{\mathcal{B}}\newcommand\cC{\mathcal{C}}\newcommand\cD{\mathcal{D}}\newcommand\cE{\mathcal{E}}\newcommand\cF{\mathcal{F}}\newcommand\cG{\mathcal{G}}\newcommand\cH{\mathcal{H}}\newcommand\cI{\mathcal{I}}\newcommand\cJ{\mathcal{J}}\newcommand\cK{\mathcal{K}}\newcommand\cL{\mathcal{L}}\newcommand\cM{\mathcal{M}}\newcommand\cN{\mathcal{N}}\newcommand\cO{\mathcal{O}}\newcommand\cP{\mathcal{P}}\newcommand\cQ{\mathcal{Q}}\newcommand\cR{\mathcal{R}}\newcommand\cS{\mathcal{S}}\newcommand\cT{\mathcal{T}}\newcommand\cU{\mathcal{U}}\newcommand\cV{\mathcal{V}}\newcommand\cW{\mathcal{W}}\newcommand\cX{\mathcal{X}}\newcommand\cY{\mathcal{Y}}\newcommand\cZ{\mathcal{Z}}
@@ -111,15 +111,15 @@
 \section{Standard monolayer}%
 \label{sec:standard_monolayer}
 
-We recall that 
-\begin{multline*}
+We choose for the microscopic lattice, the orientation
+\begin{multline}\label{eq:lattice_a}
 a_1 = a \mat{ \f{\sqrt 3}2 \\ \f 12}, \qquad a_2 = a \mat{ \f{\sqrt 3}2 \\ -\f 12} \\
 a^*_1 = \f{2\pi}{a} \mat{ \f{1}{\sqrt 3} \\ 1}= \f{4\pi}{a\sqrt{3}} \mat{ \f{1}{2} \\ \f{\sqrt{3}}{2}}, \qquad a^*_2 = \f{2\pi}{a} \mat{ \f{1}{\sqrt 3} \\ -1}= \f{4\pi}{a\sqrt{3}} \mat{ \f{1}{2} \\ -\f{\sqrt{3}}{2}}
-\end{multline*}
-and for the moiré cell, we take
-\begin{multline*}
+\end{multline}
+and for the Macroscopic lattice, we choose the orientation
+\begin{multline}\label{def:lattice_b}
 b_1 = b \mat{ -\f 12 \\ \f{\sqrt 3}{2}  }, \qquad b_2 = b \mat{ \f 12 \\ \f{\sqrt 3}2}, \quad b^*_1 = \f{4\pi}{b\sqrt{3}} \mat{- \f{\sqrt{3}}{2}\\ \f{1}{2} }, \qquad b^*_2 = \f{4\pi}{b\sqrt{3}} \mat{\f{\sqrt{3}}{2} \\ \f{1}{2} }
-\end{multline*}
+\end{multline}
 so $-J b_j^* = \f{a}{b} a_j^*$ and $J b_j = \f{b}{a} a_j$ and 
 \begin{align*}
 	\cM_b := \mat{b_1 & b_2} = \f{b}{2} \mat{-1 & 1 \\ \sqrt 3 & \sqrt 3}
@@ -213,6 +213,16 @@ and
 \cR_{\f{\pi}2} f(x) = \sum_m f_m e^{i \pa{R_{\f{\pi}2}^{\text{red}} m} a^* \cdot x} = \sum_m f_{M m} e^{i \f{1}{\sqrt 3} m a^* \cdot x} = \cL f\pa{\f{x}{\sqrt 3}}
 \end{align*}
 where $\cL$ is the action of $M$ on the Fourier coefficients of $f$.
+
+\subsection{Action of mirror}%
+\label{sub:action_of_mirror}
+
+We define $M := \text{diag } \pa{-1,1,-1}$, we have
+\begin{align*}
+\bbM u(x) := u(M x)
+\end{align*}
+
+With the lattice $a$ defined in \eqref{eq:lattice_a}, we obtain
 
 \section{Comparision with existing results}%
 \label{sec:comparision_with_existing_results}
@@ -808,36 +818,121 @@ hence if we define $H_\theta$ to be $H$ with $u_1 \rightarrow u_1 e^{i\theta}$, 
 is constant in $\theta$.
 
 
-\subsection{BM}%
-\label{sub:bm}
+\section{Comparision between BM and our model}%
+\label{sec:comparision_between_bm_and_our_model}
 
-From \cite{TarKruVis19}, we have
+
+\subsection{Rescaling}%
+\label{sub:rescaling}
+
+The BM Hamiltonian is
 \begin{align*}
-T_a(x) = \sum_j T_j e^{-iq_j^a x}, q^a_1 = \mat{0 \\ -1}, q^a_{2,3} = \mat{\pm\f{\sqrt 3}{2} \\ \f{1}{2}}, q^a_1 = -q^a_2 - q^a_3
+\mat{-i v_0 \sigma \na & w_1 T^{\text{TKV}}(k_\theta x) \\ w_1 T^{*,\text{TKV}}(k_\theta x) & -iv_0 \sigma \na}.
 \end{align*}
-but it is adapted to $a^*$, not $b^*$, hence we do a rotation, $q_j := -J q^a_j$,
+We consider the rescaling
+\begin{align*}
+Su(x) := u\pa{\f{x}{k_\theta}}, \qquad S^*u(y) = k_\theta^2 u\pa{k_\theta y}, \qquad S S^* = k_\theta^2
+\end{align*}
+where we defined $S^*$ as $\int_\Omega \overline{f} \; Sg = \int_{L\Omega/k_\theta} g \; \overline{S^*f}$.
+We have $\na S^* = k_\theta S^* \na$ so $S \na S^* = k_\theta^3 \na$ and $SfS^* = k_\theta^2 f\pa{\f{x}{k_\theta}}$ so when $x = y k_\theta$ is the microscopic scale
+\begin{multline*}
+	\f{1}{k_\theta^3 v_0} S \pa{\mat{-i v_0 \sigma \na & w_1 T^{\text{TKV}}(k_\theta x) \\ w_1 T^{*,\text{TKV}}(k_\theta x) & -iv_0 \sigma \na} -E} S^* \\
+	= \mat{-i\sigma \na & \alpha T^{\text{TKV}}\pa{x} \\ \alpha T^{*,\text{TKV}}(x) & -i\sigma \na} - \ep
+\end{multline*}
+where $\alpha := \f{w_1}{k_\theta v_0}$ and where $\ep = \f{E}{v_0 k_\theta}$ is the unit of \cite[Fig 1]{TarKruVis19} defined in the caption. %Hence we need to multiply our energies by $v_0 k_\theta \ll 1$ to obtain the true ones. 
+
+% We will do another rescaling because in our numerical simulations we do not implement $m_{q_j}$ but a transformation of it.
+% \begin{align*}
+% G u(x) := u\pa{Lx}, \qquad G ^*u(y) = \f{1}{\ab{\det L}} u\pa{ L^{-1}y}, \qquad G  G ^* = \f{1}{\ab{\det L}}
+% \end{align*}
+% where we defined $G ^*$ as $\int_\Omega \overline{f} \; G g = \int_{L\Omega} g \; \overline{G ^*f}$, and the multiplication operator $T$ transforms as
+% \begin{align*}
+% G  T G ^* = \f{1}{\ab{\det L}} T\pa{Lx}, \qquad G  \na G ^* = \f{1}{\ab{\det L}} \pa{L^{-1}}^* \na
+% \end{align*}
+% and
+% \begin{align*}
+	% T\pa{Lx} &= \sum T_j e^{i m_{q_j} a^* \cdot Lx} = \sum T_j e^{i\pa{\widetilde{L} m_{q_j}} a^* x} = \sum T_j e^{i m_{Q_j} a^* x} \\
+% &=: \widetilde{T}(x)
+% \end{align*}
+% where $\widetilde{L} = \cM^* L^* \pa{\cM^*}^{-1}$. From the numerical needs, we want
+% \begin{align*}
+% \widetilde{L} = \mat{-1 & 2 \\ -2 & 1}
+% \end{align*}
+% and hence
+% \begin{align*}
+% L = \cM \pa{\widetilde{L}}^* \cM^{-1} = -\sqrt 3  J, \qquad \pa{L^{-1}}^* = -\f{1}{\sqrt{3}} J
+% \end{align*}
+% \begin{align*}
+% \ab{\det L} G \mat{-i\sigma \na - \ep & \alpha T\pa{x} \\ \alpha T^*(x) & -i\sigma \na - \ep}  G ^* = \mat{ i\f{1}{\sqrt 3}\sigma  J \na - \ep & \alpha \widetilde{T}\pa{x} \\ \alpha \widetilde{T}^*(x) &  i\f{1}{\sqrt 3}\sigma J \na - \ep}
+% \end{align*}
+
+
+\subsection{Rotation and reduced coordinates of $q$}%
+\label{sub:rotation_and_reduced_coordinates_of_q_}
+
+
+In \cite{TarKruVis19}, the orientation of the lattice (one of the equations below (6)), is with reciprocal vectors
+\begin{align*}
+b^{*,\text{TKV}}_{1,2} = \sqrt 3 \mat{\pm 1/2 \\ \sqrt{3}/2}
+\end{align*}
+and to compare with our lattice defined in \eqref{def:lattice_b}, we have
+\begin{align*}
+-J b_1^{*,\text{TKV}} = b_1^*, \qquad -J b_2^{*,\text{TKV}} = -b_2^*, \qquad b = \f{4\pi}{3}
+\end{align*}
+corresponding to the direct lattice 
+\begin{align*}
+b_1 = b \mat{-1/2 \\ \sqrt{3} /2}, \qquad  b_2 = b\mat{1/2 \\ \sqrt{3}/2}, \qquad \cM_b = \f{b}{2} \mat{-1 & 1 \\ \sqrt{3} & \sqrt{3}}
+\end{align*}
+The $q_j$'s are
+\begin{align*}
+q^{\text{TKV}}_{2,3} = \mat{\pm\f{\sqrt 3}{2} \\ \f{1}{2}}, \qquad q^{\text{TKV}}_1 = -q^{\text{TKV}}_2 - q^{\text{TKV}}_3
+\end{align*}
+and we do a rotation, $q_j := -J q^{\text{TKV}}_j$,
 \begin{align*}
 q_1 = \mat{-1 \\ 0}, \qquad q_{2,3} = \mat{\f 12 \\ \mp \f{\sqrt 3}{2} }, \qquad  q_1 = -q_2 - q_3
 \end{align*}
+We have
 \begin{align*}
-T(x) := \cJ T_a(x) = \sum_j T_j e^{-iq_j x}
+T(x) := T^{\text{TKV}}(Jx) = \sum_j T_j e^{-iq_j x} \underset{\substack{\eqref{eq:inv_q}}}{=} \; \sum_j T_j e^{i\widetilde{m}_{q_j} b^* x}
 \end{align*}
-so from \eqref{eq:inv_q} we deduce that
+where $\widetilde{m}_{q_j} = -\f{1}{2\pi} \cM_b^* q_j$, that is
 \begin{align*}
-T(x) = \sum_j T_j e^{i\widetilde{m}_{q_j} b^* x}
-\end{align*}
-where $b=a$, $k_D = 4\pi/(3a)$, $\widetilde{m}_{q_j} = -\f{1}{2\pi} \cM_b^* q_j$,
-\begin{align*}
-\widetilde{m}_{q_1} = \f{1}{3k_D} \mat{-1 \\ 1}, \qquad \widetilde{m}_{q_2} = \f{1}{3k_D} \mat{2 \\ 1}, \qquad \widetilde{m}_{q_3} =  \f{1}{3k_D} \mat{-1 \\ -2}
+\widetilde{m}_{q_1} = \f{1}{3} \mat{-1 \\ 1}, \qquad \widetilde{m}_{q_2} = \f{1}{3} \mat{2 \\ 1}, \qquad \widetilde{m}_{q_3} =  \f{1}{3} \mat{-1 \\ -2}
 \end{align*}
 and we redefine
-\begin{align*}
+\begin{align}\label{eq:fourier_TBM}
 m_{q_1} =  \mat{-1 \\ 1}, \qquad m_{q_2} =  \mat{2 \\ 1}, \qquad m_{q_3} =   \mat{-1 \\ -2}
-\end{align*}
+\end{align}
 so
+\begin{align}\label{eq:bm_our_way}
+T(x) = \sum_j T_j e^{i m_{q_j} \f{b^*}{3} x}
+\end{align}
+We conjugate again and get
+\begin{multline*}
+\cR_{-\f{\pi}{2}} \pa{ \mat{-i\sigma \na & \alpha T^{\text{TKV}}\pa{x} \\ \alpha T^{*,\text{TKV}}(x) & -i\sigma \na} - \ep}\cR_{\f{\pi}{2}} \\
+= \mat{-i\sigma \cdot J\na & \alpha T\pa{x} \\ \alpha T^{*}(x) & -i\sigma \cdot J\na} - \ep
+\end{multline*}
+the action of $J$ corresponding to the rotation of the dual lattice vectors, so if we write $\na$ in our new lattice $b$, we have
 \begin{align*}
-T(x) = \sum_j T_j e^{i m_{q_j} \f{b^*}{3k_D} x}
+\mat{-i\sigma \na & \alpha T\pa{x} \\ \alpha T^{*}(x) & -i\sigma\na} - \ep
 \end{align*}
+
+\subsection{Rescaling again}%
+\label{sub:rescaling_again}
+
+To write the Fourier coefficients of $T$, we need to rescale, so ne define $Su(x) := u(3x)$ and as previously, doing ``$k_\theta = 1/3$'', we have $S S^* = 1/9$, $S \na S^* = \pa{1/3^3} \na$
+\begin{align*}
+3^2 S \pa{\mat{-i\sigma \na & \alpha T\pa{x} \\ \alpha T^{*}(x) & -i\sigma\na} - \ep} S^* = \mat{-\f{1}{3}i\sigma \na & \alpha T\pa{3x} \\ \alpha T^{*}(3x) & - \f{1}{3} i\sigma\na} - \ep
+\end{align*}
+and now we can implement the Fourier coefficients of $T(3\cdot)$, given by \eqref{eq:fourier_TBM}, because
+\begin{align*}
+T(3x) = \sum_j T_j e^{i m_{q_j} b^* x}
+\end{align*}
+
+
+
+\subsection{Relation to our model}%
+\label{sub:relation_to_our_model}
 
 
 
@@ -866,53 +961,6 @@ and
 
 
 
-\subsection{Rescaling}%
-\label{sub:rescaling}
-
-We consider the rescaling
-\begin{align*}
-Su(x) := u\pa{\f{x}{k_\theta}}, \qquad S^*u(y) = k_\theta^2 u\pa{k_\theta y}, \qquad S S^* = k_\theta^2
-\end{align*}
-where we defined $S^*$ as $\int_\Omega \overline{f} \; Sg = \int_{L\Omega/k_\theta} g \; \overline{S^*f}$.
-
-We define the BM potential at moiré scale
-\begin{align*}
-T(y) := \sum_j T_j e^{im_{q_j} a^*_M y}
-\end{align*}
-We have $\na S^* = k_\theta^2 S \na$ so $S \na S^* = k_\theta^2 \na$ and $SfS^* = k_\theta f\pa{\f{x}{k_\theta}}$ so when $x = y k_\theta$ is the microscopic scale
-\begin{align*}
-	\f{1}{k_\theta^3 v_0} S \pa{\mat{-i v_0 \sigma \na & w_1 T(k_\theta x) \\ w_1 T^*(k_\theta x) & -iv_0 \sigma \na} -E} S^* = \mat{-i\sigma \na & \alpha T\pa{x} \\ \alpha T^*(x) & -i\sigma \na} - \ep
-\end{align*}
-where $\alpha := \f{w_1}{k_\theta^2 v_0}$ where $\ep = \f{E}{v_0 k_\theta}$ is the unit of \cite[Fig 1]{TarKruVis19} defined in the caption. %Hence we need to multiply our energies by $v_0 k_\theta \ll 1$ to obtain the true ones. 
-In \cite{TarKruVis19} below (3) they define $k_D = 4\pi/(3a)$ which corresponds to our situation.
-
-We will do another rescaling because in our numerical simulations we do not implement $m_{q_j}$ but a transformation of it.
-
-
-
-\begin{align*}
-G u(x) := u\pa{Lx}, \qquad G ^*u(y) = \f{1}{\ab{\det L}} u\pa{ L^{-1}y}, \qquad G  G ^* = \f{1}{\ab{\det L}}
-\end{align*}
-where we defined $G ^*$ as $\int_\Omega \overline{f} \; G g = \int_{L\Omega} g \; \overline{G ^*f}$, and the multiplication operator $T$ transforms as
-\begin{align*}
-G  T G ^* = \f{1}{\ab{\det L}} T\pa{Lx}, \qquad G  \na G ^* = \f{1}{\ab{\det L}} \pa{L^{-1}}^* \na
-\end{align*}
-and
-\begin{align*}
-	T\pa{Lx} &= \sum T_j e^{i m_{q_j} a^* \cdot Lx} = \sum T_j e^{i\pa{\widetilde{L} m_{q_j}} a^* x} = \sum T_j e^{i m_{Q_j} a^* x} \\
-&=: \widetilde{T}(x)
-\end{align*}
-where $\widetilde{L} = \cM^* L^* \pa{\cM^*}^{-1}$. From the numerical needs, we want
-\begin{align*}
-\widetilde{L} = \mat{-1 & 2 \\ -2 & 1}
-\end{align*}
-and hence
-\begin{align*}
-L = \cM \pa{\widetilde{L}}^* \cM^{-1} = -\sqrt 3  J, \qquad \pa{L^{-1}}^* = -\f{1}{\sqrt{3}} J
-\end{align*}
-\begin{align*}
-\ab{\det L} G \mat{-i\sigma \na - \ep & \alpha T\pa{x} \\ \alpha T^*(x) & -i\sigma \na - \ep}  G ^* = \mat{ i\f{1}{\sqrt 3}\sigma  J \na - \ep & \alpha \widetilde{T}\pa{x} \\ \alpha \widetilde{T}^*(x) &  i\f{1}{\sqrt 3}\sigma J \na - \ep}
-\end{align*}
 
 
 

@@ -5,7 +5,7 @@ include("graphene.jl")
 function produce_bloch_functions_and_potentials()
 	p = Params() # stores all we need to store
 	# Choose parameters
-	p.ecut = 50 # DFTK's ecut, convergence of u's for ecut ≃ 15
+	p.ecut = 5 # DFTK's ecut, convergence of u's for ecut ≃ 15
 	px("ecut ",p.ecut)
 	p.a = 4.66 # length of the vectors of the fundamental cell
 	p.interlayer_distance = 6.45 # distance between the two layers
@@ -30,6 +30,9 @@ function produce_bloch_functions_and_potentials()
 	extract_nonlocal(p)
 	# Computes the non local contribution of the Fermi velocity
 	non_local_deriv_energy(4,p)
+
+	(Mu1,Tu1) = (M(p.u0_fb,p),τ(p.u0_fb,p.shift_K,p))
+	px("MΦ0 = Φ0 ",norm(Mu1.-Tu1)/norm(Mu1))
 
 	# Tests normalization
 	px("Normalization of u1 Fourier: ",norms(p.u1_fc,p))

@@ -69,7 +69,7 @@ mutable struct Params
 end
 
 function init_params(p)
-	init_cell_vectors(p;rotate=false)
+	init_cell_vectors(p;rotate=true)
 	# Bilayer parameter
 	p.M3d = [vcat(p.a1,[0]) vcat(p.a2,[0]) [0;0;p.L]]
 	p.Vol = DFTK.compute_unit_cell_volume(p.M3d)
@@ -128,6 +128,12 @@ function R(u,p)
 	OpL(u,p,L)
 end
 
+function M(u,p) 
+	M = [0 -1 0;-1 0 0; 0 0 -1]
+	L(G) = M*G
+	OpL(u,p,L)
+end
+
 # Equivalent to multiplication by e^{i cart(k) x), where k is in reduced, e^{im0 a^*⋅x} u = ∑ e^{ima^*⋅x} u_{m-m0}
 τ(u,k,p) = OpL(u,p,G -> G .- k)
 # Parity(u,p) = OpL(u,p,G -> -G)
@@ -153,7 +159,7 @@ function scf_graphene_monolayer(p)
 	create_dir(p.path_plots)
 	
 	p.N3d = p.N^2*p.Nz
-	p.x_axis_red = ((0:p.N-1))/p.N
+	p.x_axis_red = ((0:p.N -1))/p.N
 	p.z_axis_red = ((0:p.Nz-1))/p.Nz
 	p.z_axis_cart = p.z_axis_red*p.L
 

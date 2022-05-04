@@ -162,14 +162,14 @@ function explore_band_structure_BM()
 	p = Basis()
 	p.N = 7
 	p.a = 4. # decreasing a makes band energies increase
-	p.l = 8 # number of eigenvalues we compute
+	p.l = 12 # number of eigenvalues we compute
 	init_basis(p)
 	α = 0.0 # anti-chiral / AA stacking weight
 	p.resolution_bands = 4
 	p.energy_unit_plots = "Hartree"
 	p.folder_plots_bands = "bands_BM"
 	p.energy_center = 0
-	p.energy_scale = 1.5
+	p.energy_scale = 1.8
 	p.solver = "Exact"
 	mult_by_vF = true
 	p.coef_derivations = 1
@@ -314,3 +314,5 @@ nothing
 # Reproduire diagramme de bandes de Tarnopolsky
 #
 # Does non local φ depends on the gauge we choose on wavefunctions ? in this case we should adapt it when we fix the gauge
+#
+# VERIFIER SYMMETRIEs
