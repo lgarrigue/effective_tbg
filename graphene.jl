@@ -1,6 +1,7 @@
 include("common_functions.jl")
-using DFTK, LinearAlgebra, FFTW, JLD
+using DFTK, LinearAlgebra, FFTW, JLD, LaTeXStrings
 using SharedArrays, Distributed
+using Plots
 setup_threading()
 px = println
 
@@ -16,6 +17,7 @@ mutable struct Params
 	cell_area
 	Vol # Volume Ω×L of the direct lattice
 	Vol_recip # Volume of the reciprocal lattice
+	sqrtVol
 
 	N; Nz; N2d; N3d
 	n_fball # size of the Fermi ball ∈ ℕ
@@ -40,12 +42,17 @@ mutable struct Params
 	v_monolayer_fc # in the Fourier cube
 	v_monolayer_fb # in the Fourier cube
 	shifts_atoms # coordinates in 3d of the shifts of the two atoms of the unitthe two atoms of the unit cell
+	# Non local pseudopotentials
+	non_local_coef
+	non_local_φ1_fb; non_local_φ1_fc
+	non_local_φ2_fb; non_local_φ2_fc
 
 	### Bilayer quantities
 	interlayer_distance # physical distance between two layers
 	Vint_f
 	Vint_dir
 	V_bilayer_Xs_fc
+	Nint # the resolution for the disregistry lattice used to compute Vint
 
 	# DFTK quantities
 	ecut; scfres; basis; atoms; psp
@@ -54,19 +61,21 @@ mutable struct Params
 	Gvectors_cart_fc # in the Fourier cube
 	recip_lattice; recip_lattice_inv # from k in reduced coords to a k in cartesian ones
 	tol_scf
-	non_local_coef
-	non_local_φ1_fb; non_local_φ1_fc
-	non_local_φ2_fb; non_local_φ2_fc
+
 
 	# Misc
 	ref_gauge # reference for fixing the phasis gauge freedom
 	plots_cutoff
 	root_path; path_exports; path_plots # paths
+	export_plots_article
+	path_plots_article
 	function Params()
 		p = new()
 		p
 	end
 end
+
+norm_K_cart(a) = 4*π/(3*a)
 
 function init_params(p)
 	init_cell_vectors(p;rotate=true)
@@ -86,6 +95,8 @@ function init_params(p)
 	p.root_path = "graphene/"
 	p.path_exports = string(p.root_path,"exported_functions/")
 	p.path_plots = string(p.root_path,"plots/")
+	p.export_plots_article = false
+	p.path_plots_article = "../../bm/ab_initio_model/pics/"
 	create_dir(p.root_path)
 	create_dir(p.path_exports)
 	create_dir(p.path_plots)
@@ -175,7 +186,7 @@ function scf_graphene_monolayer(p)
 	px("Energies")
 	display(p.scfres.energies)
 	p.v_monolayer_dir = DFTK.total_local_potential(p.scfres.ham)[:,:,:,1]
-	p.v_monolayer_fc = myfft(p.v_monolayer_dir)
+	p.v_monolayer_fc = myfft(p.v_monolayer_dir,p.Vol)
 	# p.v_monolayer_fb = r_to_G(basis,kpt,p.v_monolayer_dir)
 
 	# Test potential energy
@@ -214,8 +225,8 @@ function diag_monolayer_at_k(k,p;n_bands=10) # k is in reduced coordinates, n_ba
 end
 
 # Computes the Kohn-Sham potential of the bilayer at some stacking shift (disregistry)
-function scf_graphene_bilayer(six,siy,p)
-	stacking_shift_red = [p.x_axis_red[six],p.x_axis_red[siy],0.0]
+function scf_graphene_bilayer(sx,sy,p)
+	stacking_shift_red = [sx,sy,0.0]
 	D = p.interlayer_distance/(p.L*2)
 	c1_plus =  [ 1/3, 1/3, D] .+ stacking_shift_red
 	c2_plus =  [-1/3,-1/3, D] .+ stacking_shift_red
@@ -233,7 +244,7 @@ function scf_graphene_bilayer(six,siy,p)
 
 	scfres = self_consistent_field(basis;tol=p.tol_scf,n_ep_extra=n_extra_states,eigensolver=lobpcg_hyper,maxiter=100,callback=x->nothing)
 	Vks_dir = DFTK.total_local_potential(scfres.ham)[:,:,:,1] # select first spin component
-	myfft(Vks_dir)
+	myfft(Vks_dir,p.Vol)
 end
 
 # coords in reduced to coords in cartesian
@@ -277,14 +288,14 @@ function get_dirac_eigenmodes(p)
 	# Extracts relevant states
 	p.u0_fb = us_K[p.i_state-1]
 	p.u0_dir = G_to_r(p.basis,p.K_kpt,p.u0_fb)
-	p.u0_fc = myfft(p.u0_dir)
+	p.u0_fc = myfft(p.u0_dir,p.Vol)
 
 	p.u1_fb = us_K[p.i_state]
 	p.u2_fb = us_K[p.i_state+1]
 	p.u1_dir = G_to_r(p.basis,p.K_kpt,p.u1_fb)
 	p.u2_dir = G_to_r(p.basis,p.K_kpt,p.u2_fb)
-	p.u1_fc = myfft(p.u1_dir)
-	p.u2_fc = myfft(p.u2_dir)
+	p.u1_fc = myfft(p.u1_dir,p.Vol)
+	p.u2_fc = myfft(p.u2_dir,p.Vol)
 
 	H_K_dirac = ham.blocks[1]; Hmat = Array(H_K_dirac)
 
@@ -323,8 +334,8 @@ function rotate_u1_and_u2(p)
 	p.u1_dir = G_to_r(p.basis,p.K_kpt,p.u1_fb)
 	p.u2_dir = G_to_r(p.basis,p.K_kpt,p.u2_fb)
 	# Computes them in the Fourier cube
-	p.u1_fc = myfft(p.u1_dir)
-	p.u2_fc = myfft(p.u2_dir)
+	p.u1_fc = myfft(p.u1_dir,p.Vol)
+	p.u2_fc = myfft(p.u2_dir,p.Vol)
 	# px("LA ",norm(p.u0_fb)," ",norm(p.u1_fb)," ",norm(p.u0_dir)," ",norm(p.u1_dir)," ",norm(p.u0_fc)," ",norm(p.u1_fc))
 end
 
@@ -332,15 +343,15 @@ end
 
 # Long step, computation of a Kohn-Sham potential for each disregistry
 function compute_V_bilayer_Xs(p) # hat(V)^{bilayer,s}_{0,M}
-	V = zeros(ComplexF64,p.N,p.N,p.Nz)
+	V = zeros(ComplexF64,p.Nint,p.Nint,p.Nz)
 	print("Step : ")
-	grid = [(six,siy) for six=1:p.N, siy=1:p.N]
-	# Threads.@threads for s=1:p.N^2 # multi-threading blocks because of a problem in the parallelization of DFTK's diagonalization
-	for si=1:p.N^2
-		(six,siy) = grid[si]
-		print(si," ")
-		v_fc = scf_graphene_bilayer(six,siy,p)
-		V[six,siy,:] = v_fc[1,1,:]
+	for six=1:p.Nint
+		print(six," ")
+		for siy=1:p.Nint
+			(sx,sy) = ((six-1)/p.Nint,(siy-1)/p.Nint)
+			v_fc = scf_graphene_bilayer(sx,sy,p)
+			V[six,siy,:] = v_fc[1,1,:]
+		end
 	end
 	print("\n")
 	p.V_bilayer_Xs_fc = V
@@ -348,22 +359,21 @@ end
 
 # Computes Vint_Xs
 function compute_Vint_Xs(p)
-	Vint_Xs = zeros(ComplexF64,p.N,p.N,p.Nz)
 	app(mz) = 2*cos(mz*π*p.interlayer_distance/p.L)
 	V_app_k = p.v_monolayer_fc[1,1,:].*app.(p.kz_axis)
-	[p.V_bilayer_Xs_fc[six,siy,miz] - V_app_k[miz] for six=1:p.N, siy=1:p.N, miz=1:p.Nz]/p.N^2
+	[p.V_bilayer_Xs_fc[six,siy,miz] - V_app_k[miz] for six=1:p.Nint, siy=1:p.Nint, miz=1:p.Nz]/sqrt(p.cell_area)
 end
 
 # Computes Vint
-form_Vint_from_Vint_Xs(Vint_Xs_fc,p) = [sum(Vint_Xs_fc[:,:,miz]) for miz=1:p.Nz]/p.N^2
+form_Vint_from_Vint_Xs(Vint_Xs_fc,p) = [sum(Vint_Xs_fc[:,:,miz]) for miz=1:p.Nz]/p.Nint^2
 
 # Computes the dependency of Vint_Xs on Xs
 function computes_δ_Vint(Vint_Xs_fc,Vint_f,p)
 	c = 0
-	for sx=1:p.N, sy=1:p.N, mz=1:p.Nz
+	for sx=1:p.Nint, sy=1:p.Nint, mz=1:p.Nz
 		c += abs2(Vint_Xs_fc[sx,sy,mz] - Vint_f[mz])
 	end
-	px("Dependency of Vint_Xs on Xs, δ_Vint= ",c/(p.N^2*sum(abs2.(Vint_f))))
+	px("Dependency of Vint_Xs on Xs, δ_Vint= ",c/(p.Nint^2*sum(abs2.(Vint_f))))
 end
 
 ######################### Computes the Fermi velocity
@@ -372,7 +382,6 @@ function form_∇_term(u,w,j,p) # <u,(-i∂_j +K_j)w>
 	GpKj = [p.Gplusk_vectors_cart[iG][j] for iG=1:p.n_fball]
 	sum((conj.(u)) .* (GpKj.*w))
 end
-
 
 # 2×2 matrices <u,(-i∂_j +K_j)u>
 form_∇_one_matrix(u1,u2,j,p) = Hermitian([form_∇_term(u1,u1,j,p) form_∇_term(u1,u2,j,p);form_∇_term(u2,u1,j,p) form_∇_term(u2,u2,j,p)])
@@ -406,6 +415,54 @@ function get_fermi_velocity_with_finite_diffs(n_samplings_over_2,p)
 	vF_up = (values_up[Ipoint+1]-values_up[Ipoint])/dK
 	px("Fermi velocity: ",vF,". Verification with upper eigenvalue: ",vF_up)
 	vF
+end
+
+function change_gauge_functions(ξ,p)
+	α = cis(ξ); β = cis(-ξ)
+	p.u0_fb *= α; p.u1_fb *= α; p.u2_fb *= β
+	p.u0_fc *= α; p.u1_fc *= α; p.u2_fc *= β
+	p.u0_dir *= α; p.u1_dir *= α; p.u2_dir *= β
+	p.non_local_φ1_fb *= α; p.non_local_φ1_fc *= α
+	p.non_local_φ2_fb *= β; p.non_local_φ2_fc *= β
+end
+
+function exchange_u1_u2(p)
+	p.u1_fb,p.u2_fb = p.u2_fb,p.u1_fb 
+	p.u1_fc,p.u2_fc = p.u2_fc,p.u1_fc
+	p.u1_dir,p.u2_dir = p.u2_dir,p.u1_dir
+end
+
+function compute_scaprod_Dirac(p)
+	(∂1_u2_f,∂2_u2_f,∂3_u2_f) = ∇(p.u2_fc,p)
+	c1 = -im*scaprod(p.u1_fc,∂1_u2_f,p,true); c2 = -im*scaprod(p.u1_fc,∂2_u2_f,p,true)
+	c1,c2
+end
+
+# the gauge is fixed such that <Φ1,(-i∇_x)Φ2> = <u1,(-i∇_x)u2> = vF[i;-1] where vF ∈ ℝ+, hence <e^(iξ) Φ1,(-i∇_x) e^(-iξ)Φ2> = e^(-2iξ) vF[i;-1]
+# this is vF[i;-1] which has to be chosen, and not another one, for our 𝕍 to look like T_BM
+function records_fermi_velocity_and_fixes_gauge(p) 
+	(c1,c2) = compute_scaprod_Dirac(p)
+	ratios = abs.([c1/c2+im,c1/c2-im]) # this can be one of the two, because of numerical instabilities choosing u1 and u2 which are interchangeable
+	I = argmin(ratios)
+	if I==2
+		exchange_u1_u2(p)
+		records_fermi_velocity_and_fixes_gauge(p) 
+	else
+		ratio = ratios[I]
+		# px("Fermi velocity, distance to theory of the ratio:",ratio)
+		@assert ratio<1e-4
+		r,ξ = abs(c2),atan(imag(c2),real(c2))-π
+		# px("<u1,(-i∇r) u2> = [i;",I==1 ? "-" : "+","1]*",r,"e^(i × ",ξ,") so vF=",r)
+		p.v_fermi = r
+		@assert imag(c2*cis(-ξ)) < 1e-10
+		change_gauge_functions(ξ/2,p)
+
+		# Verification that vF is real positive and close to vF
+		(c1,c2) = compute_scaprod_Dirac(p)
+		# px("new c1,c2= ",c1," ",c2)
+		@assert norm([c1,c2] .- r*[im;-1])<1e-4
+		px("<u1,(-i∇r) u2> = vF[i;-1] where vF=",r)
+	end
 end
 
 function compute_vF_with_diagonalization_doesnt_work(p)
@@ -493,8 +550,8 @@ function extract_nonlocal(p)
 	p.non_local_φ2_fb = vecs[:,2]
 	non_local_φ1_dir = G_to_r(p.basis,p.K_kpt,p.non_local_φ1_fb)
 	non_local_φ2_dir = G_to_r(p.basis,p.K_kpt,p.non_local_φ2_fb)
-	p.non_local_φ1_fc = myfft(non_local_φ1_dir)
-	p.non_local_φ2_fc = myfft(non_local_φ2_dir)
+	p.non_local_φ1_fc = myfft(non_local_φ1_dir,p.Vol)
+	p.non_local_φ2_fc = myfft(non_local_φ2_dir,p.Vol)
 end
 
 function non_local_energy(u,p) # <u_nk, (V_nl)_k u_nk>, u is the periodic Bloch function, in the Fourier ball
@@ -515,6 +572,7 @@ function non_local_deriv_energy(n_samplings_over_2,p) # <u_nk, ∇_k (V_nl)_k u_
 		k = k_cart2red(set_cart_K[i],p)
 		us = (diag_monolayer_at_k(k,p))[2]
 		u = us[p.i_state]
+		# px("len ",length(u))
 		val = non_local_energy(u,p)
 		push!(values,val)
 	end
@@ -563,6 +621,12 @@ function test_rot_sym(p)
 end
 
 ######################### Plot functions
+
+function plot_mean_V(p) # rapid plot of V averaged over XY, to see which are the right orders of magnitude
+	Vz = [sum(p.v_monolayer_dir[:,:,z]) for z=1:p.Nz]/p.N^2
+	pl = plot(Vz)
+	savefig(pl,string(p.path_plots,"Vz.png"))
+end
 
 # array of Fourier coefs to cartesian direct function
 function arr2fun(u_fc,p;bloch_trsf=true) # u in the Fourier ball, to function in cartesian
@@ -623,7 +687,7 @@ function rapid_plot(u,p;n_motifs=5,name="rapidplot",bloch_trsf=true,res=25)
 	Z = 10
 	funs = [abs,real,imag]
 	hm = [simple_plot(u,fun,Z,p;n_motifs=n_motifs,bloch_trsf=bloch_trsf,res=res) for fun in funs]
-	plot_z = plot(intXY(real.(ifft(u)),p))
+	plot_z = plot(intXY(real.(ifft(u,p.L)),p))
 	push!(hm,plot_z)
 	size = 600
 	r = length(hm)
@@ -643,20 +707,34 @@ function rapid_plot(u,p;n_motifs=5,name="rapidplot",bloch_trsf=true,res=25)
 end
 
 function plot_Vint(p)
-	v_bilayer_f = [sum(p.V_bilayer_Xs_fc[:,:,miz]) for miz=1:p.Nz]/p.N^4
+	v_bilayer_f = [p.V_bilayer_Xs_fc[1,1,miz] for miz=1:p.Nz]/sqrt(p.cell_area)
 	# average of v_monolayer
-	v_f = myfft([sum(p.v_monolayer_dir[:,:,z]) for z=1:p.Nz])/p.N^2 
+	v_f = myfft([sum(p.v_monolayer_dir[:,:,z]) for z=1:p.Nz]/p.N^2,p.L)
 	# shifts of ±d/2 of the monolayer KS potential
 	v_f_plus  = v_f.*cis.( 2π*p.kz_axis*p.interlayer_distance/(2*p.L))
 	v_f_minus = v_f.*cis.(-2π*p.kz_axis*p.interlayer_distance/(2*p.L))
 
-	res = 700
-	v_int = eval_fun_to_plot_1d(p.Vint_f,res)
-	v_plus = eval_fun_to_plot_1d(v_f_plus,res)
-	v_minus = eval_fun_to_plot_1d(v_f_minus,res)
-	v_bilayer = eval_fun_to_plot_1d(v_bilayer_f,res)
-	z_axis = (0:res-1)*p.L/res
+	# Builds u1 and u2
+	abs2_u1_averaged = p.cell_area*[sum(abs2.(p.u1_dir)[:,:,z]) for z=1:p.Nz]/p.N^2
+	abs2_u1_f = myfft(abs2_u1_averaged,p.L)
+	abs2_u1_f_plus = abs2_u1_f.*cis.( 2π*p.kz_axis*p.interlayer_distance/(2*p.L))
+	abs2_u1_f_minus = abs2_u1_f.*cis.(-2π*p.kz_axis*p.interlayer_distance/(2*p.L))
 
-	pl = plot(z_axis,[v_int,v_plus,v_minus,v_bilayer],label=["Vint" "τ_+ v_mono" "τ_- v_mono" "v_bilayer"],size=(1000,1300))
+	res = 700
+	v_int = eval_fun_to_plot_1d(p.Vint_f,res,p.L)
+	v_plus = eval_fun_to_plot_1d(v_f_plus,res,p.L)
+	v_minus = eval_fun_to_plot_1d(v_f_minus,res,p.L)
+	v_bilayer = eval_fun_to_plot_1d(v_bilayer_f,res,p.L)
+	abs2_u1_plus = eval_fun_to_plot_1d(abs2_u1_f_plus,res,p.L)
+	abs2_u1_minus = eval_fun_to_plot_1d(abs2_u1_f_minus,res,p.L)
+
+	z_axis = (0:res-1)*p.L/res .- p.L/2
+
+	labels = [L"V_{\rm int, d}(z)" L"\frac{1}{|\Omega|} \int_\Omega V(x,z+d/2) d x" L"\frac{1}{|\Omega|} \int_\Omega V(x,z-d/2) d x" L"\frac{1}{|\Omega|^2} \int_{\Omega \times \Omega} V^{(2)}_{d,\bf{y}}(\bf{x},z) d \bf{x} d \bf{y}" L"\int_\Omega |\Phi_1|^2(x,z+d/2) d x" L"\int_\Omega |\Phi_1|^2(x,z-d/2) d x"]
+	pl = plot(z_axis,fftshift.([v_int,v_plus,v_minus,v_bilayer,abs2_u1_plus,abs2_u1_minus]),label=labels,size=(900,400),legend = :outerright, legendfontsize=10)
 	savefig(pl,string(p.path_plots,"Vint.png"))
+
+	if p.export_plots_article
+		savefig(pl,string(p.path_plots_article,"Vint.pdf"))
+	end
 end

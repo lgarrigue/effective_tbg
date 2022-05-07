@@ -1,4 +1,5 @@
-using Plots, LinearAlgebra, JLD, FFTW, Optim
+using LinearAlgebra, JLD, FFTW, Optim, LaTeXStrings
+using CairoMakie
 px = println
 include("common_functions.jl")
 include("misc/create_bm_pot.jl")
@@ -58,12 +59,15 @@ mutable struct EffPotentials
 	plots_n_motifs # roughly the number of periods we see on plots
 	root_path
 	plots_x_axis_cart
+	article_path
+	plot_for_article
 	
 	function EffPotentials()
 		p = new()
 		p.plots_n_motifs = 5
 		p.plots_res = 20
 		p.add_non_local_W = true
+		p.article_path = "../../bm/ab_initio_model/pics/"
 		p
 	end
 end
@@ -73,9 +77,9 @@ function init_EffPot(p)
 	init_cell_infinitesimals(p)
 	p.root_path = "effective_potentials/"
 	create_dir(p.root_path)
-	plots_L = p.L*p.plots_n_motifs
-	plots_dx = plots_L/p.plots_res
-	p.plots_x_axis_cart = (0:plots_dx:plots_L-plots_dx)
+	plots_a = p.a*p.plots_n_motifs
+	plots_dx = plots_a/p.plots_res
+	p.plots_x_axis_cart = (0:plots_dx:plots_a-plots_dx)
 end
 
 # multiplies all potentials by γ
@@ -157,7 +161,7 @@ function compute_W_Vint_term(p) # matrix <u_j, Vint u_{j'}>
 			M[2,2] += conj(p.u2_f[mx,my,nz1])*p.u2_f[mx,my,nz2]*p.Vint_f[dmz]
 		end
 	end
-	p.W_Vint_matrix = M
+	p.W_Vint_matrix = M/sqrt(p.L) # it is a direct space quantity !
 end
 
 ################## Computation of blocks
@@ -183,14 +187,14 @@ function change_gauge_wavefunctions(θ,p)
 	p.non_local_φ2_f *= cis(-θ)
 
 	# Consequences
-	p.u1_dir = myifft(p.u1_f)
-	p.u2_dir = myifft(p.u2_f)
+	p.u1_dir = myifft(p.u1_f,p.Vol)
+	p.u2_dir = myifft(p.u2_f,p.Vol)
 	p.u1v_dir = p.v_dir.*p.u1_dir
 	p.u2v_dir = p.v_dir.*p.u2_dir
-	p.u1v_f = myfft(p.u1v_dir)
-	p.u2v_f = myfft(p.u2v_dir)
+	p.u1v_f = myfft(p.u1v_dir,p.Vol)
+	p.u2v_f = myfft(p.u2v_dir,p.Vol)
 	p.prods_dir = [abs2.(p.u1_dir), conj.(p.u1_dir).*p.u2_dir, conj.(p.u2_dir).*p.u1_dir, abs2.(p.u2_dir)]
-	p.prods_f = myfft.(p.prods_dir)
+	p.prods_f = [myfft(p.prods_dir[i],p.Vol) for i=1:length(p.prods_dir)]
 end
 
 
@@ -202,21 +206,21 @@ create_V_V(u1,u2,p) = [build_potential(p.u1v_f,p.u1_f,p), build_potential(p.u1v_
 
 function build_blocks_potentials(p)
 	p.Σ = create_Σ(p.u1_f,p.u2_f,p)
-	
+
 	# Computes blocks without Vint
 	p.𝕍_V = create_V_V(p.u1_f,p.u2_f,p)
 	p.W_V_plus = [build_potential(p.v_f,p.prods_f[1],p;transl=false), build_potential(p.v_f,p.prods_f[2],p;transl=false),
-		   build_potential(p.v_f,p.prods_f[3],p;transl=false), build_potential(p.v_f,p.prods_f[4],p;transl=false)]
+		      build_potential(p.v_f,p.prods_f[3],p;transl=false), build_potential(p.v_f,p.prods_f[4],p;transl=false)]
 	p.W_V_minus = [build_potential(p.v_f,p.prods_f[1],p;transl=false,η=-1), build_potential(p.v_f,p.prods_f[2],p;transl=false,η=-1),
-		    build_potential(p.v_f,p.prods_f[3],p;transl=false,η=-1), build_potential(p.v_f,p.prods_f[4],p;transl=false,η=-1)]
+		       build_potential(p.v_f,p.prods_f[3],p;transl=false,η=-1), build_potential(p.v_f,p.prods_f[4],p;transl=false,η=-1)]
 	# p.W_minus = [build_potential(p.prods_f[1],p.v_f,p;η=-1,transl=false), build_potential(p.prods_f[2],p.v_f,p;η=-1,transl=false),
 	# build_potential(p.prods_f[3],p.v_f,p;η=-1,transl=false), build_potential(p.prods_f[4],p.v_f,p;η=-1,transl=false)]
 
 	# Computes blocks with Vint
 	u1Vint_f = zeros(ComplexF64,p.N,p.N); u2Vint_f = zeros(ComplexF64,p.N,p.N)
 	if p.compute_Vint
-		u1Vint_f = myfft(p.u1_dir.*p.Vint_dir)
-		u2Vint_f = myfft(p.u2_dir.*p.Vint_dir)
+		u1Vint_f = myfft(p.u1_dir.*p.Vint_dir,p.Vol)
+		u2Vint_f = myfft(p.u2_dir.*p.Vint_dir,p.Vol)
 	end
 	compute_W_Vint_term(p)
 	p.𝕍_Vint = [build_potential(p.u1v_f,u1Vint_f,p), build_potential(p.u1v_f,u2Vint_f,p),
@@ -227,8 +231,8 @@ function build_blocks_potentials(p)
 
 	# Adds the other terms for W
 	compute_non_local_W(p)
-	p.Wplus_tot = add_cst_block(p.W_V_plus,p.W_Vint_matrix,p)
-	p.Wminus_tot = add_cst_block(p.W_V_minus,p.W_Vint_matrix,p)
+	p.Wplus_tot = add_cst_block(p.W_V_plus,p.W_Vint_matrix/sqrt(p.cell_area),p)
+	p.Wminus_tot = add_cst_block(p.W_V_minus,p.W_Vint_matrix/sqrt(p.cell_area),p)
 	if p.add_non_local_W
 		p.Wplus_tot .+= p.W_non_local_plus
 		p.Wminus_tot .+= p.W_non_local_minus
@@ -260,13 +264,11 @@ function compute_non_local_F_term(η,j,s,p) # η ∈ {±}, j,s ∈ {1,2}
 			F[mix,miy] = sum(cis(-η*(2π*[m0,n0,0]⋅p.shifts_atoms_red[s]/3 + (2π/p.L)*p.interlayer_distance*p.kz_axis[miz]))*conj(φ[m3,n3,miz])*u[m3,n3,miz] for miz=1:p.Nz)
 		end
 	end
-	p.Vol*F
+	F
 end
 
-prod_four(a,b) = length(a)*fft(ifft(a).*ifft(b))
-
 W_non_local_terms(η,i,j,p) = p.non_local_coef*(1/p.cell_area)*
-sum(prod_four(conj_four(compute_non_local_F_term(η,i,s,p),p),compute_non_local_F_term(η,j,s,p)) for s=1:2)
+sum(cyclic_conv(conj_four(compute_non_local_F_term(η,i,s,p),p),compute_non_local_F_term(η,j,s,p),p.dS) for s=1:2)
 
 # returns W_nl^{η}_{j,j'} in Fourier
 W_non_local_plus_minus(η,p) = [W_non_local_terms(η,1,1,p), W_non_local_terms(η,1,2,p), W_non_local_terms(η,2,1,p), W_non_local_terms(η,2,2,p)] # η ∈ {±}
@@ -288,10 +290,14 @@ function rot_A(θ,B1,B2,p) # applies R_θ to the vector [B1,B2], where Bj contai
 	(A1,A2)
 end
 
+# a constant in Fourier space (typically, the component [1,1] of a Fourier function, which gives the average of the function) to the constant in direct space (resp. the average of the function in direct space)
+Fourier_cst_to_direct_cst(x,p) = x/p.N2d
+
 ################## Operations on (2×2) block functions
 
 norm_block(B) = sum(abs.(B[1])) + sum(abs.(B[2])) + sum(abs.(B[3])) + sum(abs.(B[4]))
 app_block(map,B,p) = [map(B[1],p),map(B[2],p),map(B[3],p),map(B[4],p)]
+op_two_blocks(op,A,B) = [op(A[i],B[i]) for i=1:4]
 σ1_B_σ1(B) = [B[4],B[3],B[2],B[1]]
 hermitian_block(B) = conj.([B[1],B[3],B[2],B[4]])
 conj_block(B) = conj.([B[1],B[2],B[3],B[4]])
@@ -374,12 +380,13 @@ function compare_to_BM_infos(A,p,name)
 	(m,α,T) = compare_to_BM(A,p)
 	d1 = distance(T[1],A[1])
 	d2 = distance(T[2],A[2])
-	px("Distances blocks 1 and 2 between ",name," and optimally rescaled T_BM: ",d1," ",d2," obtained with ",α)
+	px("Distances blocks 1 and 2 between ",name," and optimally rescaled T_BM: ",d1," ",d2," obtained with α=",α)
 end
 
 function optimize_gauge_and_create_T_BM_with_θ_α(V_V_or_Σ,p) # does u1 -> u1 e^{iθx}, u2 -> u2 e^{iθx} so that it fixed the gauge
 	# This optimizing procedure is not very precise !
 	γ(θ) = V_V_or_Σ ? create_V_V(p.u1_f*cis(θ),p.u2_f*cis(-θ),p) : create_Σ(p.u1_f*cis(θ),p.u2_f*cis(-θ),p)
+	# γ(θ) = V_V_or_Σ ? create_V_V(p.u1_f*cis(3π/4),p.u2_f*cis(-3π/4),p) : create_Σ(p.u1_f*cis(3π/4),p.u2_f*cis(-3π/4),p)
 	comp(x) = x
 	function f(λ) 
 		T = hermitian_block(build_BM(comp(λ[1]),-comp(λ[1]),p;scale=true))
@@ -390,6 +397,7 @@ function optimize_gauge_and_create_T_BM_with_θ_α(V_V_or_Σ,p) # does u1 -> u1 
 	λ = res.minimizer
 	θ = λ[2]
 	α = comp(λ[1])
+	px("Optimized by changing gauge, angle ξ=",θ*180/π,"°")
 
 	p.T_BM = hermitian_block(build_BM(α,-α,p;scale=true))
 	# px("MIN with α and θ",res.minimum," with ",α)
@@ -432,7 +440,7 @@ function test_sym_Wplus_Wminus(p)
 end
 
 function test_PT_block_direct(B,p;name="B")
-	B_direct = myifft.(B)
+	B_direct = [myifft(B[i],p.Vol) for i=1:length(B)]
 	σ1Bσ1 = σ1_B_σ1(B_direct)
 	symB = conj.(app_block(parity_x,σ1Bσ1,p))
 	px("Test σ1 conj(",name,")(-x) σ1 = ",name,"(x) ",relative_distance_blocks(B_direct,symB))
@@ -491,7 +499,7 @@ end
 
 function test_equality_all_blocks(B,p;name="")
 	px("Test equality of blocks of ",name)
-	D = myifft.(B)
+	D = [myifft(B[i],p.Vol) for i=1:length(B)]
 	px("In direct")
 	test_equality_blocks_interm(D,p)
 	px("In Fourier")
@@ -499,7 +507,7 @@ function test_equality_all_blocks(B,p;name="")
 end
 
 function test_block_hermitianity(C,p;name="")
-	B = myifft.(C)
+	B = [myifft(C[i],p.Vol) for i=1:length(C)]
 	c = 0; T = 0
 	for x=1:p.N, y=1:p.N
 		h = [B[1][x,y] B[2][x,y]; B[3][x,y] B[4][x,y]]
@@ -531,20 +539,20 @@ function import_u1_u2_V_φ(N,Nz,p)
 	p.interlayer_distance = load(f,"interlayer_distance")
 
 	# Builds products from imports
-	p.v_dir = myifft(p.v_f)
-	p.u1_dir = myifft(p.u1_f)
-	p.u2_dir = myifft(p.u2_f)
-	# pl = heatmap(real.([p.u1_f[x,y,5] for x=1:p.N,y=1:p.N]))
+	p.v_dir = myifft(p.v_f,p.Vol)
+	p.u1_dir = myifft(p.u1_f,p.Vol)
+	p.u2_dir = myifft(p.u2_f,p.Vol)
+	# pl = Plots.heatmap(real.([p.u1_f[x,y,5] for x=1:p.N,y=1:p.N]))
 	# savefig(pl,"lala.png")
 
 	p.u1v_dir = p.v_dir.*p.u1_dir
 	p.u2v_dir = p.v_dir.*p.u2_dir
 
-	p.u1v_f = myfft(p.u1v_dir)
-	p.u2v_f = myfft(p.u2v_dir)
+	p.u1v_f = myfft(p.u1v_dir,p.Vol)
+	p.u2v_f = myfft(p.u2v_dir,p.Vol)
 
 	p.prods_dir = [abs2.(p.u1_dir), conj.(p.u1_dir).*p.u2_dir, conj.(p.u2_dir).*p.u1_dir, abs2.(p.u2_dir)]
-	p.prods_f = myfft.(p.prods_dir)
+	p.prods_f = [myfft(p.prods_dir[i],p.Vol) for i=1:length(p.prods_dir)]
 end
 
 function import_Vint(p)
@@ -556,7 +564,7 @@ function import_Vint(p)
 		Vint_f = load(f,"Vint_f")
 		p.Vint_f = zeros(ComplexF64,p.N,p.N,p.Nz)
 		p.Vint_f[1,1,:] = Vint_f
-		p.Vint_dir = myifft(p.Vint_f)
+		p.Vint_dir = myifft(p.Vint_f,p.L)
 	end
 end
 
@@ -571,7 +579,7 @@ function red_arr2red_fun(ϕ_four_red,p)
 			for j=1:p.N
 				kj = p.k_axis[j]
 				if abs(kj) <= p.plots_cutoff
-					c(x,y) = ϕ_four_red[i,j] * cis(2π*(ki*x+kj*y))
+					c(x,y) = (ϕ_four_red[i,j] * cis(2π*(ki*x+kj*y)))/sqrt(p.cell_area)
 					a = a + c
 				end
 			end
@@ -602,41 +610,59 @@ end
 
 # B is a 2 × 2 matrix of potentials
 # from array of Fourier coefficients to plot in direct cartesian space
-function plot_block_cart(B_four,p;title="plot_full") 
+function plot_block_cart(B_four,p;title="plot_full",article=false) 
 	path = string(p.root_path,"plots_potentials_cartesian_N",p.N,"_Nz",p.Nz,"/")
 	create_dir(path)
 	funs = [real,imag,abs]; titles = ["real","imag","abs"]
+	expo = -1
 	for I=1:3
 		h = []
 		for m=1:4
 			ψ_ar = eval_fun_to_plot(B_four[m],funs[I],p.plots_n_motifs,p.plots_res,p)
-			hm = heatmap(p.plots_x_axis_cart,p.plots_x_axis_cart,ψ_ar,size=(300,200))
+			if expo == -1
+				if maximum(abs.(ψ_ar)) < 1e-6
+					expo = 0
+				else
+					expo = floor(Int,log10(maximum(abs.(ψ_ar)))) 
+				end
+			end
+			hm = Plots.heatmap(p.plots_x_axis_cart,p.plots_x_axis_cart,ψ_ar*10^(-expo),size=(300,200),colorbar_title=latexstring("10^{$(expo)}"))#,colorbar_titlefontrotation=180,colorbar_titlefontvalign=:top)
+
 			# hm = heatmap(ψ_ar,aspect_ratio=:equal)
 			push!(h,hm)
 		end
 		size = 1000
-		pl = plot(h...,layout=(2,2),size=(1300,1000),legend=false)
-		savefig(pl,string(path,title,"_",titles[I],"_cart.png"))
+		pl = Plots.plot(h...,layout=(2,2),size=(1300,1000),legend=false)
+		titl = string(title,"_",titles[I],"_cart")
+		savefig(pl,string(path,titl,".png"))
+		if article && p.plot_for_article
+			savefig(pl,string(p.article_path,titl,".pdf"))
+		end
 		px("Plot of ",title," ",titles[I]," in cartesian coords, done")
 	end
 end
 
 # other_magnetic_block is the additional magnetic block, in this case it plots |B1|^2+|B2|^2
-function plot_magnetic_block_cart(B1_four,B2_four,p;title="plot_full") 
+function plot_magnetic_block_cart(B1_four,B2_four,p;title="plot_full",article=false) 
 	h = []
 	path = string(p.root_path,"plots_potentials_cartesian_N",p.N,"_Nz",p.Nz,"/")
 	create_dir(path)
+
 	for m=1:4
 		ψ_ar = eval_fun_to_plot(B1_four[m],abs2,p.plots_n_motifs,p.plots_res,p)
 		ψ_ar .+= eval_fun_to_plot(B2_four[m],abs2,p.plots_n_motifs,p.plots_res,p)
 		ψ_ar = sqrt.(ψ_ar)
-		hm = heatmap(p.plots_x_axis_cart,p.plots_x_axis_cart,ψ_ar,size=(300,200))
-		# hm = heatmap(ψ_ar,aspect_ratio=:equal)
+		hm = Plots.heatmap(p.plots_x_axis_cart,p.plots_x_axis_cart,ψ_ar,size=(300,200))
+		# hm = Plots.heatmap(ψ_ar,aspect_ratio=:equal)
 		push!(h,hm)
 	end
 	size = 1000
 	pl = plot(h...,layout=(2,2),size=(1300,1000),legend=false)
-	savefig(pl,string(path,"abs_",title,"_cart.png"))
+	titl = string("abs_",title,"_cart.png")
+	savefig(pl,string(path,title))
+	if article && p.plot_for_article
+		savefig(pl,string(p.article_path,titl))
+	end
 	px("Plot of |",title,"|^2 in cartesian coords, done")
 end
 
@@ -648,8 +674,8 @@ function plot_block_reduced(B,p;title="plot_full")
 	for fo=1:2, I=1:3
 		h = []
 		for m=1:4
-			a = funs[I].(four[fo] ? B[m] : myifft(B[m]))
-			hm = heatmap(a,size=(200,200),aspect_ratio=:equal)
+			a = funs[I].(four[fo] ? B[m] : myifft(B[m],p.Vol))
+			hm = Plots.heatmap(a,size=(200,200),aspect_ratio=:equal)
 			push!(h,hm)
 		end
 		size = 1000
@@ -657,4 +683,64 @@ function plot_block_reduced(B,p;title="plot_full")
 		savefig(pl,string(path,title,"_",titles[I],"_",four[fo] ? "four" : "dir",".png"))
 		# px("Plot of ",title," ",titles[I]," done")
 	end
+end
+
+function eval_blocks(B_four,funs,p)
+	ars = []
+	for I=1:length(funs)
+		h = []
+		for m=1:4
+			ψ = eval_fun_to_plot(B_four[m],funs[I],p.plots_n_motifs,p.plots_res,p)
+			push!(h,ψ)
+		end
+		push!(ars,h)
+	end
+	ars
+end
+
+function plot_block_article(B_four,p;title="plot_full",other_block=-1)
+	funs = [real,imag,abs]; titles = ["real","imag","abs"]
+	n = length(funs)
+	ars = eval_blocks(B_four,funs,p)
+	if other_block!=-1 # case magnetic term with another block
+		ars2 = eval_blocks(other_block,funs,p)
+		op(x,y) = sqrt.(abs2.(x) .+ abs2.(y))
+		for i=1:3
+			ars[i] = op_two_blocks(op,ars[i],ars2[i])
+		end
+	end
+	# Computes common colorbar
+	m = minimum(minimum(ars[I][j]) for I=1:n, j=1:4)
+	M = maximum(maximum(ars[I][j]) for I=1:n, j=1:4)
+	joint_limits = (m,M)
+
+	ismag = other_block!=-1
+	# Plots functions
+	res = 700
+	X,Y = ismag ? (floor(Int,res/3),floor(Int,1.0*res)) : (floor(Int,1.2*res),floor(Int,res/8))
+	fig_colors = Figure(resolution=(X,Y),fontsize = other_block==-1 ? 17 : 35) # creates colorbar
+	# colormap ∈ [:heat,:viridis]
+	clm = :Spectral
+	# clm = :linear_bmy_10_95_c78_n256
+	hm(fi,f) = Makie.heatmap(fi,p.plots_x_axis_cart,p.plots_x_axis_cart,f,colormap=clm,colorrange=joint_limits)
+	for I=1:n
+		fig = Figure(resolution=(res,res))
+		ff1,ax1 = hm(fig[1,1],ars[I][1])
+		ff2,ax2 = hm(fig[1,2],ars[I][2])
+		ff3,ax3 = hm(fig[2,1],ars[I][3])
+		ff4,ax4 = hm(fig[2,2],ars[I][4])
+
+		for ff in [ff1,ff2,ff4]
+			hidedecorations!(ff, grid = false)
+		end
+
+		titl = string(title,"_",titles[I],"_cart")
+		save(string(p.article_path,titl,".pdf"),fig)
+		Colorbar(fig_colors[1,1],ax1,vertical=(other_block!=-1),flipaxis=(other_block!=-1)) # records colorbar. flipaxis to have ticks down the colormap
+	end
+
+	# Saves colorbar
+	titl = string(p.article_path,title,"_colorbar.pdf")
+	save(titl,fig_colors)
+	px("Done ploting article ",title)
 end

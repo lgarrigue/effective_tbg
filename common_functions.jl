@@ -1,4 +1,4 @@
-using Plots#, LaTeXStrings
+# using Plots#, LaTeXStrings
 px = println
 
 import Base.+  
@@ -43,6 +43,14 @@ function init_cell_vectors(p;rotate=false) # needs a
 	a2s_unit = [ sqrt(3)/2; 1/2]
 	pref = 4π/(p.a*sqrt(3))
 	p.a1_star,p.a2_star = pref.*(a1s_unit,a2s_unit)
+
+
+	a1s_unit = [ sqrt(3)/2; 1/2]
+	a2s_unit = [-sqrt(3)/2; 1/2]
+	pref = 4π/(p.a*sqrt(3))
+	p.a1_star,p.a2_star = pref.*(a1s_unit,a2s_unit)
+
+
 	J = rotM(π/2)
 	if rotate
 		p.a1_star = -J*p.a1_star
@@ -50,12 +58,9 @@ function init_cell_vectors(p;rotate=false) # needs a
 		p.a1 = J*p.a1
 		p.a2 = J*p.a2
 	end
+	p.cell_area = sqrt(3)*0.5*p.a^2 
 
 
-	# a1s_unit = [ sqrt(3)/2; 3/2]
-	# a2s_unit = [-sqrt(3)/2; 3/2]
-	# pref = 4π/(p.a*sqrt(3))
-	# p.a1_star,p.a2_star = pref.*(a1s_unit,a2s_unit)
 
 	p.K_red = [-1/3;1/3]
 end
@@ -72,20 +77,19 @@ fill2d(x,n) = [copy(x) for i=1:n, j=1:n]
 fill1d(x,n) = [copy(x) for i=1:n]
 init_vec(p) = fill2d(zeros(ComplexF64,p.N,p.N),4)
 
-cyclic_conv(a,b) = prod(size(a))*fft(ifft(a).*ifft(b))
+cyclic_conv(a,b,Vol) = myfft(myifft(a,Vol).*myifft(b,Vol),Vol)/sqrt(Vol)
 
 function scaprod(ϕ,ψ,p,four=true)
 	d = length(size(ϕ))
 	@assert d==length(size(ψ))
 	dVol = d==1 ? p.dx : d==2 ? p.dS : p.dv
-	four_coef = d==1 ? p.N : d==2 ? p.N2d : p.N3d
-	dVol*(four ? four_coef : 1)*ϕ⋅ψ
+	(four ? 1 : dVol)*ϕ⋅ψ
 end
 
 function test_scaprod_fft_commutation(p)
-	ϕ = randn(p.N,p.N)
-	ψ = randn(p.N,p.N)
-	c = scaprod(ϕ,ψ,p,false) - scaprod(myfft(ϕ),myfft(ψ),p)
+	ϕ = randn(p.N,p.N,p.N)
+	ψ = randn(p.N,p.N,p.N)
+	c = scaprod(ϕ,ψ,p,false) - scaprod(myfft(ϕ,p.Vol),myfft(ψ,p.Vol),p)
 	px("Test scalar product ",c)
 end
 
@@ -338,25 +342,25 @@ end
 
 ######################## Fourier transforms
 # If a_i = f(x_i) are the true values of function f in direct space, then myfft(f) gives the true Fourier coefficients
-# where (𝔽f)_m := 1/|Ω| ∫_Ω f(x) e^{-ima^*x} dx are those coefficients, actually myfft(a)[m] = (𝔽f)_{m-1}
-myfft(f) = fft(f)/length(f)
-myifft(f) = ifft(f)*length(f)
+# where (𝔽f)_m := 1/sqrt(|Ω|) ∫_Ω f(x) e^{-ima^*x} dx are those coefficients, actually myfft(a)[m] = (𝔽f)_{m-1}
+myfft(f,Vol) = fft(f)*sqrt(Vol)/length(f)
+myifft(f,Vol) = ifft(f)*length(f)/sqrt(Vol)
 
 ######################## Plot function 1d
 
-function red_arr2fun_red_1d(ψ_four) 
+function red_arr2fun_red_1d(ψ_four,vol) 
 	N = length(ψ_four)
 	k_axis = fftfreq(N)*N
 	f(x) = 0
 	for i=1:N
-		g(x) = ψ_four[i] * cis(2π*k_axis[i]*x)
+		g(x) = ψ_four[i] * cis(2π*k_axis[i]*x)/sqrt(vol)
 		f = f + g
 	end
 	f
 end
 
-function eval_fun_to_plot_1d(ψ_four,res)
-	f = red_arr2fun_red_1d(ψ_four) 
+function eval_fun_to_plot_1d(ψ_four,res,vol)
+	f = red_arr2fun_red_1d(ψ_four,vol)
 	real.(f.((0:res-1)/res))
 end
 

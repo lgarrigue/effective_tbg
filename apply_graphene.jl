@@ -5,9 +5,9 @@ include("graphene.jl")
 function produce_bloch_functions_and_potentials()
 	p = Params() # stores all we need to store
 	# Choose parameters
-	p.ecut = 5 # DFTK's ecut, convergence of u's for ecut ≃ 15
-	px("ecut ",p.ecut)
 	p.a = 4.66 # length of the vectors of the fundamental cell
+	p.ecut = 120*norm_K_cart(p.a)^2 # DFTK's ecut, convergence of u's for ecut ≃ 15
+	px("ecut ",p.ecut)
 	p.interlayer_distance = 6.45 # distance between the two layers
 	p.L = 20 # periodicity in z (both for mono and bilayer computations)
 	p.i_state = 4 # u1 will be the i^th eigenmode, u1 the (i+1)^th, u0 the (i-1)^th
@@ -15,7 +15,9 @@ function produce_bloch_functions_and_potentials()
 	p.tol_scf = 1e-4
 	p.plots_cutoff = 3 # Fourier cutoff for plots
 	init_params(p)
+	p.Nint = 2
 	compute_Vint = false
+	p.export_plots_article = true
 
 	px("Computes the Kohn-Sham potential of the monolayer")
 	scfres = scf_graphene_monolayer(p)
@@ -33,22 +35,19 @@ function produce_bloch_functions_and_potentials()
 
 	(Mu1,Tu1) = (M(p.u0_fb,p),τ(p.u0_fb,p.shift_K,p))
 	px("MΦ0 = Φ0 ",norm(Mu1.-Tu1)/norm(Mu1))
+	plot_mean_V(p)
 
+	test_scaprod_fft_commutation(p)
 	# Tests normalization
 	px("Normalization of u1 Fourier: ",norms(p.u1_fc,p))
 	px("Normalization of u1 direct: ",norms(p.u1_dir,p,false))
 	px("Orthonormality |<u1,u2>|= ",abs(scaprod(p.u1_fc,p.u2_fc,p)) + abs(scaprod(p.u1_dir,p.u2_dir,p,false)))
-	px("Potential energy of u1 <u1,V u1> in Fourier: ",scaprod(p.u1_fc,cyclic_conv(p.u1_fc,p.v_monolayer_fc),p))
+	px("Potential energy of u1 <u1,V u1> in Fourier: ",scaprod(p.u1_fc,cyclic_conv(p.u1_fc,p.v_monolayer_fc,p.Vol),p))
 
 	# Computes the Fermi velocity
 	# p.v_fermi = get_fermi_velocity_with_finite_diffs(4,p) # Computing dE/dk with diagonalizations of H(k), should get 0.380 or 0.381
 	# fermi_velocity_from_rotated_us(p) # Doing scalar products
-
-	# Fermi velocity from derivation
-	(∂1_u2_f,∂2_u2_f,∂3_u2_f) = ∇(p.u2_fc,p)
-	c1 = im*scaprod(p.u1_fc,∂1_u2_f,p,true); c2 = im*scaprod(p.u1_fc,∂2_u2_f,p,true)
-	px("i<u1,∇r u2> = [",c1,",",c2,"] ; ratio ",c1/c2," ; |c1|=",abs(c1)," ; |c2|=",abs(c2))
-	p.v_fermi = abs(c1)
+	records_fermi_velocity_and_fixes_gauge(p) 
 
 	# Symmetry tests
 	if true
@@ -77,7 +76,7 @@ function produce_bloch_functions_and_potentials()
 
 	# Computes Vint (expensive in time)
 	if compute_Vint
-		px("Computes the Kohn-Sham potential of the bilayer at each disregistry (long step): ",p.N,"×",p.N,"=",p.N2d," steps")
+		px("Computes the Kohn-Sham potential of the bilayer at each disregistry (long step): ",p.Nint,"×",p.Nint,"=",p.Nint^2," steps")
 		# p.V_bilayer_Xs_fc = randn(p.N,p.N,p.Nz)
 		compute_V_bilayer_Xs(p)
 		# Computes Vint(Xs,z)
@@ -87,7 +86,7 @@ function produce_bloch_functions_and_potentials()
 		# Computes the dependency of Vint_Xs on Xs
 		computes_δ_Vint(Vint_Xs_fc,p.Vint_f,p)
 		# Plots, exports, tests
-		p.Vint_dir = real.(myifft(p.Vint_f))
+		p.Vint_dir = real.(myifft(p.Vint_f,p.L))
 		test_z_parity(p.Vint_dir,1,p;name="Vint")
 		export_Vint(p)
 		plot_Vint(p)

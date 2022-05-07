@@ -1,18 +1,25 @@
 include("band_diagrams_bm_like.jl")
+using DelimitedFiles
 
 #################### Second step : compute the effective potentials 𝕍, 𝕎, 𝔸, etc. Very rapid
 
 function computes_and_plots_effective_potentials()
 	# Parameters
 	# N = 8; Nz = 27
+	# N = 9;  Nz = 32 # has Vint
 	# N = 9;  Nz = 36
 	# N = 12; Nz = 45
+	# N = 15; Nz = 54
 	# N = 15; Nz = 60
 	# N = 20; Nz = 72
 	# N = 24; Nz = 90
 	# N = 24; Nz = 96
-	N = 32; Nz = 135 # ecut 50
+	# N = 25; Nz = 108 # ecut 40|Kd|^2
+	# N = 30; Nz = 120 # ecut 50|Kd|^2 which blocks because of a bug on DFTK
+	# N = 32; Nz = 135 # ecut 50
 	# N = 40; Nz = 160
+	# N = 40; Nz = 180 # <-- Ecut = 100 |kD|^2
+	N = 45; Nz = 180 # ecut 120|Kd|^2
 	# N = 45; Nz = 192
 	# N = 48; Nz = 200
 
@@ -23,6 +30,7 @@ function computes_and_plots_effective_potentials()
 	p.plots_n_motifs = 6
 	produce_plots = false
 	p.compute_Vint = false
+	p.plot_for_article = true
 
 	# Initializations
 	import_u1_u2_V_φ(N,Nz,p)
@@ -30,12 +38,15 @@ function computes_and_plots_effective_potentials()
 	init_EffPot(p)
 	# px("Test norm ",norms3d(p.u1_dir,p,false)," and in Fourier ",norms3d(p.u1_f,p))
 
-	optimize_gauge_and_create_T_BM_with_θ_α(false,p)
-	optimize_gauge_and_create_T_BM_with_α(true,p)
-
-	plot_block_reduced(p.T_BM,p;title="T")
-	p.add_non_local_W = true
 	build_blocks_potentials(p) # computes Wplus, 𝕍_V and Σ
+	compare_to_BM_infos(p.𝕍_V,p,"V_V")
+	optimize_gauge_and_create_T_BM_with_α(true,p) # optimizes on α only, not on the global phasis, which was already well-chosen before at the graphene.jl level
+
+	build_blocks_potentials(p) # computes Wplus, 𝕍_V and Σ
+	compare_to_BM_infos(p.𝕍_V,p,"V_V")
+
+	# plot_block_reduced(p.T_BM,p;title="T")
+	p.add_non_local_W = true
 	px("Distance between Σ and T_BM ",relative_distance_blocks(p.Σ,p.T_BM)) # MAYBE NOT PRECISE !
 	px("Distance between V_V and T_BM ",relative_distance_blocks(p.𝕍_V,p.T_BM))
 
@@ -43,25 +54,41 @@ function computes_and_plots_effective_potentials()
 	px("Comparision to BM")
 	compare_to_BM_infos(p.𝕍_V,p,"V_V") # normal that individual blocks distances are half the total distance because there are two blocks each time
 	compare_to_BM_infos(p.Σ,p,"Σ")
-
 	build_block_𝔸(p) # computes 𝔸
-	# plot_block_cart(p.𝕍_V,p;title="V_V")
-	# plot_block_cart(p.Wplus,p;title="W_plus")
+
+
+	means_W_V = [p.W_V_plus[i][1,1] for i=1:4]/sqrt(p.cell_area)
+	W_V_without_mean = add_cst_block(p.W_V_plus,-1*means_W_V,p)
+	px("Mean W_V_plus (in Fourier) :")
+	display(means_W_V)
+	# plot_block_article(W_V_without_mean,p;title="W_V_plus_without_mean")
+
 	# plot_block_cart(p.Σ,p;title="Σ")
-	# plot_block_reduced(p.𝕍,p;title="V")
+	plot_block_cart(p.𝕍_V,p;title="V_V")
 	# plot_block_cart(p.T_BM,p;title="T")
 	# p.𝕍 = app_block(J_four,p.𝕍,p) # rotates T of J and rescales space of sqrt(3)
 	# test_equality_all_blocks(p.Wplus_tot,p;name="W")
-	plot_block_cart(p.W_non_local_plus,p;title="W_nl_plus")
+	# plot_block_cart(p.W_non_local_plus,p;title="W_nl_plus")
 
 	# testit(p)
 
 	px("\nW_Vint matrix")
 	display(p.W_Vint_matrix)
 
+	# Plots for article
+	plot_block_article(p.T_BM,p;title="T")
+	plot_block_article(p.𝕍_V,p;title="V_V")
+	if p.compute_Vint plot_block_article(p.𝕍_Vint,p;title="V_Vint") end
+	plot_block_article(p.Σ,p;title="Σ")
+	plot_block_article(p.W_non_local_plus,p;title="W_nl_plus")
+	plot_block_article(p.𝔸1*1/2,p;title="A",other_block=p.𝔸2*1/2)
+
+
+	####################### Symmetries
+	# Tests z parity
 	test_z_parity(p.u1_dir,-1,p;name="u1")
 	test_z_parity(p.u2_dir,-1,p;name="u2")
-	test_z_parity(p.v_dir,1,p;name="Vks")
+	test_z_parity(p.v_dir,1,p; name="Vks")
 
 	# Particle-hole
 	px("\nTests particle-hole symmetry")
@@ -139,17 +166,25 @@ function computes_and_plots_effective_potentials()
 		plot_block_reduced(p.𝔸2,p;title="A2")
 
 		# Plots in cartesian coordinates
-		plot_block_cart(p.T_BM,p;title="T")
-		plot_block_cart(p.Wplus,p;title="W_plus")
+		plot_block_cart(p.T_BM,p;title="T",article=true)
+
+		# W
+		plot_block_cart(p.W_V_plus,p;title="W_V_plus",article=true)
+		plot_block_cart(p.W_V_minus,p;title="W_V_minus")
+
+		plot_block_cart(p.W_non_local_plus,p;title="W_nl_plus",article=true)
+		plot_block_cart(p.W_non_local_minus,p;title="W_nl_moins")
+
 		plot_block_cart(p.Wplus_tot,p;title="W_plus_tot")
-		plot_block_cart(p.Wminus,p;title="W_minus")
+
+		# V
 		plot_block_cart(p.𝕍,p;title="V")
-		plot_block_cart(p.𝕍_V,p;title="V_V")
-		plot_block_cart(p.𝕍_Vint,p;title="V_Vint")
-		plot_block_cart(p.Σ,p;title="Σ")
-		plot_block_cart(p.W_non_local_plus,p;title="W_nl_plus")
-		plot_block_cart(p.W_non_local_moins,p;title="W_nl_moins")
-		plot_magnetic_block_cart(p.𝔸1,p.𝔸2,p;title="A") 
+		plot_block_cart(p.𝕍_V,p;title="V_V",article=true)
+		plot_block_cart(p.𝕍_Vint,p;title="V_Vint",article=true)
+
+		# Σ and A
+		plot_block_cart(p.Σ,p;title="Σ",article=true)
+		plot_magnetic_block_cart(p.𝔸1,p.𝔸2,p;title="A",article=true)
 		# plot_magnetic_block_cart(p.𝔹1,p.𝔹2,p;title="B") 
 		# plot_block_cart(p.𝔹1,p;title="B1")
 		# plot_block_cart(p.𝔹2,p;title="B2")
@@ -160,26 +195,31 @@ end
 
 function explore_band_structure_BM()
 	p = Basis()
-	p.N = 7
+	p.N = 15
 	p.a = 4. # decreasing a makes band energies increase
-	p.l = 12 # number of eigenvalues we compute
+	p.l = 8 # number of eigenvalues we compute
 	init_basis(p)
 	α = 0.0 # anti-chiral / AA stacking weight
 	p.resolution_bands = 4
 	p.energy_unit_plots = "Hartree"
 	p.folder_plots_bands = "bands_BM"
 	p.energy_center = 0
-	p.energy_scale = 1.8
+	p.energy_scale = 0.2
 	p.solver = "Exact"
 	mult_by_vF = true
 	p.coef_derivations = 1
+
+	T = V_offdiag_matrix(build_BM(0,1,p;scale=true),p)
+	plot_heatmap(imag.(T).+real.(T),"T_BM",p)
+	plot_heatmap(real.(Dirac_k([0,0],p)),"free_dirac",p)
+
 	# 1° × 2π/360 = 0.017 rad
 	# for β in vcat((0.1:0.1:1)) # chiral / AB stacking weight
 	# for β in (0:0.05:1.2)
 	# for β in vcat((0:0.05:1.2),(0.85:0.01:1)) # chiral / AB stacking weight
-	for β in (0:0.1:7)
+	for β in (0:0.1:5)
 		print(" ",β)
-		T = V_offdiag_matrix(build_BM(α,β,p;scale=false),p)
+		T = V_offdiag_matrix(build_BM(α,β,p;scale=true),p)
 		Kdep(k_red) = Dirac_k(k_red,p)
 		plot_band_structure(T,Kdep,β,p)
 	end
@@ -296,9 +336,9 @@ function explore_band_structure_Heff()
 	end
 end
 
-# computes_and_plots_effective_potentials()
+computes_and_plots_effective_potentials()
 # explore_band_structure_Heff()
-explore_band_structure_BM()
+# explore_band_structure_BM()
 # explore_free_graphene_bands()
 nothing
 

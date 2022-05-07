@@ -3,7 +3,7 @@ include("common_functions.jl")
 include("misc/create_bm_pot.jl")
 # include("misc/plot.jl")
 include("effective_potentials.jl")
-using LinearAlgebra, JLD, FFTW
+using LinearAlgebra, JLD, FFTW, Plots
 
 mutable struct Basis
 	# Parameters of the 2d cell
@@ -13,6 +13,7 @@ mutable struct Basis
 	k_axis; k_grid
 	K_red
 	N
+	cell_area
 
 	# Useless parameters
 	Nz; L; dz
@@ -35,6 +36,7 @@ mutable struct Basis
 	root_path
 	energy_center; energy_scale
 	folder_plots_bands
+	folder_plots_matrices
 	resolution_bands
 	energy_unit_plots # ∈ ["eV","Hartree"]
 	hartree_to_ev
@@ -53,6 +55,10 @@ function init_basis(p)
 	p.k_axis = Int.(fftfreq(p.N)*p.N)
 	p.root_path = "band_diagrams_bm_like/"
 	create_dir(p.root_path)
+
+	p.folder_plots_matrices = "matrices/"
+	path2 = string(p.root_path,p.folder_plots_matrices)
+	create_dir(path2)
 	p.rotate_cell = false
 	init_cell_vectors(p;rotate=p.rotate_cell)
 	p.S = nothing
@@ -85,6 +91,9 @@ reload_a(p) = init_cell_vectors(p;rotate=p.rotate_cell)
 
 ######################### Main functions, to plot band diagrams
 
+
+
+
 function plot_band_structure(Hv,Kdep,name,p)
 	Γ = [0,0.0]
 	K = p.K_red
@@ -97,7 +106,7 @@ function plot_band_structure(Hv,Kdep,name,p)
 	D = Γ
 	Klist = [A,B,C,M,D]; Klist_names = ["A","B","C","M","D"]
 	# Klist = [K,Γ,M]; Klist_names = ["K","Γ","M"]
-	# Klist = [Γ,K,M]; Klist_names = ["Γ","K","M"]
+	Klist = [Γ,K,M]; Klist_names = ["Γ","K","M"]
 	# Klist = [Γ,M,K]; Klist_names = ["M","K","Γ"]
 
 
@@ -118,15 +127,8 @@ function do_one_value(HvK,p)
 	savefig(pl,"spectrum_K.png")
 end
 
-######################### Coordinates change
 
-function init_klist2(p)
-	p.k2lin = []
-	for c_lin=1:p.Mfull
-		(i,pix,piy) = lin2coord(c_lin,p)
-		push!(p.k2lin,p.k_axis[pix]^2 + p.k_axis[piy]^2)
-	end
-end
+######################### Coordinates change
 
 function lin2coord(c_lin,p)
 	ci = p.Ci_tot[c_lin]
@@ -142,21 +144,21 @@ k_axis(pix,piy,p) = (p.k_axis[pix],p.k_axis[piy])
 vec2C(k) = k[1]+im*k[2]
 
 # pix,piy is a 2d moment (the labels) in reduced coords
-function coords_ik2full_i(mi1,mi2,p)
+function coords_ik2full_i_lllll(mi1,mi2,p)
 	if p.double_dirac
 		return (p.Li_tot[1,mi1,mi2],p.Li_tot[2,mi1,mi2],p.Li_tot[3,mi1,mi2],p.Li_tot[4,mi1,mi2])
 	else
 		return (p.Li_tot[1,mi1,mi2],p.Li_tot[2,mi1,mi2])
 	end
 end
-# k_inv(m,p) = Int(mod(m,p.N))+1
+
+function coords_ik2full_i(mi1,mi2,p)
+	(p.Li_tot[1,mi1,mi2],p.Li_tot[2,mi1,mi2],p.Li_tot[3,mi1,mi2],p.Li_tot[4,mi1,mi2])
+end
+
+
 
 ######################### Functions coordinates change
-
-pot2four(V) = [fft(V[i,j]) for i=1:4, j=1:4]
-four2pot(V) = [ifft(V[i,j]) for i=1:4, j=1:4]
-shift_pot(V) = [fftshift(V[i,j]) for i=1:4, j=1:4]
-four2dir(ψ_four) = [ifft(ψ_four[i]) for i=1:4]
 
 # from the solution of LOBPCG ψ_lin[4*p.N^2] to 4 vectors containing the fourier transforms
 function lin2four(ψ_lin,p) 
@@ -166,6 +168,14 @@ function lin2four(ψ_lin,p)
 		ψ_four[i][pix,piy] = ψ_lin[lin]
 	end
 	ψ_four
+end
+
+function init_klist2(p)
+	p.k2lin = []
+	for c_lin=1:p.Mfull
+		(i,pix,piy) = lin2coord(c_lin,p)
+		push!(p.k2lin,p.k_axis[pix]^2 + p.k_axis[piy]^2)
+	end
 end
 
 ######################### Derivation operators
@@ -190,6 +200,7 @@ function Dirac_k(κ,p) # κ in reduced coordinates, κ_cart = κ_red_1 a1_star +
 	# test_hermitianity(H,"Kinetic Dirac part")
 	Hermitian(H)
 end
+
 
 # Creates (-i∇+k)^2 𝕀_{4×4}
 function mΔ(k,p)
@@ -258,7 +269,7 @@ function V_offdiag_matrix(v0,p) # v = [v1,v2,v3,v4] = mat(v1 & v2 \\ v3 & v4), F
 	# test_part_hole_sym_matrix(H,p,"H")
 	# save_H(H,"potential_V",p)
 	# display([H[mod1(x,p.Mfull),mod1(y,p.Mfull)] for x=1:30, y=1:30])
-	Hermitian(H)
+	Hermitian(H)/sqrt(p.cell_area)
 end
 
 # Creates [Vp  0 ]
@@ -483,8 +494,8 @@ function spectrum_on_a_path(Hv,Kdep,Klist,p)
 	for Ki=1:n
 		K0 = Klist[Ki]; K1 = Klist[mod1(Ki+1,n)]
 		path = [(1-t/res)*K0 .+ (t/res)*K1 for t=0:res-1]
-		Threads.@threads for s=1:res
-		# for s=1:res
+		# Threads.@threads for s=1:res
+		for s=1:res
 			HvK = Hv + Kdep(path[s])
 			# px("K ",K0," ",K1)
 			# test_hermitianity(HvK,"Hvk")
@@ -519,9 +530,9 @@ function plot_band_diagram(graphs,Klist,Knames,p;K_relative=[0.0,0.0])
 		push!(starts_x,end_x)
 		end_x += res*dx
 	end
-	pl = plot(size=(1000,1100),ylims=ylims,legend=false) #:topright)
+	pl = Plots.plot(size=(1000,1100),ylims=ylims,legend=false) #:topright)
 	for l=1:p.n_l
-		plot!(pl,x_list,graphs[:,l]*energy_factor(p),xticks=nothing)
+		Plots.plot!(pl,x_list,graphs[:,l]*energy_factor(p),xticks=nothing)
 	end
 	colors = [:green,:cyan,:blue,:red,:yellow]
 	if length(colors) < length(Knames)
@@ -529,8 +540,8 @@ function plot_band_diagram(graphs,Klist,Knames,p;K_relative=[0.0,0.0])
 	end
 	for Ki=1:n
 		x = starts_x[Ki]
-		plot!(pl,[x], seriestype="vline", label=Knames[Ki], color=colors[Ki])
-		annotate!(x+0.01, ylims[1]+(ylims[2]-ylims[1])/20, text(Knames[Ki], colors[Ki], :left, 20))
+		Plots.plot!(pl,[x], seriestype="vline", label=Knames[Ki], color=colors[Ki])
+		annotate!(x+0.01, ylims[1]+(ylims[2]-ylims[1])/20, Plots.text(Knames[Ki], colors[Ki], :left, 20))
 	end
 	pl
 end
@@ -593,6 +604,158 @@ function plots_BM_pot(α,β,p)
 	plotVbm(Vbm_four,Vbm_direct,p)
 end
 
+########################## Plot Hamiltonians an other matrices
+
+function swap_table(M) # to have the matrix representation where [1,1] is on the top left
+	n = size(M,2); m = size(M,1)
+	[M[m-j+1,i] for i=1:n, j=1:m]
+end
+
+function verification_heatmap(p)
+	M = [1 2;3 4]
+	plot_heatmap(M,"test_heatmap")
+end
+
+function plot_heatmap(M,name,p)
+	if sum(abs.(M))<1e-10
+		px("Makie heatmap is not able to plot colorbars of 0 matrices")
+		return 0
+	end
+	fig = Figure()
+	f, ax = Makie.heatmap(fig[1,1],swap_table(M))
+	Colorbar(fig[1,2], ax)
+	path = string(p.root_path,p.folder_plots_matrices)
+	save(string(path,name,".png"),fig)
+end
+
 ######################### Low level functions
 
 init_vec(p) = fill2d(zeros(ComplexF64,p.N,p.N),4)
+
+
+######################### Archive of another implementation, not used
+
+# Creates [σ(-i∇+k)        0]
+#         [0        σ(-i∇+k)]
+function Dirac_k2(k,p) # κ in reduced coordinates, κ_cart = κ_red_1 a1_star + κ_red_2 a2_star
+	n = p.Mfull
+	H = zeros(ComplexF64,n,n)
+	for mi1=1:p.N, mi2=1:p.N
+		v = [mi1,mi2]
+		D = build_block_Dirac(v,k,p)
+		fill_block_m(v,v,H,D,p)
+	end
+	# test_hermitianity(H,"Dirac_k")
+	Hermitian(H)
+end
+
+# A is a Mfull×Mfull matrix, B is a 4×4 matrix, m and n are in [1,p.N]^2 and correspond to the Fourier labels
+function fill_block_m(m,n,A,B,p)
+	I = im2ilin(m,p)
+	J = im2ilin(n,p)
+	for i=0:3, j=0:3
+		A[I+i,J+j] = B[i+1,j+1]
+	end
+end
+
+# builds a block 4×4 with
+#  [σ(-i∇+ka*)        0]
+#  [0        σ(-i∇+ka*)]
+function build_block_Dirac(mi,k,p)
+	(m1,m2) = k_axis(mi[1],mi[2],p)
+	c = vec2C((m1+k[1])*p.a1_star + (m2+k[2])*p.a2_star)
+	cc = conj(c)
+	[0 cc 0 0 ;
+	 c 0  0 0 ;
+	 0 0  0 cc;
+	 0 0  c 0  ]
+end
+
+function k_inv_new_1d(m,p)
+	if -1 ≤ m ≤ 1
+		return mod(m,p.N)+1
+	end
+	return nothing
+end
+
+
+# Creates [0  𝕍]
+#         [𝕍* 0]
+function V_at_mi(i,j,V)
+	[0                   0                    V[1][i,j] V[2][i,j];
+	 0                   0                    V[3][i,j] V[4][i,j];
+	 conj(V[1][i,j]) conj(V[3][i,j])  0             0            ;
+	 conj(V[2][i,j]) conj(V[4][i,j])  0             0             ]
+end
+
+function swap2(M) # to have the matrix representation where [1,1] is on the top left
+	n = size(M,2); m = size(M,1)
+	[M[m-i+1,j] for i=1:m, j=1:n]
+end
+
+function V_offdiag_matrix2(V,p)
+	n = p.Mfull
+	H = zeros(ComplexF64,n,n)
+	for mi1=1:p.N, mi2=1:p.N, ni1=1:p.N, ni2=1:p.N
+		Mi = [mi1,mi2]; Ni = [ni1,ni2]
+
+		# (ℓi1,ℓi2) = k_inv(mi[1]-ni[1],mi[2]-ni[2],p)
+		ℓi1 = k_inv_new_1d(mi1-ni1,p)
+		ℓi2 = k_inv_new_1d(mi2-ni2,p)
+		if ℓi1!= nothing && ℓi2 != nothing
+			block = V_at_mi(ℓi1,ℓi2,V)
+		else
+			block = zeros(ComplexF64,4,4)
+		end
+
+		fill_block_m(Mi,Ni,H,block,p)
+	end
+	H = swap2(H)
+	test_hermitianity(H,"V")
+	H
+	# Hermitian(H)
+end
+
+
+function test_fill_block(V,p)
+	H = zeros(ComplexF64,p.Mfull,p.Mfull)
+	Mi = [1,2]; Ni = [3,1]
+	v = V_at_mi(1,2,V)
+	fill_block_m(Mi,Ni,H,v,p)
+	plot_heatmap(imag.(H)+real.(H),"test_fill")
+end
+
+
+
+
+function heatmap_of_coords(p) # heatmaps of m1-n1 and of m2-n2
+	coord1y = [ilin2im(j,p)[1] for i=1:p.Mfull, j=1:p.Mfull]
+	coord1x = [ilin2im(i,p)[1] for i=1:p.Mfull, j=1:p.Mfull]
+	coord2y = [ilin2im(j,p)[2] for i=1:p.Mfull, j=1:p.Mfull]
+	coord2x = [ilin2im(i,p)[2] for i=1:p.Mfull, j=1:p.Mfull]
+	plot_heatmap(coord1y,"coord1")
+	plot_heatmap(coord2y,"coord2")
+	diffs_first1 = [coord1x[i,j]-coord1y[i,j] for i=1:p.Mfull, j=1:p.Mfull]
+	diffs_first2 = [coord2x[i,j]-coord2y[i,j] for i=1:p.Mfull, j=1:p.Mfull]
+	plot_heatmap(diffs_first2,"diffs_first2")
+	plot_heatmap(diffs_first1,"diffs_first1")
+end
+##### New coordinates change
+
+# from label of Fourier to label of the full matrix, gives the label of the left coefficient
+im2ilin(m,p) = 1+4*((m[1]-1)*p.N+(m[2]-1))
+
+function ilin2im(i,p) # inverse of im2ilin
+	m1 = floor(Int,mod(i-1,4*p.N)/4) +1
+	m2 = floor(Int,(i-1)/(4*p.N)) +1
+	(m1,m2)
+end
+
+function test_it(p)
+	init = [i for i=1:p.Mfull]
+	deux = [ilin2im(i,p)[1] for i=1:p.Mfull]
+	trois = [ilin2im(i,p)[2] for i=1:p.Mfull]
+	px(init,"\n",deux,"\n",trois)
+end
+
+

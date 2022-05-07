@@ -167,11 +167,12 @@ We also recall that $\int_\R e^{ipz} \d z = 2\pi \delta(p)$.
 
 Now we consider that $f$ and $g$ are $L$-periodic in $z$, and $\int_\R \d z \simeq \int_{[0,L]} \d z$ so the Fourier transform is
 \begin{align*}
-	\boxed{\pa{\cF f}_{m,m_z} := \f{1}{L\ab{\Omega}} \int_{\Omega\times [0,L]} e^{-i\pa{ma^* \bx + m_z \f{2\pi}{L} z}} f(\bx,z) \d \bx \d z}
+	\boxed{\pa{\cF f}_{m,m_z} := \f{1}{\Gamma} \int_{\Omega\times [0,L]} e^{-i\pa{ma^* \bx + m_z \f{2\pi}{L} z}} f(\bx,z) \d \bx \d z}
 \end{align*}
+where $\Gamma := \sqrt{L\ab{\Omega}}$
 and the reconstruction formula is
 \begin{align}\label{eq:dec_four}
-\boxed{f(\bx,z) =  \sum_{\substack{\bmm \in \Z^2 \\ m_z \in \Z}}  e^{i\pa{\bmm \ba^* \cdot \bx + m_z \f{2\pi}L z}} \widehat{f}_{\bmm,m_z}}
+\boxed{f(\bx,z) =  \sum_{\substack{\bmm \in \Z^2 \\ m_z \in \Z}}  \f{e^{i\pa{\bmm \ba^* \cdot \bx + m_z \f{2\pi}L z}}}{\Gamma} \widehat{f}_{\bmm,m_z}}
 \end{align}
 We define the scalar product
 \begin{align*}
@@ -179,16 +180,16 @@ We define the scalar product
 \end{align*}
 and compute Plancherel's formula
 \begin{align}\label{eq:plancherel}
-\ps{f,g} = L\ab{\Omega} \sum_{\substack{\bmm \in \Z^2 \\ m_z \in \Z}} \overline{\widehat{f}_{\bmm,m_z}} \widehat{g}_{\bmm,m_z}.
+\ps{f,g} = \sum_{\substack{\bmm \in \Z^2 \\ m_z \in \Z}} \overline{\widehat{f}_{\bmm,m_z}} \widehat{g}_{\bmm,m_z}.
 \end{align}
 Hence, as a verification, we test that the normalization of the $\widehat{u_j}$'s is the right one by checking that $\nor{u_j}{L^2}^2 = 1$ via \eqref{eq:plancherel}.
 
-We implement the Fourier transform
+We implement the Fourier transforms
 \begin{lstlisting}
-myfft(a) = fft(a)/length(a)
-myifft(a) = ifft(a)*length(a)
+myfft(a,B) = fft(a)*sqrt(B)/length(a)
+myifft(a) = ifft(a)*length(a)/sqrt(B)
 \end{lstlisting}
-so that if $a_i = f(x_i)$ are the actual values of the functions, then $myfft(a)[m] \simeq \pa{\cF f}_{m-1}$ up to Riemann series errors.
+where $B = \Gamma^2 = L \ab{\Omega}$ in $3d$, $B = L$ in $1d$ in $z$, and $B=\ab{\Omega}$ in $2d$ in $(x,y)$. If $a_i = f(x_i)$ are the actual values of the functions, then $myfft(a)[m] \simeq \pa{\cF f}_{m-1}$ up to Riemann series errors.
 
 
 \subsection{Rotation action}%
@@ -229,6 +230,22 @@ With the lattice $a$ defined in \eqref{eq:lattice_a}, we obtain
 
 From \cite{FanCarZhu19}, we verified that with $T=0$, we have Fig 3(a), with the right energies
 
+\subsection{Reduction of Fourier coefficients in $2d$ to $1d$}%
+\label{sub:reduction_of_fourier_coefficients_in_2d_to_1d_}
+
+This is used to compute $V\ind{int}$. We take a function $f$ and define its average
+\begin{align*}
+g(z) := \f{1}{\ab{\Omega}} \int_\Omega f
+\end{align*}
+and since
+\begin{align*}
+\widehat{f}_{0,m_z} = \f{1}{\sqrt{L \ab{\Omega}}} \int_\Omega f(x,z) e^{-i\f{2\pi}{L} m_z z} \d x \d z
+\end{align*}
+then
+\begin{align*}
+\widehat{g}_{m_z} = \f{1}{\ab{\Omega} \sqrt{L}} \int_{\Omega \times [0,L]} f(x,z) e^{-i\f{2\pi}{L} m_z z} \d x \d z = \f{\widehat{f}_{0,m_z}}{\sqrt{\ab{\Omega}}}
+\end{align*}
+
 
 
 \section{Computation of $V\ind{int}$}%
@@ -238,27 +255,27 @@ For $\bs \in \Omega := [0,1] \ba_1 + [0,1] \ba_2$, we denote by $V^{(2)}_{\bs}$ 
 \begin{align*}
 	V_{\rm int, \bs}(z) &:= \f{1}{\ab{\Omega}} \int_{\Omega}  \left( V^{(2)}_{\bs}(\bx, z) - V(\bx, z + \dd) - V(\bx - \bs, z -\dd)   \right) \d \bx \\
 	&= \f{1}{\ab{\Omega}} \int_{\Omega}  \left( V^{(2)}_{\bs}(\bx, z) - V(\bx, z + \dd) - V(\bx, z -\dd)   \right) \d \bx \\
-    &= \f{1}{\ab{\Omega}} \sum_{\substack{\bmm \in \Z^2 \\ m_z \in \Z}}  \pa{ \widehat{\pa{V^{(2)}_{\bs}}}_{\bmm,m_z} - \widehat{V}_{\bmm,m_z}e^{i m_z \f{2\pi}{L} \f{d}{2}} -\widehat{V}_{\bmm,m_z} e^{-i m_z \f{2\pi}{L} \f{d}{2}}} \\
+    &= \f{1}{\ab{\Omega}^{\f 32}} \sum_{\substack{\bmm \in \Z^2 \\ m_z \in \Z}}  \pa{ \widehat{\pa{V^{(2)}_{\bs}}}_{\bmm,m_z} - \widehat{V}_{\bmm,m_z}e^{i m_z \f{2\pi}{L} \f{d}{2}} -\widehat{V}_{\bmm,m_z} e^{-i m_z \f{2\pi}{L} \f{d}{2}}} \\
     &\qquad \qquad \times \int_{\Omega} e^{i \pa{\bmm \ba^* \cdot \bx + m_z \f{2\pi}{L} z}}\d \bx \\
-    &= \sum_{\substack{m_z \in \Z}} e^{i  m_z \f{2\pi}{L} z} \pa{ \widehat{\pa{V^{(2)}_{\bs}}}_{0,m_z} - 2 \widehat{V}_{0,m_z} \cos\pa{ m_z \tfrac{\pi d}{L} }}
+    &= \f{1}{\sqrt{\ab{\Omega}}}\sum_{\substack{m_z \in \Z}} e^{i  m_z \f{2\pi}{L} z} \pa{ \widehat{\pa{V^{(2)}_{\bs}}}_{0,m_z} - 2 \widehat{V}_{0,m_z} \cos\pa{ m_z \tfrac{\pi d}{L} }}
 \end{align*}
 and we obtain the Fourier coefficients
 \begin{align*}
-\pa{\widehat{V_{\rm{int},\bs}}}_{m_z} = \widehat{\pa{V^{(2)}_{\bs}}}_{0,m_z} - 2 \widehat{V}_{0,m_z} \cos\pa{ m_z \tfrac{\pi d}{L} }
+\pa{\widehat{V_{\rm{int},\bs}}}_{m_z} =\f{1}{\sqrt{\ab{\Omega}}} \pa{\widehat{\pa{V^{(2)}_{\bs}}}_{0,m_z} - 2 \widehat{V}_{0,m_z} \cos\pa{ m_z \tfrac{\pi d}{L} }}
 \end{align*}
 We then compute
 \begin{align*}
-V\ind{int}(z) := \f{1}{\ab{\Omega}} \int_\Omega V_{\rm int, \bs}(z) \d \bs = \f{1}{N^2} \sum_{\substack{s_x,s_y \in \intent{1,N}}} V^{\rm{array}}_{\rm int, (s_x,s_y)}(z)
+V\ind{int}(z) := \f{1}{\ab{\Omega}} \int_\Omega V_{\rm int, \bs}(z) \d \bs = \f{1}{N\ind{int}^2} \sum_{\substack{s_x,s_y \in \intent{1,N\ind{int}}}} V^{\rm{array}}_{\rm int, (s_x,s_y)}(z)
 \end{align*}
 and finally obtain the Fourier coefficients
 \begin{align*}
-\boxed{\pa{\widehat{V\ind{int}}}_{m_z} = \f{1}{N^2} \sum_{\substack{s_x,s_y \in \intent{1,N}}} \pa{\widehat{V_{\rm{int},\bs}}}_{m_z}}
+\boxed{\pa{\widehat{V\ind{int}}}_{m_z} = \f{1}{N\ind{int}^2} \sum_{\substack{s_x,s_y \in \intent{1,N\ind{int}}}} \pa{\widehat{V_{\rm{int},\bs}}}_{m_z}}
 \end{align*}
 and we expect $V_{\rm{int},\bs}$ not to depend too much on $\bs$, that is we expect that
 \begin{align*}
 	\delta_{V\ind{int}} &:= \f{\int_{\Omega\times \R} \ab{V_{\rm{int},\bs}(z) - V\ind{int}(z)}^2 \d \bs \d z}{\ab{\Omega} \int_{\R} V\ind{int}(z)^2 \d z} \\
 &= \f{\sum_{m_z} \int_{\Omega} \ab{\pa{\widehat{V_{\rm{int},\bs}}}_{m_z} - \pa{\widehat{V\ind{int}}}_{m_z}}^2 \d \bs }{\ab{\Omega} \sum_{m_z}  \pa{\widehat{V\ind{int}}}_{m_z}^2} \\
-&= \f{\sum_{s_x,s_y,m_z} \ab{\pa{\widehat{V}_{\rm{int},(s_x,s_y)}}_{m_z} - \pa{\widehat{V\ind{int}}}_{m_z}}^2 }{N^2 \sum_{m_z}  \pa{\widehat{V\ind{int}}}_{m_z}^2}
+&= \f{\sum_{s_x,s_y,m_z} \ab{\pa{\widehat{V}_{\rm{int},(s_x,s_y)}}_{m_z} - \pa{\widehat{V\ind{int}}}_{m_z}}^2 }{N\ind{int}^2 \sum_{m_z}  \pa{\widehat{V\ind{int}}}_{m_z}^2}
 \end{align*}
 is small. We also verify that $V\ind{int}(-z) = V\ind{int}(z)$.
 
@@ -269,12 +286,12 @@ is small. We also verify that $V\ind{int}(-z) = V\ind{int}(z)$.
 
 We defined
 \begin{align*}
-\db{ f, g}^{\eta,\eta'}(\bX) :=  \f{1}{\ab{\Omega}} \int_{\Omega \times \R} \overline{f}\pa{x -\eta J\bX,z- \eta\dd} g\pa{x - \eta' J \bX, z- \eta'\dd} \d \bx \d z
+\db{ f, g}^{\eta,\eta'}(\bX) :=   \int_{\Omega \times \R} \overline{f}\pa{x -\eta J\bX,z- \eta\dd} g\pa{x - \eta' J \bX, z- \eta'\dd} \d \bx \d z
 \end{align*}
 and
 \begin{multline*}
 \lAngle f, g \rAngle^{\eta,\eta'}(\bX)\\
-:=  \f{e^{i\pa{\eta-\eta'} \bK \cdot J \bX}}{\ab{\Omega}} \int_{\Omega \times \R} \overline{f}\pa{x -\eta J\bX,z-\eta \dd} g\pa{x -\eta' J \bX, z-\eta'\dd} \d \bx \d z
+:=  e^{i\pa{\eta-\eta'} \bK \cdot J \bX} \int_{\Omega \times \R} \overline{f}\pa{x -\eta J\bX,z-\eta \dd} g\pa{x -\eta' J \bX, z-\eta'\dd} \d \bx \d z
 \end{multline*}
 so $\lAngle f, g \rAngle^{\eta,\eta'} = e^{i\pa{\eta-\eta'} \bK \cdot J \bX}\db{ f, g}^{\eta,\eta'}$. Now we make the approximation
 \begin{align*}
@@ -282,26 +299,21 @@ so $\lAngle f, g \rAngle^{\eta,\eta'} = e^{i\pa{\eta-\eta'} \bK \cdot J \bX}\db{
 \end{align*}
 The situation is drawn on Figure \ref{fig:z_drawing}. The functions are defined on $[-L/2,L/2]$ but we need to integrate on the common segment, which is $[-\f{L-d}{2},\f{L-d}{2}]$, so on $[-L/2,L/2]$ to recover the initial domain.
 
-\begin{figure}
-\begin{center}
-\includegraphics[width=10cm,trim={0cm 0cm 0 10cm},clip]{common.jpeg}
-\label{fig:z_drawing}\caption{Situation on the $z$ coordinate}
-\end{center}
-\end{figure}
+
 
 
 Firstly, using the Fourier decomposition \eqref{eq:dec_four},
 \begin{align*}
-	\db{f,g}^{\eta,\eta'} &=  L \sum_{\bmm \in \Z^2} e^{i\pa{\eta-\eta'} ma^* \cdot J \bX} \sum_{m_z \in \Z} e^{i\pa{\eta-\eta'} \f{2\pi}{L} m_z \f{d}{2}} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}\\
+	\db{f,g}^{\eta,\eta'} &=   \sum_{\bmm \in \Z^2} e^{i\pa{\eta-\eta'} ma^* \cdot J \bX} \sum_{m_z \in \Z} e^{i\pa{\eta-\eta'} \f{2\pi}{L} m_z \f{d}{2}} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}\\
 & = \sum_{\bmm \in \Z^2} e^{i\pa{\eta-\eta'} ma^* \cdot J \bX} C_\bmm
 \end{align*}
 where
 \begin{align*}
-\boxed{C_\bmm := L \sum_{m_z \in \Z} e^{i\pa{\eta-\eta'} \f{d\pi}{L} m_z} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}}
+\boxed{C_\bmm := \sum_{m_z \in \Z} e^{i\pa{\eta-\eta'} \f{d\pi}{L} m_z} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}}.
 \end{align*}
-and we also define
+Remark that for any $\eta, \eta' \in \{\pm\}$, $\db{f,g}^{\eta,\eta'}$ is $2J\L$-periodic. We also define
 \begin{align*}
-C^\pm_\bmm := L \sum_{m_z \in \Z} e^{\pm i2 \f{d\pi}{L} m_z} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}
+C^\eta_\bmm := \sum_{m_z \in \Z} e^{\eta i2 \f{d\pi}{L} m_z} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}
 \end{align*}
 Then,
 \begin{align*}
@@ -359,14 +371,22 @@ so we can implement
 
 \subsection{$\bbW$'s $V\ind{int}$ term}%
 \label{sub:_bbw_s_vint_term}
-We write $V\ind{int}(z) = \sum_{m_z \in \Z} \widehat{V}\ind{int}^{m_z} e^{i \f{2\pi}L m_z z}$ hence
+We write $V\ind{int}(z) = \f{1}{\sqrt{L}} \sum_{m_z \in \Z} \widehat{V}\ind{int}^{m_z} e^{i \f{2\pi}L m_z z}$ hence
 \begin{align*}
-	\ps{u_j, V\ind{int} u_{j'}} &= \sum_{\substack{\bmm \in \Z^2 \\ m_z,m_z',M_z \in \Z}} \pa{\overline{\widehat{u}}_j}_{\bmm,m_z} \pa{\widehat{u}_{j'}}_{\bmm,m_z'}\pa{\widehat{V\ind{int}}}_{M_z} \int_z e^{iz \f{2\pi}{L} \pa{M_z + m_z'-m_z}} \\
-& = L \sum_{\substack{\bmm \in \Z^2 \\ m_z,m_z' \in \Z}} \pa{\overline{\widehat{u}}_j}_{\bmm,m_z} \pa{\widehat{u}_{j'}}_{\bmm,m_z'}\pa{\widehat{V\ind{int}}}_{m_z-m_z'} 
+	\ps{u_j, V\ind{int} u_{j'}} &= \f{1}{L^{\f 32}} \sum_{\substack{\bmm \in \Z^2 \\ m_z,m_z',M_z \in \Z}} \pa{\overline{\widehat{u}}_j}_{\bmm,m_z} \pa{\widehat{u}_{j'}}_{\bmm,m_z'}\pa{\widehat{V\ind{int}}}_{M_z} \int_z e^{iz \f{2\pi}{L} \pa{M_z + m_z'-m_z}} \\
+& = \f{1}{\sqrt{L}} \sum_{\substack{\bmm \in \Z^2 \\ m_z,m_z' \in \Z}} \pa{\overline{\widehat{u}}_j}_{\bmm,m_z} \pa{\widehat{u}_{j'}}_{\bmm,m_z'}\pa{\widehat{V\ind{int}}}_{m_z-m_z'} 
 \end{align*}
 and the matrix $M_{j,j'} := \ps{u_j, V\ind{int} u_{j'}}$ is such that $M^* = M$ and $M_{11} = M_{22}$.
 
-
+In the function $\bbV(X) = \ps{u_j,V u_i}(X)$, when $V \rightarrow V+ V\ind{int}$, we have 
+\begin{align*}
+\widetilde{\bbV}(X) = \ps{u_j,(V+V\ind{int}) u_i}(X) = \bbV(X) + \ps{u_j,V\ind{int} u_i}
+\end{align*}
+but at the level of Fourier coefficients,
+\begin{align*}
+\widehat{\widetilde{\bbV}}_0 = \widehat{\bbV}_0 + \f{\ps{u_j,V\ind{int} u_i}}{\sqrt{\ab{\Omega}}}
+\end{align*}
+so when we add it to the Fourier Hamiltonian, we should not forget to divide by $\sqrt{\ab{\Omega}}$
 
 
 
@@ -700,20 +720,20 @@ Since $\vp_{\text{Bl},s}$ is localized, we periodize it and we make the approxim
 \end{align*}
 and we define $\vp$ such that $\vp_{\text{Bl},s} = e^{i \bK \by} \vp_s$, because it is $\widehat{\vp_s}$ which is stored by DFTK, so
 \begin{align*}
-\vp_{s}(\by,z) = \sum_{\bG, G_z} e^{i\pa{\bG \by + G_z z}} \widehat{\vp}_{s,\bG,G_z}, \qquad u_j(\by,z) = \sum_{\bG, G_z} e^{i\pa{\bG \by + G_z z}} \widehat{\pa{u_j}}_{\bG,G_z}
+\vp_{s}(\by,z) = \sum_{\bG, G_z} \f{e^{i\pa{\bG \by + G_z z}}}{\Gamma} \widehat{\vp}_{s,\bG,G_z}, \qquad u_j(\by,z) = \sum_{\bG, G_z} \f{e^{i\pa{\bG \by + G_z z}}}{\Gamma} \widehat{\pa{u_j}}_{\bG,G_z}
 \end{align*}
 where $\bK$ is the Dirac point, thus
 \begin{align*}
-F_0^{\eta,j,s}(\bX) &= L\ab{\Omega}  \sum_{\bG, G_z} e^{i\pa{\bG \pa{\ba_s - 2\eta J \bX} - \eta G_z d}} \overline{\widehat{\vp}}_{s,\bG,G_z} \widehat{\pa{u_j}}_{\bG,G_z} \\
+F_0^{\eta,j,s}(\bX) &=  \sum_{\bG, G_z} e^{i\pa{\bG \pa{\ba_s - 2\eta J \bX} - \eta G_z d}} \overline{\widehat{\vp}}_{s,\bG,G_z} \widehat{\pa{u_j}}_{\bG,G_z} \\
 F^{\eta,j,s}\pa{\bX} & := F_0^{\eta,j,s}\pa{-\tfrac{3}{2} J\bX} \\
-		     &= L\ab{\Omega} \sum_{\bG, G_z} e^{i\pa{\bG \pa{\ba_s - 3\eta \bX} - \eta G_z d}} \overline{\widehat{\vp}}_{s,\bG,G_z}\widehat{\pa{u_j}}_{\bG,G_z}\\
-&= L\ab{\Omega} \sum_{\bG, G_z} e^{i\pa{\bG \pa{-\eta \f{\ba_s}3 + \bX} - \eta G_z d}} \overline{\widehat{\vp}}_{s,-\f{\eta}{3}\bG,G_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} \bG,G_z}
+		     &=  \sum_{\bG, G_z} e^{i\pa{\bG \pa{\ba_s - 3\eta \bX} - \eta G_z d}} \overline{\widehat{\vp}}_{s,\bG,G_z}\widehat{\pa{u_j}}_{\bG,G_z}\\
+&=  \sum_{\bG, G_z} e^{i\pa{\bG \pa{-\eta \f{\ba_s}3 + \bX} - \eta G_z d}} \overline{\widehat{\vp}}_{s,-\f{\eta}{3}\bG,G_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} \bG,G_z}
 \end{align*}
 has Fourier coefficients
 \begin{align*}
-	\widehat{\pa{F^{\eta,j,s}}}_{\bG} &= L\ab{\Omega} \sum_{G_z} e^{-i \eta \pa{\bG  \f{\ba_s}3 + G_z d}} \overline{\widehat{\vp}}_{s,-\f{\eta}{3}\bG,G_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} \bG,G_z} \\
-	\widehat{\pa{F^{\eta,j,s}}}_{m}& = L\ab{\Omega} \sum_{m_z} e^{-i \eta \pa{ma^*  \f{\ba_s}3 + \f{2\pi}{L} m_z d}} \overline{\widehat{\vp}}_{s,-\f{\eta}{3}m,m_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} m,m_z} \\
-& = L\ab{\Omega} \sum_{m_z} e^{-i \eta \pa{2\pi m \f{\ba^{\text{red}}_s}3 + \f{2\pi}{L} m_z d}} \overline{\widehat{\vp}}_{s,-\f{\eta}{3}m,m_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} m,m_z}
+	\widehat{\pa{F^{\eta,j,s}}}_{\bG} &=  \sum_{G_z} e^{-i \eta \pa{\bG  \f{\ba_s}3 + G_z d}} \overline{\widehat{\vp}}_{s,-\f{\eta}{3}\bG,G_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} \bG,G_z} \\
+	\widehat{\pa{F^{\eta,j,s}}}_{m}& =  \sum_{m_z} e^{-i \eta \pa{ma^*  \f{\ba_s}3 + \f{2\pi}{L} m_z d}} \overline{\widehat{\vp}}_{s,-\f{\eta}{3}m,m_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} m,m_z} \\
+& =  \sum_{m_z} e^{-i \eta \pa{2\pi m \f{\ba^{\text{red}}_s}3 + \f{2\pi}{L} m_z d}} \overline{\widehat{\vp}}_{s,-\f{\eta}{3}m,m_z} \widehat{\pa{u_j}}_{-\f{\eta}{3} m,m_z}
 \end{align*}
 
 On the functions given by DFTK, we remark that $\vp_s[m]$ given is periodic and that 
@@ -886,6 +906,10 @@ b_1 = b \mat{-1/2 \\ \sqrt{3} /2}, \qquad  b_2 = b\mat{1/2 \\ \sqrt{3}/2}, \qqua
 The $q_j$'s are
 \begin{align*}
 q^{\text{TKV}}_{2,3} = \mat{\pm\f{\sqrt 3}{2} \\ \f{1}{2}}, \qquad q^{\text{TKV}}_1 = -q^{\text{TKV}}_2 - q^{\text{TKV}}_3
+\end{align*}
+so
+\begin{align*}
+\sqrt{3} J q_{2,3}^{\text{TKV}} = \pm b_{2,1}^{*,\text{TKV}}
 \end{align*}
 and we do a rotation, $q_j := -J q^{\text{TKV}}_j$,
 \begin{align*}
