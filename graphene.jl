@@ -7,6 +7,7 @@ px = println
 
 mutable struct Params
 	### Common parameters
+	dim
 	a; a1; a2; a1_star; a2_star
 	x_axis_cart
 	dx; dS; dz; dv
@@ -18,6 +19,8 @@ mutable struct Params
 	Vol # Volume Ω×L of the direct lattice
 	Vol_recip # Volume of the reciprocal lattice
 	sqrtVol
+	lattice_2d
+	lattice_3d
 
 	N; Nz; N2d; N3d
 	n_fball # size of the Fermi ball ∈ ℕ
@@ -25,10 +28,13 @@ mutable struct Params
 
 	### Particular parameters
 	M3d # M = (a1,a2), M3d = (a1,a2,L*e3) is the lattice
+	R_four_2d # rotation of 2π/3, in Fourier labels
+	M_four_2d # mirror
+	lattice_type_2πS3 # type 2π/3 if there is a rotation of 2π/3 between a1 and a2, type π/3 otherwise
 
 	# Dirac point quantities
 	K_red_3d; K_coords_cart; K_kpt # Dirac point in several formats
-	shift_K 
+	shift_K_R; shift_K_M
 	v_fermi # Fermi velocity
 
 	### Monolayer functions
@@ -78,18 +84,19 @@ end
 norm_K_cart(a) = 4*π/(3*a)
 
 function init_params(p)
-	init_cell_vectors(p;rotate=true)
-	# Bilayer parameter
-	p.M3d = [vcat(p.a1,[0]) vcat(p.a2,[0]) [0;0;p.L]]
-	p.Vol = DFTK.compute_unit_cell_volume(p.M3d)
+	init_cell_vectors(p;moire=false)
+	# p.lattice = [vcat(p.a1,[0]) vcat(p.a2,[0]) [0;0;p.L]]
+	p.Vol = DFTK.compute_unit_cell_volume(p.lattice_3d)
 	p.Vol_recip = (2π)^3/p.Vol
-	p.recip_lattice = DFTK.compute_recip_lattice(p.M3d)
+	p.recip_lattice = DFTK.compute_recip_lattice(p.lattice_3d)
 	p.recip_lattice_inv = inv(p.recip_lattice)
 
 	# Dirac point
 	p.K_red_3d = vcat(p.K_red,[0])
 	p.K_coords_cart = k_red2cart_3d(p.K_red_3d,p)
-	p.shift_K = [-1;0;0] # (1-R_{2π/3})K = -a_1^*, shift of this vector
+	# (1-R_{2π/3})K = m a^*, shift of this vector
+	p.shift_K_R = [myfloat2int.((I-matrix_rot_red(2π/3,p))*p.K_red);0]
+	p.shift_K_M = [myfloat2int.((I-          p.M_four_2d)*p.K_red);0]
 
 	# Paths
 	p.root_path = "graphene/"
@@ -134,14 +141,12 @@ end
 
 # (Ru)_G = u_{M G} or (Ru)^D_m = u^D_{F^{-1} M F(m)}
 function R(u,p) 
-	M = [0 -1 0;1 -1 0; 0 0 1]
-	L(G) = M*G
+	L(G) = M2d_2_M3d(p.R_four_2d)*G
 	OpL(u,p,L)
 end
 
-function M(u,p) 
-	M = [0 -1 0;-1 0 0; 0 0 -1]
-	L(G) = M*G
+function M(u,p) # mirror
+	L(G) = M2d_2_M3d(p.M_four_2d)*G
 	OpL(u,p,L)
 end
 
@@ -158,10 +163,11 @@ r_translation(a,s,p) = [a[mod1(x-s[1],p.N),mod1(y-s[2],p.N),z] for x=1:p.N, y=1:
 function scf_graphene_monolayer(p)
 	p.psp = load_psp("hgh/pbe/c-q4")
 	C = ElementPsp(:C, psp=p.psp)
-	c1 = [1/3,1/3,0.0]; c2 = -c1
+	minus = p.lattice_type_2πS3 ? -1 : 1
+	c1 = [1/3,minus*1/3,0.0]; c2 = -c1
 	p.shifts_atoms = [c1,c2]
 	p.atoms = [C => [c1,c2]]
-	model = model_PBE(p.M3d, p.atoms; temperature=1e-3, smearing=Smearing.Gaussian())
+	model = model_PBE(p.lattice_3d, p.atoms; temperature=1e-3, smearing=Smearing.Gaussian())
 	basis = PlaneWaveBasis(model; Ecut=p.ecut, p.kgrid)
 	# px("Number of spin components ",model.n_spin_components)
 
@@ -236,7 +242,7 @@ function scf_graphene_bilayer(sx,sy,p)
 	atoms = [C => [c1_plus,c2_plus,c1_moins,c2_moins]]
 	n_extra_states = 1
 
-	model = model_PBE(p.M3d, atoms; temperature=1e-3, smearing=Smearing.Gaussian())
+	model = model_PBE(p.lattice_3d, atoms; temperature=1e-3, smearing=Smearing.Gaussian())
 	basis = PlaneWaveBasis(model; Ecut=p.ecut, kgrid=p.kgrid)
 	@assert (p.N,p.N,p.Nz) == basis.fft_size
 	@assert abs(p.dv - basis.dvol) < 1e-10
@@ -308,10 +314,23 @@ end
 
 ######################### Obtain the good orthonormal basis for the periodic Bloch functions at Dirac points u1 and u2
 
-function rotate_u1_and_u2(p)
+function update_u1_u2(p) # updates them from u1_fb
+	# ϕ2(x) = conj(ϕ1(-x)) ⟹ u2(x) = conj(u1(-x))
+	# # conj ∘ parity is conj in Fourier
+	p.u2_fb = conj.(p.u1_fb)
+	# Computes them in direct space
+	p.u1_dir = G_to_r(p.basis,p.K_kpt,p.u1_fb)
+	p.u2_dir = G_to_r(p.basis,p.K_kpt,p.u2_fb)
+	# Computes them in the Fourier cube
+	p.u1_fc = myfft(p.u1_dir,p.Vol)
+	p.u2_fc = myfft(p.u2_dir,p.Vol)
+	# px("LA ",norm(p.u0_fb)," ",norm(p.u1_fb)," ",norm(p.u0_dir)," ",norm(p.u1_dir)," ",norm(p.u0_fc)," ",norm(p.u1_fc))
+end
+
+function get_natural_basis_u1_and_u2(p)
 	τau = cis(2π/3)
-	(Ru1,Tu1) = (R(p.u1_fb,p),τ(p.u1_fb,p.shift_K,p))
-	(Ru2,Tu2) = (R(p.u2_fb,p),τ(p.u2_fb,p.shift_K,p))
+	(Ru1,Tu1) = (R(p.u1_fb,p),τ(p.u1_fb,p.shift_K_R,p))
+	(Ru2,Tu2) = (R(p.u2_fb,p),τ(p.u2_fb,p.shift_K_R,p))
 	d1 = Ru1.-τau*Tu1; d2 = Ru2.-τau*Tu2
 	
 	c = (norm(d1))^2
@@ -321,22 +340,12 @@ function rotate_u1_and_u2(p)
 	U = (s/abs(s))/(sqrt(1+f))*p.u1_fb + (1/sqrt(1+1/f))*p.u2_fb
 	V = (s/abs(s))/(sqrt(1+f))*p.u1_fb - (1/sqrt(1+1/f))*p.u2_fb
 
-	(RU,TU) = (R(U,p),τ(U,p.shift_K,p))
-	(RV,TV) = (R(V,p),τ(V,p.shift_K,p))
+	(RU,TU) = (R(U,p),τ(U,p.shift_K_R,p))
+	(RV,TV) = (R(V,p),τ(V,p.shift_K_R,p))
 
 	I = argmin([norm(RU.-τau *TU),norm(RV.-τau *TV)])
 	p.u1_fb = I == 1 ? U : V
-	# ϕ2(x) = conj(ϕ1(-x)) ⟹ u2(x) = conj(u1(-x))
-	# # conj ∘ parity is conj in Fourier
-	p.u2_fb = conj.(p.u1_fb)
-
-	# Computes them in direct space
-	p.u1_dir = G_to_r(p.basis,p.K_kpt,p.u1_fb)
-	p.u2_dir = G_to_r(p.basis,p.K_kpt,p.u2_fb)
-	# Computes them in the Fourier cube
-	p.u1_fc = myfft(p.u1_dir,p.Vol)
-	p.u2_fc = myfft(p.u2_dir,p.Vol)
-	# px("LA ",norm(p.u0_fb)," ",norm(p.u1_fb)," ",norm(p.u0_dir)," ",norm(p.u1_dir)," ",norm(p.u0_fc)," ",norm(p.u1_fc))
+	update_u1_u2(p)
 end
 
 ######################### Computation of Vint
@@ -426,7 +435,9 @@ function change_gauge_functions(ξ,p)
 	p.non_local_φ2_fb *= β; p.non_local_φ2_fc *= β
 end
 
+# don't use that, if it is used, then we will have RΦ1 = τ^2 Φ1 !
 function exchange_u1_u2(p)
+	px("Should not be used")
 	p.u1_fb,p.u2_fb = p.u2_fb,p.u1_fb 
 	p.u1_fc,p.u2_fc = p.u2_fc,p.u1_fc
 	p.u1_dir,p.u2_dir = p.u2_dir,p.u1_dir
@@ -438,31 +449,37 @@ function compute_scaprod_Dirac(p)
 	c1,c2
 end
 
-# the gauge is fixed such that <Φ1,(-i∇_x)Φ2> = <u1,(-i∇_x)u2> = vF[i;-1] where vF ∈ ℝ+, hence <e^(iξ) Φ1,(-i∇_x) e^(-iξ)Φ2> = e^(-2iξ) vF[i;-1]
-# this is vF[i;-1] which has to be chosen, and not another one, for our 𝕍 to look like T_BM
+# the gauge is fixed such that <Φ1,(-i∇_x)Φ2> = <u1,(-i∇_x)u2> = vF*goal where vF ∈ ℝ+, hence <e^(iξ) Φ1,(-i∇_x) e^(-iξ)Φ2> = e^(-2iξ) vF*goal
+# this is vF*goal which has to be chosen, and not another one, for our 𝕍 to look like T_BM
 function records_fermi_velocity_and_fixes_gauge(p) 
+	goal = [1;-im]
 	(c1,c2) = compute_scaprod_Dirac(p)
-	ratios = abs.([c1/c2+im,c1/c2-im]) # this can be one of the two, because of numerical instabilities choosing u1 and u2 which are interchangeable
-	I = argmin(ratios)
-	if I==2
-		exchange_u1_u2(p)
-		records_fermi_velocity_and_fixes_gauge(p) 
-	else
-		ratio = ratios[I]
+	@assert abs(goal[1]/goal[2] - c1/c2) <1e-4
+	# ratios = abs.([c1/c2+im,c1/c2-im]) # this can be one of the two, because of numerical instabilities choosing u1 and u2 which are interchangeable
+	# I = argmin(ratios)
+	# if I==2
+		# exchange_u1_u2(p)
+		# records_fermi_velocity_and_fixes_gauge(p) 
+	# else
+		# ratio = ratios[I]
+		I_real = imag(goal[1])<1e-8 ? 1 : 2
+		fact = real(goal[I_real])*(I_real==1 ? c1 : c2)
+		# c = fact*goal, fact ∈ ℝ+
 		# px("Fermi velocity, distance to theory of the ratio:",ratio)
-		@assert ratio<1e-4
-		r,ξ = abs(c2),atan(imag(c2),real(c2))-π
+		# px("REMETTRE VERIFICATION DU RATIO !!!!!!!!!!!")
+		r,ξ = abs(fact),atan(imag(fact),real(fact))
 		# px("<u1,(-i∇r) u2> = [i;",I==1 ? "-" : "+","1]*",r,"e^(i × ",ξ,") so vF=",r)
 		p.v_fermi = r
-		@assert imag(c2*cis(-ξ)) < 1e-10
+		@assert imag(fact*cis(-ξ)) < 1e-10
 		change_gauge_functions(ξ/2,p)
 
 		# Verification that vF is real positive and close to vF
 		(c1,c2) = compute_scaprod_Dirac(p)
 		# px("new c1,c2= ",c1," ",c2)
-		@assert norm([c1,c2] .- r*[im;-1])<1e-4
-		px("<u1,(-i∇r) u2> = vF[i;-1] where vF=",r)
-	end
+		@assert norm([c1,c2] .- r*goal)<1e-4
+		# px("REMETTRE VERIFICATION DU RATIO !!!!!!!!!!!")
+		px("<u1,(-i∇r) u2> = vF[",goal[1],",",goal[2],"] where vF=",r)
+	# end
 end
 
 function compute_vF_with_diagonalization_doesnt_work(p)
@@ -604,20 +621,35 @@ end
 
 function test_rot_sym(p)
 	# Tests
-	(Ru0,Tu0) = (R(p.u0_fb,p),τ(p.u0_fb,p.shift_K,p)) # u0
-	(RS,TS) = (R(p.u1_fb,p),τ(p.u1_fb,p.shift_K,p))   # u1
-	(RW,TW) = (R(p.u2_fb,p),τ(p.u2_fb,p.shift_K,p))   # u2
-	(Rφ1,Tφ1) = (R(p.non_local_φ1_fb,p),τ(p.non_local_φ1_fb,p.shift_K,p))
-	(Rφ2,Tφ2) = (R(p.non_local_φ2_fb,p),τ(p.non_local_φ2_fb,p.shift_K,p))
+	(Ru0,Tu0) = (R(p.u0_fb,p),τ(p.u0_fb,p.shift_K_R,p)) # u0
+	(RS,TS) = (R(p.u1_fb,p),τ(p.u1_fb,p.shift_K_R,p))   # u1
+	(RW,TW) = (R(p.u2_fb,p),τ(p.u2_fb,p.shift_K_R,p))   # u2
+	(Rφ1,Tφ1) = (R(p.non_local_φ1_fb,p),τ(p.non_local_φ1_fb,p.shift_K_R,p))
+	(Rφ2,Tφ2) = (R(p.non_local_φ2_fb,p),τ(p.non_local_φ2_fb,p.shift_K_R,p))
 
 	τau = cis(2π/3)
 	# p.non_local_φ_fb = conj.(p.non_local_φ_fb)
 	
-	px("Test R Φ0 =     Φ0 ",norm(Ru0.-Tu0)/norm(Ru0))
-	px("Test R Φ1 = τ   Φ1 ",norm(RS.-τau*TS)/norm(RS)) # R u1 = τ e^{ix⋅(1-R_{2π/3})K} u1 = τ e^{ix⋅[-1,0,0]a^*} u1
-	px("Test R Φ2 = τ^2 Φ2 ",norm(RW.-τau^2*TW)/norm(RW))
-	px("Test R φ1 = τ   φ1 ",norm(Rφ1.- τau*Tφ1)/norm(Rφ1))
-	px("Test R φ2 = τ^2 φ2 ",norm(Rφ2.- τau^2*Tφ2)/norm(Rφ2))
+	px("Test R Φ0 =     Φ0 ",distance(Ru0,Tu0))
+	px("Test R Φ1 = τ   Φ1 ",distance(RS,τau*TS)) # R u1 = τ e^{ix⋅(1-R_{2π/3})K} u1 = τ e^{ix⋅[-1,0,0]a^*} u1
+	px("Test R Φ2 = τ^2 Φ2 ",distance(RW,τau^2*TW))
+	px("Test R φ1 = τ   φ1 ",distance(Rφ1, τau*Tφ1))
+	px("Test R φ2 = τ^2 φ2 ",distance(Rφ2, τau^2*Tφ2))
+	px("Test R v  =      v ",distance(p.v_monolayer_fc,R_four(p.v_monolayer_fc,p)))
+end
+
+function test_mirror_sym(p)
+	# Tests
+	(Mu0,Tu0) = (M(p.u0_fb,p),τ(p.u0_fb,p.shift_K_M,p)) # u0
+	(Mu1,Tu1) = (M(p.u1_fb,p),τ(p.u1_fb,p.shift_K_M,p)) # u0
+	(Mu2,Tu2) = (M(p.u2_fb,p),τ(p.u2_fb,p.shift_K_M,p)) # u0
+
+	px("Test M Φ0 =     Φ0 ",distance(Mu0,Tu0))
+	px("Test M Φ1 = τ   Φ1 ",distance(Mu1,Tu2)) # M u1 = τ e^{ix⋅(1-R_{2π/3})K} u1 = τ e^{ix⋅[-1,0,0]a^*} u1
+	px("Test M Φ2 = τ^2 Φ2 ",distance(Mu2,Tu1))
+	# px("Test M φ1 = τ   φ1 ",distance(Rφ1, τau*Tφ1))
+	# px("Test M φ2 = τ^2 φ2 ",distance(Rφ2, τau^2*Tφ2))
+	px("Test M v  =      v ",distance(p.v_monolayer_fc,M_four(p.v_monolayer_fc,p)))
 end
 
 ######################### Plot functions
@@ -687,7 +719,7 @@ function rapid_plot(u,p;n_motifs=5,name="rapidplot",bloch_trsf=true,res=25)
 	Z = 10
 	funs = [abs,real,imag]
 	hm = [simple_plot(u,fun,Z,p;n_motifs=n_motifs,bloch_trsf=bloch_trsf,res=res) for fun in funs]
-	plot_z = plot(intXY(real.(ifft(u,p.L)),p))
+	plot_z = plot(intXY(real.(myifft(u,p.L)),p))
 	push!(hm,plot_z)
 	size = 600
 	r = length(hm)

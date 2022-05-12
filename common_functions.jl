@@ -13,6 +13,12 @@ scale_fun3d(f,λ) = (x,y,z) -> f(λ*x,λ*y,λ*z)
 # Creates a dictionary which inverts an array, for instance [5,4,1] will give Dict(5 => 1, 2 => 4, 3 => 1)
 inverse_dict_from_array(a) = Dict(value => key for (key, value) in Dict(zip((1:length(a)), a)))
 
+M2d_2_M3d(M) = [M           zeros(2,1);
+		zeros(1,2)          1 ]
+
+hartree_to_ev = 27.2114
+ev_to_hartree = 1/hartree_to_ev
+
 function inverse_dict_from_2d_array(a)
 	direct = Dict(zip((1:length(a)), a))
 	Ci = CartesianIndices(a)
@@ -35,34 +41,59 @@ function init_cell_infinitesimals(p) # needs a, N, Nz
 	p.Vol = p.cell_area*p.L
 end
 
-function init_cell_vectors(p;rotate=false) # needs a
-	a1_unit = [-1/2; sqrt(3)/2]
-	a2_unit = [ 1/2; sqrt(3)/2]
-	p.a1,p.a2 = p.a.*(a1_unit,a2_unit) # not used
-	a1s_unit = [-sqrt(3)/2; 1/2]
-	a2s_unit = [ sqrt(3)/2; 1/2]
-	pref = 4π/(p.a*sqrt(3))
-	p.a1_star,p.a2_star = pref.*(a1s_unit,a2s_unit)
-
-
-	a1s_unit = [ sqrt(3)/2; 1/2]
-	a2s_unit = [-sqrt(3)/2; 1/2]
-	pref = 4π/(p.a*sqrt(3))
-	p.a1_star,p.a2_star = pref.*(a1s_unit,a2s_unit)
-
-
-	J = rotM(π/2)
-	if rotate
-		p.a1_star = -J*p.a1_star
-		p.a2_star = -J*p.a2_star
-		p.a1 = J*p.a1
-		p.a2 = J*p.a2
+function myfloat2int(x)
+	y = floor(Int,x+0.5)
+	if abs(x-y)>1e-5
+		px("NOT AN INT ",x," ",y)
 	end
-	p.cell_area = sqrt(3)*0.5*p.a^2 
+	y
+end
 
+cart2red_mat(M,p) = (p.lattice_2d')*M*inv(p.lattice_2d')
 
+function cart2red_four(a,b,p) # G = ma^* to m 
+	S = cart2red_mat([a b],p)
+	(S[1:2,1],S[1:2,2])
+end
 
-	p.K_red = [-1/3;1/3]
+matrix_rot_red(θ,p) = myfloat2int.(cart2red_mat(rotM(θ),p))
+
+function init_cell_vectors(p;moire=false) # needs a. a_{i,M} = (1/2) J a_i
+	a1_unit = [1/2;-sqrt(3)/2]
+	a2_unit = [1/2; sqrt(3)/2]
+
+	# a1_unit = [sqrt(3)/2; 1/2]
+	# a2_unit = [sqrt(3)/2;-1/2]
+	p.a1,p.a2 = p.a.*(a1_unit,a2_unit) # not used
+
+	if moire
+		J = rotM(π/2)
+		p.a1 = J*p.a1/2
+		p.a2 = J*p.a2/2
+	end
+
+	lattice_rec = 2π*inv([p.a1 p.a2]')
+	p.a1_star = lattice_rec[1:2,1]
+	p.a2_star = lattice_rec[1:2,2]
+
+	# a1s_unit = [sqrt(3)/2;-1/2]
+	# a2s_unit = [sqrt(3)/2; 1/2]
+	# a1_star,a2_star = (4π/(p.a*sqrt(3))).*(a1s_unit,a2s_unit)
+
+	p.lattice_2d = [p.a1 p.a2]
+	p.R_four_2d = matrix_rot_red(-2π/3,p)
+	p.M_four_2d = myfloat2int.(cart2red_mat([1 0;0 -1],p)) # mirror symmetry
+
+	if p.dim == 3
+		p.lattice_3d = [p.lattice_2d    zeros(2,1);
+				zeros(1,2)             p.L]
+	end
+
+	p.cell_area = abs(det(p.lattice_2d[1:2,1:2]))
+	# p.cell_area = sqrt(3)*0.5*p.a^2 # not when moiré
+	p.lattice_type_2πS3 = distance(p.a1,rotM(2π/3)*p.a2)<1e-5 || distance(p.a1,rotM(-2π/3)*p.a2)<1e-5 
+	px("type ",p.lattice_type_2πS3)
+	p.K_red = p.lattice_type_2πS3 ? [1/3,1/3] : [-1/3;1/3]
 end
 
 function k_red2cart_list(k1,k2,p)
@@ -145,25 +176,25 @@ end
 
 ####################################### Operations on functions in Fourier space
 
-R_four(a,p) = apply_map_four(X ->  [0 -1;1 -1]*X,a,p) # rotation of 2π/3, in Fourier space
-M_four(a,p) = apply_map_four(X ->  [0 -1;-1 0]*X,a,p) # Mu(x,y) := u(-x,y), a1 = [sqrt(3)/2;1/2], a2 = [sqrt(3)/2;-1/2]
-J_four(a,p) = apply_map_four(X -> -[1 -2;2 -1]*X,a,p) # rotation of -π/2, in Fourier space, with scaling of sqrt(3)
+R_four(a,p) = apply_map_four(X ->  p.R_four_2d*X,a,p) # rotation of 2π/3, in Fourier space
+M_four(a,p) = apply_map_four(X ->  p.M_four_2d*X,a,p) # Mu(x,y) := u(x,-y)
+# J_four(a,p) = apply_map_four(X -> -[1 -2;2 -1]*X,a,p) # rotation of -π/2, in Fourier space, with scaling of sqrt(3)
 parity_four(a,p) = apply_map_four(X -> -X,a,p)
 conj_four(a,p) = apply_map_four(X -> -X,conj.(a),p) # if f is in direct space, and g(x) := conj.(f(x)), hat(g)_m = conj(hat(f))_{-m}
 σ1_four(a,p) = apply_map_four(X -> [0 1;1 0]*X,a,p)
 
 function apply_map_four(L,u,p) # res_m = u_{Lm}
-	a = zeros(typeof(u[1]),p.N,p.N)
+	dim = length(size(u)); tu = typeof(u[1])
+	a = dim==2 ? zeros(tu,p.N,p.N) : zeros(tu,p.N,p.N,p.Nz)
 	for K=1:p.N, P=1:p.N
 		k0 = p.k_axis[K]; p0 = p.k_axis[P]
 		c = L([k0,p0]); k1 = c[1]; p1 = c[2]
 		(k2,p2) = k_inv(k1,p1,p)
-		# x = u[k2,p2]
-		# if abs(x) > 0.1
-			# px(x)
-		# end
-		a[K,P] = u[k2,p2]
-		# a[k2,p2] = u[K,P]
+		if dim==2
+			a[K,P] = u[k2,p2]
+		else 
+			a[K,P,:] = u[k2,p2,:]
+		end
 	end
 	a
 end
@@ -215,7 +246,7 @@ function apply_coordinates_operation_direct_on_z(M,p)
 	f
 end
 
-R(ϕ,p)             = apply_coordinates_operation_direct(X -> p.mat_R*X,p)(ϕ,p)
+R(ϕ,p)             = apply_coordinates_operation_direct(X -> p.R_four_2d*X,p)(ϕ,p)
 translation(ϕ,v,p) = apply_coordinates_operation_direct(X -> X.-v,p)(ϕ,p)
 parity_x(ϕ,p)      = apply_coordinates_operation_direct(X -> -X,p)(ϕ,p)
 
@@ -263,13 +294,17 @@ function distance(f,g)
 	norm(f.-g)/nor
 end
 
-function test_hermitianity(M,name="")
+function herm(M)
 	n = size(M,1)
 	@assert size(M) == (n,n)
 	s = sum(abs.(M))
-	x = s < 1e-10 ? 0 : sum(abs.((M'.-M)/2))/s
-	px(string("Test Hermitianity ",name," : "),x)
+	if s<1e-10
+		return 0
+	end
+	sum(abs.((M'.-M)/2))/s
 end
+
+test_hermitianity(M,name="") = px(string("Test Hermitianity ",name," : "),herm(M))
 
 function test_x_parity(u,p;name="") # Tests u(-x) = u(x) (or u(-x,z) = u(x,z)), where u is in direct space
 	c = sum(abs.(parity_x(u,p) .- u))/sum(abs.(u))
@@ -279,7 +314,7 @@ end
 test_z_parity(u,ε,p;name="function") = px("Test ",name,"(-z) = ",ε==-1 ? "-" : "",name,"(z) : ",norm2(u.- ε*parity_z(u,p),p)/norm2(u,p))
 
 # Bloch transform and Rotation, RBu = Rexp(...) * Ru. We obtain (RBu)(x,y) for (x,y) ∈ x_grid_red
-RB(u,k,p) = apply_Op_B(X -> p.mat_R*X,k,p)(u,k,p)
+RB(u,k,p) = apply_Op_B(X -> p.R_four_2d*X,k,p)(u,k,p)
 PB(u,k,p) = apply_Op_B(X -> -X,k,p)(u,k,p)
 
 

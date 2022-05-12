@@ -5,15 +5,17 @@ include("graphene.jl")
 function produce_bloch_functions_and_potentials()
 	p = Params() # stores all we need to store
 	# Choose parameters
+	p.dim = 3
 	p.a = 4.66 # length of the vectors of the fundamental cell
-	p.ecut = 120*norm_K_cart(p.a)^2 # DFTK's ecut, convergence of u's for ecut ≃ 15
+	p.L = 20 # periodicity in z (both for mono and bilayer computations)
+	p.ecut = 100*norm_K_cart(p.a)^2 # DFTK's ecut, convergence of u's for ecut ≃ 15
 	px("ecut ",p.ecut)
 	p.interlayer_distance = 6.45 # distance between the two layers
-	p.L = 20 # periodicity in z (both for mono and bilayer computations)
 	p.i_state = 4 # u1 will be the i^th eigenmode, u1 the (i+1)^th, u0 the (i-1)^th
 	p.kgrid = [10,10,1] # for computing the KS potential
 	p.tol_scf = 1e-4
 	p.plots_cutoff = 3 # Fourier cutoff for plots
+
 	init_params(p)
 	p.Nint = 2
 	compute_Vint = false
@@ -26,15 +28,13 @@ function produce_bloch_functions_and_potentials()
 	get_dirac_eigenmodes(p)
 
 	# Rotates u1 and u2 in U(2) to obtain the symmetric ones
-	rotate_u1_and_u2(p)
+	get_natural_basis_u1_and_u2(p)
 
 	# Extracts the non local terms
 	extract_nonlocal(p)
 	# Computes the non local contribution of the Fermi velocity
 	non_local_deriv_energy(4,p)
 
-	(Mu1,Tu1) = (M(p.u0_fb,p),τ(p.u0_fb,p.shift_K,p))
-	px("MΦ0 = Φ0 ",norm(Mu1.-Tu1)/norm(Mu1))
 	plot_mean_V(p)
 
 	test_scaprod_fft_commutation(p)
@@ -49,9 +49,11 @@ function produce_bloch_functions_and_potentials()
 	# fermi_velocity_from_rotated_us(p) # Doing scalar products
 	records_fermi_velocity_and_fixes_gauge(p) 
 
+	# rapid_plot(p.v_monolayer_fc,p;n_motifs=2,name="v",res=50,bloch_trsf=false)
 	# Symmetry tests
 	if true
 		test_rot_sym(p)
+		test_mirror_sym(p)
 		test_z_parity(p.u1_dir,-1,p;name="u1")
 		test_z_parity(p.u2_dir,-1,p;name="u2")
 		test_x_parity(abs.(p.u1_dir),p;name="|u1|")
@@ -65,10 +67,10 @@ function produce_bloch_functions_and_potentials()
 
 	# Plots u0, u1, u2, φ
 	px("Makes plots")
-	resolution = 30
+	resolution = 10
 	n_motifs = 2
-	# rapid_plot(p.u0_fc,p;n_motifs=n_motifs,name="ϕ0",res=resolution,bloch_trsf=true)
-	# rapid_plot(p.u1_fc,p;n_motifs=n_motifs,name="ϕ1",res=resolution,bloch_trsf=true)
+	rapid_plot(p.u0_fc,p;n_motifs=n_motifs,name="ϕ0",res=resolution,bloch_trsf=true)
+	rapid_plot(p.u1_fc,p;n_motifs=n_motifs,name="ϕ1",res=resolution,bloch_trsf=true)
 	# if the plot of u1 is small, this is probably because of it's antisymmetry in z, and because the dominating Fourier transform coefficients are away from 0 and cut by plot_cutoff
 	# rapid_plot(p.u2_fc,p;n_motifs=n_motifs,name="ϕ2",res=resolution,bloch_trsf=true)
 	# rapid_plot(p.v_monolayer_fc,p;n_motifs=n_motifs,name="v",res=resolution,bloch_trsf=false)

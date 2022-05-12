@@ -94,6 +94,7 @@
 \def\L{{\mathbb L}}
 
 \newcommand{\dd}{\tfrac{d}{2}}
+\newcommand{\sqom}{\sqrt{\ab{\Omega\ind{M}}}}
 
 \def\lAngle{\langle\!\langle}
 \def\rAngle{\rangle\!\rangle}
@@ -289,11 +290,14 @@ We defined
 \db{ f, g}^{\eta,\eta'}(\bX) :=   \int_{\Omega \times \R} \overline{f}\pa{x -\eta J\bX,z- \eta\dd} g\pa{x - \eta' J \bX, z- \eta'\dd} \d \bx \d z
 \end{align*}
 and
-\begin{multline*}
-\lAngle f, g \rAngle^{\eta,\eta'}(\bX)\\
-:=  e^{i\pa{\eta-\eta'} \bK \cdot J \bX} \int_{\Omega \times \R} \overline{f}\pa{x -\eta J\bX,z-\eta \dd} g\pa{x -\eta' J \bX, z-\eta'\dd} \d \bx \d z
-\end{multline*}
-so $\lAngle f, g \rAngle^{\eta,\eta'} = e^{i\pa{\eta-\eta'} \bK \cdot J \bX}\db{ f, g}^{\eta,\eta'}$. Now we make the approximation
+\begin{align*}
+\boxed{\lAngle f, g \rAngle^{\eta,\eta'} := e^{i\pa{\eta'-\eta} \bK \cdot J \bX}\db{ f, g}^{\eta,\eta'}}
+\end{align*}
+and in particular since $q_1 = -2J K$, then
+\begin{align*}
+\lAngle f, g \rAngle^{+-} = e^{-iq_1 x}\db{ f, g}^{+-}, \qquad \lAngle f, g \rAngle^{-+} = e^{iq_1 x}\db{ f, g}^{-+}
+\end{align*}
+ Now we make the approximation
 \begin{align*}
 \int_{\Omega\times\R} \simeq  \int_{\Omega\times \seg{0,L}}
 \end{align*}
@@ -305,21 +309,53 @@ The situation is drawn on Figure \ref{fig:z_drawing}. The functions are defined 
 Firstly, using the Fourier decomposition \eqref{eq:dec_four},
 \begin{align*}
 	\db{f,g}^{\eta,\eta'} &=   \sum_{\bmm \in \Z^2} e^{i\pa{\eta-\eta'} ma^* \cdot J \bX} \sum_{m_z \in \Z} e^{i\pa{\eta-\eta'} \f{2\pi}{L} m_z \f{d}{2}} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}\\
-& = \sum_{\bmm \in \Z^2} e^{i\pa{\eta-\eta'} ma^* \cdot J \bX} C_\bmm
+& = \sum_{\bmm \in \Z^2} \f{e^{i\pa{\eta-\eta'} ma^* \cdot J \bX}}{\sqom} C_{-\bmm}
 \end{align*}
 where
 \begin{align*}
-\boxed{C_\bmm := \sum_{m_z \in \Z} e^{i\pa{\eta-\eta'} \f{d\pi}{L} m_z} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}}.
+\boxed{C_\bmm := \sqom \sum_{m_z \in \Z} e^{i\pa{\eta-\eta'} \f{d\pi}{L} m_z} \overline{\widehat{f}_{-m,m_z}} \widehat{g}_{-m,m_z}}.
 \end{align*}
-Remark that for any $\eta, \eta' \in \{\pm\}$, $\db{f,g}^{\eta,\eta'}$ is $2J\L$-periodic. We also define
+
+We have $\db{f,g}^{++} = \db{f,g}^{--} = \ps{f,g} = \sum_{m,m_z} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}$.
+
+ We also define, for $\eta \in \{-1,1\}$,
 \begin{align*}
-C^\eta_\bmm := \sum_{m_z \in \Z} e^{\eta i2 \f{d\pi}{L} m_z} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}
+C^\eta_\bmm := \sqom\sum_{m_z \in \Z} e^{\eta i2 \f{d\pi}{L} m_z} \overline{\widehat{f}_{-\eta m,m_z}} \widehat{g}_{-\eta m,m_z}
 \end{align*}
+
+
+We have $a^*\ind{M} = 2 J a^*$ hence $2 ma^* \cdot JX = -m a\ind{M}^* \cdot X$ and
+\begin{align*}
+\db{f,g}^{+-} = \sum_{\bmm \in \Z^2} \f{e^{ima^*\ind{M} \cdot \bX}}{\sqom} C_{\bmm}^+, \qquad \db{f,g}^{-+} = \sum_{\bmm \in \Z^2} \f{e^{ima^*\ind{M} \cdot \bX}}{\sqom} C_{\bmm}^-
+\end{align*}
+Now, since $q_{2,3} - q_1 = a^*_{\text{M},j}$, we know that
+\begin{align*}
+G(x) &= e^{-iq_1 x} \pa{1 + e^{-i a_{\text{M} ,1}^* x} +e^{-i a_{\text{M},2}^* x}} \\
+F(x) &= e^{-iq_1 x} \pa{1 + \omega^2 e^{-i a_{\text{M} ,1}^* x} + \omega e^{-i a_{\text{M},2}^* x}}
+\end{align*}
+
+We have $\bbV^{1,1} \simeq w\ind{AA} G$ so $\ps{G,\bbV} \simeq w\ind{AA} \int_{\Omega\ind{M}} \ab{G}^2 = 3 \ab{\Omega\ind{M}} w\ind{AA}$ and hence 
+\begin{align*}
+	w\ind{AA} &\simeq \f{\ps{G,\bbV^{1,1}}}{3 \ab{\Omega\ind{M}}} = \f{1}{3 \sqom}\pa{\widehat{\bbV}^{1,1}_{0,0} +\widehat{\bbV}^{1,1}_{1,0} + \widehat{\bbV}^{1,1}_{0,1}} \\
+	w\ind{AB} &\simeq \f{\ps{F,\bbV^{1,2}}}{3 \ab{\Omega\ind{M}}} = \f{1}{3 \sqom}\pa{\widehat{\bbV}^{1,2}_{0,0} + \omega\widehat{\bbV}^{1,2}_{1,0} + \omega^2 \widehat{\bbV}^{1,2}_{0,1}}
+\end{align*}
+
 Then,
 \begin{align*}
 \lAngle f,g \rAngle ^{\eta,\eta'} = e^{i\pa{\eta-\eta'} \bK \cdot J \bX}\db{f,g}^{\eta,\eta'} =  \sum_{\bmm \in \Z^2} e^{i\pa{\eta-\eta'} \pa{m+m_K}a^* \cdot J \bX} C_\bmm
 \end{align*}
 
+Moreover, 
+\begin{align*}
+	\cA &= \f{1}{2} J \pa{-i\na} \Sigma= \f{1}{2} J \pa{-i\na} \pa{e^{-iq_1 x} \db{u_j,u_{j'}}^{+-}} \\
+	    &= e^{-iq_1 x}\f 12 \sum_{m \in \Z^2} J \pa{ma_{\text{M}}^*} \f{e^{ima^*\ind{M} \cdot \bX}}{\sqom} C_{\bmm}^{+,\Sigma} + \f 12 \Sigma J q_1 ,\\
+	    & \underset{\substack{q_1 = -2 JK}}{=} \; e^{-iq_1 x} \sum_{m \in \Z^2} \f{e^{ima^*\ind{M} \cdot \bX}}{\sqom} C_{\bmm}^{+,\cA} + \Sigma K,\\
+C_{m}^{+,\cA} &:= \f 12 J \pa{ma_{\text{M}}^*}C_{\bmm}^{+,\Sigma}
+\end{align*}
+
+To plot, we will need to shift the exponent $e^{-iq_1 x} = e^{\f{i}{3}\pa{a_{\text{M},1}^*+a_{\text{M},2}^*}x}$
+
+{\color{red}{TO RECTIFY}}
 
 Hence
 \begin{align*}
@@ -859,7 +895,10 @@ We have $\na S^* = k_\theta S^* \na$ so $S \na S^* = k_\theta^3 \na$ and $SfS^* 
 	\f{1}{k_\theta^3 v_0} S \pa{\mat{-i v_0 \sigma \na & w_1 T^{\text{TKV}}(k_\theta x) \\ w_1 T^{*,\text{TKV}}(k_\theta x) & -iv_0 \sigma \na} -E} S^* \\
 	= \mat{-i\sigma \na & \alpha T^{\text{TKV}}\pa{x} \\ \alpha T^{*,\text{TKV}}(x) & -i\sigma \na} - \ep
 \end{multline*}
-where $\alpha := \f{w_1}{k_\theta v_0}$ and where $\ep = \f{E}{v_0 k_\theta}$ is the unit of \cite[Fig 1]{TarKruVis19} defined in the caption. %Hence we need to multiply our energies by $v_0 k_\theta \ll 1$ to obtain the true ones. 
+where $\alpha := \f{w_1}{k_\theta v_0}$ and where $\ep = \f{E}{v_0 k_\theta}$ is the unit of \cite[Fig 1]{TarKruVis19} defined in the caption, and
+\begin{align*}
+T^{\text{TKV}}(x) = \sum_{j=1}^3 T_j e^{-i q_j x}, \qquad q_{2,3} = \mat{\pm \sqrt{3}/2 \\ 1/2}, \qquad q_1 = - q_2 - q_3.
+\end{align*}%Hence we need to multiply our energies by $v_0 k_\theta \ll 1$ to obtain the true ones. 
 
 % We will do another rescaling because in our numerical simulations we do not implement $m_{q_j}$ but a transformation of it.
 % \begin{align*}

@@ -8,6 +8,7 @@ function computes_and_plots_effective_potentials()
 	# N = 8; Nz = 27
 	# N = 9;  Nz = 32 # has Vint
 	# N = 9;  Nz = 36
+	N = 12; Nz = 40
 	# N = 12; Nz = 45
 	# N = 15; Nz = 54
 	# N = 15; Nz = 60
@@ -16,27 +17,35 @@ function computes_and_plots_effective_potentials()
 	# N = 24; Nz = 96
 	# N = 25; Nz = 108 # ecut 40|Kd|^2
 	# N = 30; Nz = 120 # ecut 50|Kd|^2 which blocks because of a bug on DFTK
+	# N = 30; Nz = 125 # ecut 55|Kd|^2
 	# N = 32; Nz = 135 # ecut 50
 	# N = 40; Nz = 160
-	# N = 40; Nz = 180 # <-- Ecut = 100 |kD|^2
-	N = 45; Nz = 180 # ecut 120|Kd|^2
+	N = 40; Nz = 180 # <-- Ecut = 100 |kD|^2
+	# N = 45; Nz = 180 # ecut 120|Kd|^2
 	# N = 45; Nz = 192
 	# N = 48; Nz = 200
 
 	px("N ",N,", Nz ",Nz)
 	p = EffPotentials()
+
 	p.plots_cutoff = 7
-	p.plots_res = 60
+	p.plots_res = 40
 	p.plots_n_motifs = 6
 	produce_plots = false
 	p.compute_Vint = false
 	p.plot_for_article = true
 
-	# Initializations
+	# Imports untwisted quantities
 	import_u1_u2_V_φ(N,Nz,p)
 	import_Vint(p)
 	init_EffPot(p)
 	# px("Test norm ",norms3d(p.u1_dir,p,false)," and in Fourier ",norms3d(p.u1_f,p))
+
+	(wAA,wAB) = hartree_to_ev .*wAA_wAB(p)
+	px("wAA = ",wAA," eV, wAB = ",wAB," eV")
+	px("IL FAUT AUSSI PRENDRE EN COMPTE VINT !")
+
+	px("Cell area ",sqrt(p.cell_area))
 
 	build_blocks_potentials(p) # computes Wplus, 𝕍_V and Σ
 	compare_to_BM_infos(p.𝕍_V,p,"V_V")
@@ -44,6 +53,8 @@ function computes_and_plots_effective_potentials()
 
 	build_blocks_potentials(p) # computes Wplus, 𝕍_V and Σ
 	compare_to_BM_infos(p.𝕍_V,p,"V_V")
+
+	plot_block_reduced(p.T_BM,p;title="T")
 
 	# plot_block_reduced(p.T_BM,p;title="T")
 	p.add_non_local_W = true
@@ -64,7 +75,7 @@ function computes_and_plots_effective_potentials()
 	# plot_block_article(W_V_without_mean,p;title="W_V_plus_without_mean")
 
 	# plot_block_cart(p.Σ,p;title="Σ")
-	plot_block_cart(p.𝕍_V,p;title="V_V")
+	# plot_block_cart(p.𝕍_V,p;title="V_V")
 	# plot_block_cart(p.T_BM,p;title="T")
 	# p.𝕍 = app_block(J_four,p.𝕍,p) # rotates T of J and rescales space of sqrt(3)
 	# test_equality_all_blocks(p.Wplus_tot,p;name="W")
@@ -76,19 +87,21 @@ function computes_and_plots_effective_potentials()
 	display(p.W_Vint_matrix)
 
 	# Plots for article
-	plot_block_article(p.T_BM,p;title="T")
-	plot_block_article(p.𝕍_V,p;title="V_V")
-	if p.compute_Vint plot_block_article(p.𝕍_Vint,p;title="V_Vint") end
-	plot_block_article(p.Σ,p;title="Σ")
-	plot_block_article(p.W_non_local_plus,p;title="W_nl_plus")
-	plot_block_article(p.𝔸1*1/2,p;title="A",other_block=p.𝔸2*1/2)
+	if p.plot_for_article
+		# plot_block_article(p.T_BM,p;title="T")
+		plot_block_article(p.𝕍_V,p;title="V_V",k_red_shift=[1/3,1/3])
+		# if p.compute_Vint plot_block_article(p.𝕍_Vint,p;title="V_Vint") end
+		# plot_block_article(p.Σ,p;title="Σ")
+		# plot_block_article(p.W_non_local_plus,p;title="W_nl_plus")
+		# plot_block_article(p.𝔸1*1/2,p;title="A",other_block=p.𝔸2*1/2)
+	end
 
 
 	####################### Symmetries
 	# Tests z parity
-	test_z_parity(p.u1_dir,-1,p;name="u1")
-	test_z_parity(p.u2_dir,-1,p;name="u2")
-	test_z_parity(p.v_dir,1,p; name="Vks")
+	# test_z_parity(p.u1_dir,-1,p;name="u1")
+	# test_z_parity(p.u2_dir,-1,p;name="u2")
+	# test_z_parity(p.v_dir,1,p; name="Vks")
 
 	# Particle-hole
 	px("\nTests particle-hole symmetry")
@@ -193,14 +206,22 @@ end
 
 #################### Third step : compute the bands diagram
 
+# Reproduire TKV :
+# p.a1_star = [ sqrt(3)/2; 1/2]
+# p.a2_star = [-sqrt(3)/2; 1/2]
+# p.a doesn't matter it is not used
+# T = V_offdiag_matrix(build_BM(α,β,p;scale=false),p)*sqrt(p.cell_area)
+# for β in [0.586]
+
 function explore_band_structure_BM()
 	p = Basis()
-	p.N = 15
-	p.a = 4. # decreasing a makes band energies increase
-	p.l = 8 # number of eigenvalues we compute
+	p.N = 7
+	@assert mod(p.N,2)==1 # for more symmetries
+	p.a = 1 # decreasing a makes band energies increase
+	p.l = 11 # number of eigenvalues we compute
 	init_basis(p)
-	α = 0.0 # anti-chiral / AA stacking weight
-	p.resolution_bands = 4
+	α = 1 # anti-chiral / AA stacking weight
+	p.resolution_bands = 20
 	p.energy_unit_plots = "Hartree"
 	p.folder_plots_bands = "bands_BM"
 	p.energy_center = 0
@@ -208,20 +229,40 @@ function explore_band_structure_BM()
 	p.solver = "Exact"
 	mult_by_vF = true
 	p.coef_derivations = 1
+	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
+	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
+	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
+	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
+	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
+	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
+	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
+	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
+	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
 
-	T = V_offdiag_matrix(build_BM(0,1,p;scale=true),p)
-	plot_heatmap(imag.(T).+real.(T),"T_BM",p)
-	plot_heatmap(real.(Dirac_k([0,0],p)),"free_dirac",p)
+	# T = V_offdiag_matrix(build_BM(0,1,p;scale=false),p)
+	# plot_heatmap(imag.(T).+real.(T),"T_BM",p)
+	# plot_heatmap(real.(Dirac_k([0,0],p)),"free_dirac",p)
 
 	# 1° × 2π/360 = 0.017 rad
 	# for β in vcat((0.1:0.1:1)) # chiral / AB stacking weight
 	# for β in (0:0.05:1.2)
 	# for β in vcat((0:0.05:1.2),(0.85:0.01:1)) # chiral / AB stacking weight
-	for β in (0:0.1:5)
+	
+	Γ = [0,0.0]
+	K = p.K_red
+	M = [0,1/2]
+	Klist = [K,Γ,M]; Klist_names = ["K","Γ","M"]
+	valleys = [1,-1]
+	K_reds = [v*[-1/3,1/3] for v in valleys]
+	Kf = [k -> Dirac_k(k.-K_reds[i],p;coef_∇=0,valley=valleys[i]) for i=1:2]
+
+	H0 = Dirac_k([0.0,0.0],p)
+	for β in [0.586]
 		print(" ",β)
-		T = V_offdiag_matrix(build_BM(α,β,p;scale=true),p)
-		Kdep(k_red) = Dirac_k(k_red,p)
-		plot_band_structure(T,Kdep,β,p)
+		T = V_offdiag_matrix(build_BM(α,β,p;scale=false),p)*sqrt(p.cell_area)
+		σs = [spectrum_on_a_path(H0.+T,Kf[i],Klist,p) for i=1:2]
+		pl = plot_band_diagram(σs,Klist,Klist_names,p)#;K_relative=p.K_red)
+		save_diagram(pl,β,p)
 	end
 	p
 end

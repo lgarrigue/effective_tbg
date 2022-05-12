@@ -16,19 +16,15 @@ end
 
 ####################### Direct or Fourier
 
-function T_BM_four(N,α,β;scale=false)
+function T_BM_four(N,α,β)
 	kv(k) = Int(mod(k,N))+1
+	kv2(q) = kv(q[1]),kv(q[2])
 	(T1,T2,T3) = Ts(α,β)
 	m = zeros(ComplexF64,N,N)
 	T = fill2d(m,2)
 
-	q1 = [-1;-1]; q2 = [0;1]; q3 = [1;0]
-	L = scale ? -[1 -2;2 -1] : [1 0;0 1]
-	# Lq : L q1 = [-1,1], L q2 = [2,1], L q3 = [-1,-2]
-	q1,q2,q3 = L*q1,L*q2,L*q3
-	q1i1,q1i2 = kv(q1[1]),kv(q1[2])
-	q2i1,q2i2 = kv(q2[1]),kv(q2[2])
-	q3i1,q3i2 = kv(q3[1]),kv(q3[2])
+	q1 = [-1;-1]; q2 = [1;0]; q3 = [0;1]
+	q1i1,q1i2 = kv2(q1); q2i1,q2i2 = kv2(q2); q3i1,q3i2 = kv2(q3)
 	for i=1:2
 		for j=1:2
 			# T[i,j][end,end] = T1[i,j]; T[i,j][2,1] = T2[i,j]; T[i,j][1,2] = T3[i,j]
@@ -41,7 +37,7 @@ function T_BM_four(N,α,β;scale=false)
 	T
 end
 
-function build_BM(α,β,p;scale=false)
-	T = T_BM_four(p.N,α,β;scale=scale)
+function build_BM(α,β,p)
+	T = T_BM_four(p.N,α,β)
 	[T[1,1],T[1,2],T[2,1],T[2,2]]
 end

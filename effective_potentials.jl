@@ -33,6 +33,11 @@ mutable struct EffPotentials
 	N2d; N3d
 	N; Nz; L; interlayer_distance
 	cell_area; Vol
+	dim
+	lattice_2d
+	R_four_2d
+	M_four_2d
+	lattice_type_2πS3
 
 	# Quantities computed and exported by graphene.jl
 	v_f; u1_f; u2_f; u1v_f; u2v_f; prods_f; Vint_f
@@ -64,6 +69,7 @@ mutable struct EffPotentials
 	
 	function EffPotentials()
 		p = new()
+		p.dim = 2
 		p.plots_n_motifs = 5
 		p.plots_res = 20
 		p.add_non_local_W = true
@@ -73,7 +79,7 @@ mutable struct EffPotentials
 end
 
 function init_EffPot(p)
-	init_cell_vectors(p;rotate=true)
+	init_cell_vectors(p;moire=true)
 	init_cell_infinitesimals(p)
 	p.root_path = "effective_potentials/"
 	create_dir(p.root_path)
@@ -98,18 +104,18 @@ end
 function build_Cm(g,f,p;η=1,prt=false) 
 	app(kz) = cis(2*η*p.interlayer_distance*kz*π/p.L)
 	expo = app.(p.kz_axis)
-	C = p.L*[sum(conj.(g[m,n,:]).*f[m,n,:].*expo) for m=1:p.N, n=1:p.N]
+	C = sqrt(p.cell_area)*[sum(conj.(g[m,n,:]).*f[m,n,:].*expo) for m=1:p.N, n=1:p.N]
+	η==1 ? parity_four(C,p) : C
 
-	if prt
-		x = C[2,1]
-		px("MASS ",sum(abs.(C))," x ",x," abs(x) ",abs(x))
-		for i=1:p.N, j=1:p.N
-			if abs(C[i,j])> 1e-4
-				px("ij ",i," ",j)
-			end
-		end
-	end
-	C
+	# if prt
+		# x = C[2,1]
+		# px("MASS ",sum(abs.(C))," x ",x," abs(x) ",abs(x))
+		# for i=1:p.N, j=1:p.N
+			# if abs(C[i,j])> 1e-4
+				# px("ij ",i," ",j)
+			# end
+		# end
+	# end
 end
 
 function div_three(m,n,p) # Test whether [m;n] is in 3ℤ^2, returns [m;n]/3 if yes
@@ -123,31 +129,17 @@ function div_three(m,n,p) # Test whether [m;n] is in 3ℤ^2, returns [m;n]/3 if 
 	end
 end
 
-# 2 × 2 matrix, magnetic ∈ {"no","1","2"}, f and g are in Fourier. transl is for diagonal blocks
-function build_potential(g,f,p;magnetic="no",transl=true,η=1,prt=false) # η ∈ {-1,+1}
-	C = build_Cm(g,f,p;η=1,prt=prt)
-
-	# px("Mass Cm for η=",η," ",sum(abs.(C)))
+# 2 × 2 matrix, magnetic ∈ {1,2}, f and g are in Fourier
+function build_magnetic(g,f,magnetic_term,p;η=1) # η ∈ {-1,+1}
+	C = build_Cm(g,f,p;η=1)
 	P = zeros(ComplexF64,p.N,p.N)
-	# Fills P_n^D = C^D_{F^{-1} J^{*,-1} F(n)}
-	(m3K,n3K) = Tuple(Int.(3*p.K_red))
+	J = rotM(π/2)
 	for m=1:p.N, n=1:p.N
-		# px("TYPE ",p.k_grid)
 		(m0,n0) = p.k_grid[m,n]
-		(m1,n1) = transl ? (m0-m3K,n0-n3K) : (m0,n0)
-		(m1,n1) = (η*m1,η*n1)
-		(B,m2,n2) = div_three(m1,n1,p)
-		if !B
-			P[m,n] = 0
-		else
-			K = m0*p.a1_star .+ n0*p.a2_star
-			magn_fact = magnetic == "no" ? 1 : (1/3)*(magnetic == "1" ? K[1] : K[2])
-			(m3,n3) = k_inv(m2,n2,p)
-			P[m,n] = magn_fact*C[m3,n3]
-		end
+		K = J*(m0*p.a1_star .+ n0*p.a2_star)
+		P[m,n] = (1/2)*K[magnetic_term]*C[m,n]
 	end
-	# there is no loss if p.N is large enough !
-	return P
+	P
 end
 
 function compute_W_Vint_term(p) # matrix <u_j, Vint u_{j'}>
@@ -167,13 +159,13 @@ end
 ################## Computation of blocks
 
 function build_block_𝔸(p)
-	p.𝔸1 = [build_potential(p.u1_f,p.u1_f,p;magnetic="1"), build_potential(p.u1_f,p.u2_f,p;magnetic="1"),
-		build_potential(p.u2_f,p.u1_f,p;magnetic="1"), build_potential(p.u2_f,p.u2_f,p;magnetic="1")]
-	p.𝔸2 = [build_potential(p.u1_f,p.u1_f,p;magnetic="2"), build_potential(p.u1_f,p.u2_f,p;magnetic="2"),
-		build_potential(p.u2_f,p.u1_f,p;magnetic="2"), build_potential(p.u2_f,p.u2_f,p;magnetic="2")]
+	p.𝔹1 = [build_magnetic(p.u1_f,p.u1_f,1,p), build_magnetic(p.u1_f,p.u2_f,1,p),
+		build_magnetic(p.u2_f,p.u1_f,1,p), build_magnetic(p.u2_f,p.u2_f,1,p)]
+	p.𝔹2 = [build_magnetic(p.u1_f,p.u1_f,2,p), build_magnetic(p.u1_f,p.u2_f,2,p),
+		build_magnetic(p.u2_f,p.u1_f,2,p), build_magnetic(p.u2_f,p.u2_f,2,p)]
 	K = p.K_red[1]*p.a1_star.+p.K_red[2]*p.a2_star
-	p.𝔹1 = p.𝔸1 .- K[1]*p.Σ
-	p.𝔹2 = p.𝔸2 .- K[2]*p.Σ
+	p.𝔸1 = p.𝔹1 .+ K[1]*p.Σ
+	p.𝔸2 = p.𝔹2 .+ K[2]*p.Σ
 	(p.J𝔸1,p.J𝔸2) = rot_block(π/2,p.𝔸1,p.𝔸2,p)
 end
 
@@ -198,26 +190,25 @@ function change_gauge_wavefunctions(θ,p)
 end
 
 
-create_Σ(u1,u2,p) = [build_potential(u1,u1,p), build_potential(u1,u2,p),
-		     build_potential(u2,u1,p), build_potential(u2,u2,p)]
+create_Σ(u1,u2,p) = [build_Cm(u1,u1,p;η=1), build_Cm(u1,u2,p;η=1),
+		     build_Cm(u2,u1,p;η=1), build_Cm(u2,u2,p;η=1)]
 
-create_V_V(u1,u2,p) = [build_potential(p.u1v_f,p.u1_f,p), build_potential(p.u1v_f,p.u2_f,p),
-		       build_potential(p.u2v_f,p.u1_f,p), build_potential(p.u2v_f,p.u2_f,p)]
+create_V_V(u1,u2,p) = [build_Cm(p.u1v_f,p.u1_f,p;η=1), build_Cm(p.u1v_f,p.u2_f,p;η=1),
+		       build_Cm(p.u2v_f,p.u1_f,p;η=1), build_Cm(p.u2v_f,p.u2_f,p;η=1)]
 
 function build_blocks_potentials(p)
 	p.Σ = create_Σ(p.u1_f,p.u2_f,p)
 
 	# Computes blocks without Vint
 	p.𝕍_V = create_V_V(p.u1_f,p.u2_f,p)
-	p.W_V_plus = [build_potential(p.v_f,p.prods_f[1],p;transl=false), build_potential(p.v_f,p.prods_f[2],p;transl=false),
-		      build_potential(p.v_f,p.prods_f[3],p;transl=false), build_potential(p.v_f,p.prods_f[4],p;transl=false)]
-	p.W_V_minus = [build_potential(p.v_f,p.prods_f[1],p;transl=false,η=-1), build_potential(p.v_f,p.prods_f[2],p;transl=false,η=-1),
-		       build_potential(p.v_f,p.prods_f[3],p;transl=false,η=-1), build_potential(p.v_f,p.prods_f[4],p;transl=false,η=-1)]
-	# p.W_minus = [build_potential(p.prods_f[1],p.v_f,p;η=-1,transl=false), build_potential(p.prods_f[2],p.v_f,p;η=-1,transl=false),
-	# build_potential(p.prods_f[3],p.v_f,p;η=-1,transl=false), build_potential(p.prods_f[4],p.v_f,p;η=-1,transl=false)]
+	p.W_V_plus = [build_Cm(p.v_f,p.prods_f[1],p;η=1), build_Cm(p.v_f,p.prods_f[2],p;η=1),
+		      build_Cm(p.v_f,p.prods_f[3],p;η=1), build_Cm(p.v_f,p.prods_f[4],p;η=1)]
+	p.W_V_minus = [build_Cm(p.v_f,p.prods_f[1],p;η=-1), build_Cm(p.v_f,p.prods_f[2],p;η=-1),
+		       build_Cm(p.v_f,p.prods_f[3],p;η=-1), build_Cm(p.v_f,p.prods_f[4],p;η=-1)]
 
 	# Computes blocks with Vint
-	u1Vint_f = zeros(ComplexF64,p.N,p.N); u2Vint_f = zeros(ComplexF64,p.N,p.N)
+	u1Vint_f = zeros(ComplexF64,p.N,p.N)
+	u2Vint_f = zeros(ComplexF64,p.N,p.N)
 	if p.compute_Vint
 		u1Vint_f = myfft(p.u1_dir.*p.Vint_dir,p.Vol)
 		u2Vint_f = myfft(p.u2_dir.*p.Vint_dir,p.Vol)
@@ -353,7 +344,7 @@ end
 function compare_one_block(A,n,p) # A is the function, not a 4×4 block
 	n1 = norm(A)
 	function dist(α)
-		T = hermitian_block(build_BM(α[1],α[2],p;scale=true))
+		T = hermitian_block(build_BM(α[1],α[2],p))
 		norm(T[n] .- A)/n1
 	end
 	α0 = [1.0,1.0]
@@ -365,13 +356,13 @@ end
 
 function compare_to_BM(A,p)
 	function dist(α)
-		T = hermitian_block(build_BM(α[1],-α[1],p;scale=true))
+		T = hermitian_block(build_BM(α[1],-α[1],p))
 		relative_distance_blocks(A,T)
 	end
 	res = optimize(dist, [1.0])
 	m = minimum(res)
 	α = Optim.minimizer(res)[1]
-	T = hermitian_block(build_BM(α,-α,p;scale=true))
+	T = hermitian_block(build_BM(α,-α,p))
 	(m,α,T)
 	# px("Distance to BM ",m," with coefs (α,β)=(",α[1],",",α[2],")")
 end
@@ -389,7 +380,7 @@ function optimize_gauge_and_create_T_BM_with_θ_α(V_V_or_Σ,p) # does u1 -> u1 
 	# γ(θ) = V_V_or_Σ ? create_V_V(p.u1_f*cis(3π/4),p.u2_f*cis(-3π/4),p) : create_Σ(p.u1_f*cis(3π/4),p.u2_f*cis(-3π/4),p)
 	comp(x) = x
 	function f(λ) 
-		T = hermitian_block(build_BM(comp(λ[1]),-comp(λ[1]),p;scale=true))
+		T = hermitian_block(build_BM(comp(λ[1]),-comp(λ[1]),p))
 		relative_distance_blocks(γ(λ[2]),T)
 	end
 	start = V_V_or_Σ ? [1.6e-4,1] : [1e-3,1]
@@ -399,7 +390,7 @@ function optimize_gauge_and_create_T_BM_with_θ_α(V_V_or_Σ,p) # does u1 -> u1 
 	α = comp(λ[1])
 	px("Optimized by changing gauge, angle ξ=",θ*180/π,"°")
 
-	p.T_BM = hermitian_block(build_BM(α,-α,p;scale=true))
+	p.T_BM = hermitian_block(build_BM(α,-α,p))
 	# px("MIN with α and θ",res.minimum," with ",α)
 
 	change_gauge_wavefunctions(θ,p)
@@ -409,6 +400,34 @@ function optimize_gauge_and_create_T_BM_with_α(V_V_or_Σ,p)
 	A = V_V_or_Σ ? create_V_V(p.u1_f,p.u2_f,p) : create_Σ(p.u1_f,p.u2_f,p)
 	(m,α,p.T_BM) = compare_to_BM(A,p)
 	# px("MIN with only α ",m," with ",α)
+end
+
+################## Get wAA wAB
+
+function wAA_wAB(p)
+	ω = cis(2π/3)
+	C_Vu1_u1 = build_Cm(p.u1v_f,p.u1_f,p)
+	C_Vu2_u1 = build_Cm(p.u2v_f,p.u1_f,p)
+	wAA = (1/(3*sqrt(p.cell_area)))*(C_Vu1_u1[1,1]+    C_Vu1_u1[2,1]+  C_Vu1_u1[1,2])
+	wAB = (1/(3*sqrt(p.cell_area)))*(C_Vu2_u1[1,1]+ω^2*C_Vu2_u1[2,1]+ω*C_Vu2_u1[1,2])
+
+	C_u1_u1 = build_Cm(p.u1_f,p.u1_f,p) 
+	# C_u1_u2 = build_Cm(p.u1_f,p.u2_f,p) 
+	px("Fourier modes u1 u1")
+	print_low_fourier_modes(C_u1_u1,p)
+	# px("u1 u2")
+	# print_low_fourier_modes(C_u1_u2,p)
+	(wAA,wAB)
+end
+
+function print_low_fourier_modes(v,p)
+	m = 1
+	for mix=1:p.N, miy=1:p.N
+		mx,my = p.k_axis[mix],p.k_axis[miy]
+		if abs(mx) ≤ m && abs(my) ≤ m
+			px("mx,my= ",mx,",",my," : ",v[mix,miy])
+		end
+	end
 end
 
 ################## Symmetry tests
@@ -571,7 +590,8 @@ end
 ################## Plot functions
 
 # creates the function of reduced direct space from the array in reduced Fourier space
-function red_arr2red_fun(ϕ_four_red,p) 
+function red_arr2red_fun(ϕ_four_red,p,k_red_shift=[0.0,0.0])
+	k1 = k_red_shift[1]; k2 = k_red_shift[2]
 	a(x,y) = 0
 	for i=1:p.N
 		ki = p.k_axis[i]
@@ -579,7 +599,7 @@ function red_arr2red_fun(ϕ_four_red,p)
 			for j=1:p.N
 				kj = p.k_axis[j]
 				if abs(kj) <= p.plots_cutoff
-					c(x,y) = (ϕ_four_red[i,j] * cis(2π*(ki*x+kj*y)))/sqrt(p.cell_area)
+					c(x,y) = (ϕ_four_red[i,j] * cis(2π*((ki+k1)*x+(kj+k2)*y)))/sqrt(p.cell_area)
 					a = a + c
 				end
 			end
@@ -598,14 +618,16 @@ function red2cart_function(f,p)
 	g
 end
 
-function eval_fun_to_plot(f_four,fun,n_motifs,res,p)
+function eval_fun_to_plot(f_four,fun,n_motifs,p;k_red_shift=[0,0.0])
 	# Computes function in cartesian space
-	fu = red_arr2red_fun(f_four,p)
+	fu = red_arr2red_fun(f_four,p,k_red_shift)
 	ψ2 = red2cart_function(fu,p)
 	f = scale_fun2d(ψ2,n_motifs)
 
 	# Evaluates
-	fun.([f(i/res,j/res) for i=0:res-1, j=0:res-1])
+	res = length(p.plots_x_axis_cart)
+	fun.([f(p.plots_x_axis_cart[i],p.plots_x_axis_cart[j]) for i=1:res, j=1:res])
+	# fun.([f(i/res,j/res) for i=0:res-1, j=0:res-1])
 end
 
 # B is a 2 × 2 matrix of potentials
@@ -618,7 +640,7 @@ function plot_block_cart(B_four,p;title="plot_full",article=false)
 	for I=1:3
 		h = []
 		for m=1:4
-			ψ_ar = eval_fun_to_plot(B_four[m],funs[I],p.plots_n_motifs,p.plots_res,p)
+			ψ_ar = eval_fun_to_plot(B_four[m],funs[I],p.plots_n_motifs,p)
 			if expo == -1
 				if maximum(abs.(ψ_ar)) < 1e-6
 					expo = 0
@@ -635,9 +657,9 @@ function plot_block_cart(B_four,p;title="plot_full",article=false)
 		pl = Plots.plot(h...,layout=(2,2),size=(1300,1000),legend=false)
 		titl = string(title,"_",titles[I],"_cart")
 		savefig(pl,string(path,titl,".png"))
-		if article && p.plot_for_article
-			savefig(pl,string(p.article_path,titl,".pdf"))
-		end
+		# if article && p.plot_for_article
+			# savefig(pl,string(p.article_path,titl,".pdf"))
+		# end
 		px("Plot of ",title," ",titles[I]," in cartesian coords, done")
 	end
 end
@@ -649,15 +671,15 @@ function plot_magnetic_block_cart(B1_four,B2_four,p;title="plot_full",article=fa
 	create_dir(path)
 
 	for m=1:4
-		ψ_ar = eval_fun_to_plot(B1_four[m],abs2,p.plots_n_motifs,p.plots_res,p)
-		ψ_ar .+= eval_fun_to_plot(B2_four[m],abs2,p.plots_n_motifs,p.plots_res,p)
+		ψ_ar = eval_fun_to_plot(B1_four[m],abs2,p.plots_n_motifs,p)
+		ψ_ar .+= eval_fun_to_plot(B2_four[m],abs2,p.plots_n_motifs,p)
 		ψ_ar = sqrt.(ψ_ar)
 		hm = Plots.heatmap(p.plots_x_axis_cart,p.plots_x_axis_cart,ψ_ar,size=(300,200))
 		# hm = Plots.heatmap(ψ_ar,aspect_ratio=:equal)
 		push!(h,hm)
 	end
 	size = 1000
-	pl = plot(h...,layout=(2,2),size=(1300,1000),legend=false)
+	pl = Plots.plot(h...,layout=(2,2),size=(1300,1000),legend=false)
 	titl = string("abs_",title,"_cart.png")
 	savefig(pl,string(path,title))
 	if article && p.plot_for_article
@@ -679,18 +701,18 @@ function plot_block_reduced(B,p;title="plot_full")
 			push!(h,hm)
 		end
 		size = 1000
-		pl = plot(h...,layout=(2,2),size=(1300,1000),legend=false)
+		pl = Plots.plot(h...,layout=(2,2),size=(1300,1000),legend=false)
 		savefig(pl,string(path,title,"_",titles[I],"_",four[fo] ? "four" : "dir",".png"))
 		# px("Plot of ",title," ",titles[I]," done")
 	end
 end
 
-function eval_blocks(B_four,funs,p)
+function eval_blocks(B_four,funs,p;k_red_shift=[0,0.0])
 	ars = []
 	for I=1:length(funs)
 		h = []
 		for m=1:4
-			ψ = eval_fun_to_plot(B_four[m],funs[I],p.plots_n_motifs,p.plots_res,p)
+			ψ = eval_fun_to_plot(B_four[m],funs[I],p.plots_n_motifs,p;k_red_shift=k_red_shift)
 			push!(h,ψ)
 		end
 		push!(ars,h)
@@ -698,10 +720,10 @@ function eval_blocks(B_four,funs,p)
 	ars
 end
 
-function plot_block_article(B_four,p;title="plot_full",other_block=-1)
+function plot_block_article(B_four,p;title="plot_full",other_block=-1,k_red_shift=[0.0,0.0])
 	funs = [real,imag,abs]; titles = ["real","imag","abs"]
 	n = length(funs)
-	ars = eval_blocks(B_four,funs,p)
+	ars = eval_blocks(B_four,funs,p;k_red_shift=k_red_shift)
 	if other_block!=-1 # case magnetic term with another block
 		ars2 = eval_blocks(other_block,funs,p)
 		op(x,y) = sqrt.(abs2.(x) .+ abs2.(y))

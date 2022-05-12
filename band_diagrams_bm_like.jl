@@ -39,8 +39,6 @@ mutable struct Basis
 	folder_plots_matrices
 	resolution_bands
 	energy_unit_plots # ∈ ["eV","Hartree"]
-	hartree_to_ev
-	ev_to_hartree
 	function Basis()
 		p = new()
 		p.double_dirac = true
@@ -48,7 +46,7 @@ mutable struct Basis
 	end
 end
 
-energy_factor(p) = p.energy_unit_plots == "eV" ? p.hartree_to_ev : 1
+energy_factor(p) = p.energy_unit_plots == "eV" ? hartree_to_ev : 1
 
 function init_basis(p)
 	### Parameters of the 2d cell
@@ -75,24 +73,19 @@ function init_basis(p)
 	p.ISΣ = -1 # matrix (1+S_Σ)^(-1/2)
 	p.solver = "LOBPCG"
 	p.fermi_velocity = 0.38
-	p.hartree_to_ev = 27.2114
-	p.ev_to_hartree = 1/p.hartree_to_ev
 
 	# Matrices to apply weights
 	init_matrices_weights(p)
 
 	# Eigenvalues
 	p.l1 = floor(Int,p.Mfull/2) - p.l
-	p.l2 = floor(Int,p.Mfull/2) + p.l
-	p.n_l = 2*p.l + 1
+	p.l2 = floor(Int,p.Mfull/2) + p.l + 1
+	p.n_l = 2*p.l + 2
 end
 
 reload_a(p) = init_cell_vectors(p;rotate=p.rotate_cell)
 
 ######################### Main functions, to plot band diagrams
-
-
-
 
 function plot_band_structure(Hv,Kdep,name,p)
 	Γ = [0,0.0]
@@ -104,15 +97,22 @@ function plot_band_structure(Hv,Kdep,name,p)
 	C = 2 .*B .- A # Γ1
 	M = C/2
 	D = Γ
-	Klist = [A,B,C,M,D]; Klist_names = ["A","B","C","M","D"]
+	# Klist = [A,B,C,M,D]; Klist_names = ["A","B","C","M","D"]
+	# Klist = [A,B,C]; Klist_names = ["A","B","C"]
 	# Klist = [K,Γ,M]; Klist_names = ["K","Γ","M"]
-	Klist = [Γ,K,M]; Klist_names = ["Γ","K","M"]
-	# Klist = [Γ,M,K]; Klist_names = ["M","K","Γ"]
+	# Klist = [Γ,K,M]; Klist_names = ["Γ","K","M"]
+	# Klist = [M,Γ,K]; Klist_names = ["M","K","Γ"]
+	A = [-2;-2]; B = [-1;-1]; C = Γ; D = [-2;-1]
+	Klist = [A,B,C,D]; Klist_names = ["A","B","C","D"]
 
-
+	# Klist = [[0 -1;1 0]*Klist[i] for i=1:length(Klist)]/sqrt(3)
 	# Klist = [Klist[i] .- p.K_red for i=1:length(Klist)] # don't do that
 	σ_on_path = spectrum_on_a_path(Hv,Kdep,Klist,p)
 	pl = plot_band_diagram(σ_on_path,Klist,Klist_names,p)#;K_relative=p.K_red)
+	save_diagram(pl,name,p)
+end
+
+function save_diagram(pl,name,p)
 	path = string(p.root_path,p.folder_plots_bands)
 	create_dir(path)
 
@@ -186,14 +186,18 @@ end
 
 # Creates [σ(-i∇+k)        0]
 #         [0        σ(-i∇+k)]
-function Dirac_k(κ,p) # κ in reduced coordinates, κ_cart = κ_red_1 a1_star + κ_red_2 a2_star
+function Dirac_k(κ,p;coef_∇=1,valley=1) # κ in reduced coordinates, κ_cart = κ_red_1 a1_star + κ_red_2 a2_star
 	n = p.Mfull
 	H = zeros(ComplexF64,n,n)
-	kC = vec2C(κ[1]*p.a1_star + κ[2]*p.a2_star)
+	kC = vec2C(valley*κ[1]*p.a1_star + κ[2]*p.a2_star)
+	do_∇ = coef_∇ != 0
 	for ck_lin=1:p.N2d
 		(mi1,mi2) = lin_k2coord_ik(ck_lin,p)
-		(m1,m2) = k_axis(mi1,mi2,p)
-		vC = vec2C(m1*p.a1_star + m2*p.a2_star)*p.coef_derivations + kC
+		vC = kC
+		if do_∇
+			(m1,m2) = k_axis(mi1,mi2,p)
+			vC += coef_∇*vec2C(m1*p.a1_star + m2*p.a2_star)*p.coef_derivations
+		end
 		(c1,c2,c3,c4) = coords_ik2full_i(mi1,mi2,p)
 		H[c1,c2] = conj(vC); H[c2,c1] = vC; H[c3,c4] = conj(vC); H[c4,c3] = vC
 	end
@@ -485,21 +489,19 @@ end
 function spectrum_on_a_path(Hv,Kdep,Klist,p)
 	res = p.resolution_bands
 	n = length(Klist)
-	T = [i/res for i=0:res-1]
 	n_path_points = res*n
-	n_eigenvals = 1
-	graphs = zeros(n_path_points,n_eigenvals)
 	X = -1
 	graphs = zeros(n_path_points,p.n_l)
 	for Ki=1:n
 		K0 = Klist[Ki]; K1 = Klist[mod1(Ki+1,n)]
 		path = [(1-t/res)*K0 .+ (t/res)*K1 for t=0:res-1]
-		# Threads.@threads for s=1:res
-		for s=1:res
+		Threads.@threads for s=1:res
+		# for s=1:res
 			HvK = Hv + Kdep(path[s])
 			# px("K ",K0," ",K1)
 			# test_hermitianity(HvK,"Hvk")
 			# test_part_hole_sym_matrix(HvK,p,"Hvk")
+			@assert herm(HvK)<1e-5
 			(E,Xf) = solve_one(Hermitian(HvK),p,X)
 			# Selects eigenvalues around the Fermi level
 			E = E[p.l1:p.l2]
@@ -514,7 +516,7 @@ function spectrum_on_a_path(Hv,Kdep,Klist,p)
 end
 
 # From the numbers of the band diagram, produces a plot of it
-function plot_band_diagram(graphs,Klist,Knames,p;K_relative=[0.0,0.0])
+function plot_band_diagram(σs,Klist,Knames,p;K_relative=[0.0,0.0])
 	n = length(Klist)
 	res = p.resolution_bands
 	n_path_points = res*n
@@ -522,6 +524,7 @@ function plot_band_diagram(graphs,Klist,Knames,p;K_relative=[0.0,0.0])
 	lengths_paths = [norm(k_red2cart(Klist[mod1(i+1,n)]-K_relative,p) .- k_red2cart(Klist[i]-K_relative,p)) for i=1:n]
 	lengths_paths /= sum(lengths_paths)
 	dx_list = lengths_paths/res
+
 	x_list = []; starts_x = []; end_x = 0
 	for j=1:n
 		dx = dx_list[j]
@@ -531,8 +534,10 @@ function plot_band_diagram(graphs,Klist,Knames,p;K_relative=[0.0,0.0])
 		end_x += res*dx
 	end
 	pl = Plots.plot(size=(1000,1100),ylims=ylims,legend=false) #:topright)
-	for l=1:p.n_l
-		Plots.plot!(pl,x_list,graphs[:,l]*energy_factor(p),xticks=nothing)
+	for g=1:length(σs)
+		for l=1:p.n_l
+			Plots.plot!(pl,x_list,σs[g][:,l]*energy_factor(p),xticks=nothing)
+		end
 	end
 	colors = [:green,:cyan,:blue,:red,:yellow]
 	if length(colors) < length(Knames)
