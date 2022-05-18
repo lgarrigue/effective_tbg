@@ -32,12 +32,18 @@ mutable struct EffPotentials
 	K_red
 	N2d; N3d
 	N; Nz; L; interlayer_distance
-	cell_area; Vol
+	cell_area; cell_area_micro; Vol
 	dim
 	lattice_2d
 	R_four_2d
 	M_four_2d
 	lattice_type_2πS3
+	m_q1
+	a1_micro; a2_micro
+	a1_star_micro; a2_star_micro
+	q1; q2; q3
+	a_micro
+	dS_micro
 
 	# Quantities computed and exported by graphene.jl
 	v_f; u1_f; u2_f; u1v_f; u2v_f; prods_f; Vint_f
@@ -79,13 +85,13 @@ mutable struct EffPotentials
 end
 
 function init_EffPot(p)
-	init_cell_vectors(p;moire=true)
-	init_cell_infinitesimals(p)
 	p.root_path = "effective_potentials/"
 	create_dir(p.root_path)
 	plots_a = p.a*p.plots_n_motifs
 	plots_dx = plots_a/p.plots_res
-	p.plots_x_axis_cart = (0:plots_dx:plots_a-plots_dx)
+	α = 1/2 # shift
+	p.plots_x_axis_cart = (-α*plots_a:plots_dx:(1-α)*plots_a-plots_dx)
+	p.m_q1 = -[1/3,1/3]
 end
 
 # multiplies all potentials by γ
@@ -101,11 +107,12 @@ end
 
 # Builds the Fourier coefficients 
 # C_m = ∑_M conj(hat(g))_{m,M} hat(f)_{m,M} e^{i η d q_M 2π/L}, η ∈ {-1,1}
-function build_Cm(g,f,p;η=1,prt=false) 
-	app(kz) = cis(2*η*p.interlayer_distance*kz*π/p.L)
-	expo = app.(p.kz_axis)
+function build_Cm(g,f,p;η=1) 
+	expo = [cis(2*η*p.interlayer_distance*kz*π/p.L) for kz in p.kz_axis]
 	C = sqrt(p.cell_area)*[sum(conj.(g[m,n,:]).*f[m,n,:].*expo) for m=1:p.N, n=1:p.N]
-	η==1 ? parity_four(C,p) : C
+	D = η==-1 ? parity_four(C,p) : C
+	px("NOT THE RIGHT BUILD CM")
+	return D
 
 	# if prt
 		# x = C[2,1]
@@ -129,9 +136,22 @@ function div_three(m,n,p) # Test whether [m;n] is in 3ℤ^2, returns [m;n]/3 if 
 	end
 end
 
+function div_A(m,n,p)
+	A = [2 1;1 2]; Ainv = (1/3)*[2 -1;-1 2]
+	B = Ainv*[m;n]
+	B1 = B[1]; B2 = B[2]
+	mInt = myfloat2int(B1;warning=false)
+	nInt = myfloat2int(B2;warning=false)
+	if abs(mInt-B1)+abs(nInt-B2)>1e-5
+		return (false,0,0)
+	else
+		return (true,mInt,nInt)
+	end
+end
+
 # 2 × 2 matrix, magnetic ∈ {1,2}, f and g are in Fourier
 function build_magnetic(g,f,magnetic_term,p;η=1) # η ∈ {-1,+1}
-	C = build_Cm(g,f,p;η=1)
+	C = build_Cm(g,f,p;η=η)
 	P = zeros(ComplexF64,p.N,p.N)
 	J = rotM(π/2)
 	for m=1:p.N, n=1:p.N
@@ -163,9 +183,9 @@ function build_block_𝔸(p)
 		build_magnetic(p.u2_f,p.u1_f,1,p), build_magnetic(p.u2_f,p.u2_f,1,p)]
 	p.𝔹2 = [build_magnetic(p.u1_f,p.u1_f,2,p), build_magnetic(p.u1_f,p.u2_f,2,p),
 		build_magnetic(p.u2_f,p.u1_f,2,p), build_magnetic(p.u2_f,p.u2_f,2,p)]
-	K = p.K_red[1]*p.a1_star.+p.K_red[2]*p.a2_star
-	p.𝔸1 = p.𝔹1 .+ K[1]*p.Σ
-	p.𝔸2 = p.𝔹2 .+ K[2]*p.Σ
+	K = (1/2)*rotM(π/2)*p.q1
+	p.𝔸1 = p.𝔹1 .- K[1]*p.Σ
+	p.𝔸2 = p.𝔹2 .- K[2]*p.Σ
 	(p.J𝔸1,p.J𝔸2) = rot_block(π/2,p.𝔸1,p.𝔸2,p)
 end
 
@@ -189,20 +209,19 @@ function change_gauge_wavefunctions(θ,p)
 	p.prods_f = [myfft(p.prods_dir[i],p.Vol) for i=1:length(p.prods_dir)]
 end
 
+create_Σ(u1,u2,p) = [build_Cm(u1,u1,p), build_Cm(u1,u2,p),
+		     build_Cm(u2,u1,p), build_Cm(u2,u2,p)]
 
-create_Σ(u1,u2,p) = [build_Cm(u1,u1,p;η=1), build_Cm(u1,u2,p;η=1),
-		     build_Cm(u2,u1,p;η=1), build_Cm(u2,u2,p;η=1)]
-
-create_V_V(u1,u2,p) = [build_Cm(p.u1v_f,p.u1_f,p;η=1), build_Cm(p.u1v_f,p.u2_f,p;η=1),
-		       build_Cm(p.u2v_f,p.u1_f,p;η=1), build_Cm(p.u2v_f,p.u2_f,p;η=1)]
+create_V_V(u1,u2,p) = [build_Cm(p.u1v_f,p.u1_f,p), build_Cm(p.u1v_f,p.u2_f,p),
+		       build_Cm(p.u2v_f,p.u1_f,p), build_Cm(p.u2v_f,p.u2_f,p)]
 
 function build_blocks_potentials(p)
 	p.Σ = create_Σ(p.u1_f,p.u2_f,p)
 
 	# Computes blocks without Vint
 	p.𝕍_V = create_V_V(p.u1_f,p.u2_f,p)
-	p.W_V_plus = [build_Cm(p.v_f,p.prods_f[1],p;η=1), build_Cm(p.v_f,p.prods_f[2],p;η=1),
-		      build_Cm(p.v_f,p.prods_f[3],p;η=1), build_Cm(p.v_f,p.prods_f[4],p;η=1)]
+	p.W_V_plus = [build_Cm(p.v_f,p.prods_f[1],p), build_Cm(p.v_f,p.prods_f[2],p),
+		      build_Cm(p.v_f,p.prods_f[3],p), build_Cm(p.v_f,p.prods_f[4],p)]
 	p.W_V_minus = [build_Cm(p.v_f,p.prods_f[1],p;η=-1), build_Cm(p.v_f,p.prods_f[2],p;η=-1),
 		       build_Cm(p.v_f,p.prods_f[3],p;η=-1), build_Cm(p.v_f,p.prods_f[4],p;η=-1)]
 
@@ -214,8 +233,8 @@ function build_blocks_potentials(p)
 		u2Vint_f = myfft(p.u2_dir.*p.Vint_dir,p.Vol)
 	end
 	compute_W_Vint_term(p)
-	p.𝕍_Vint = [build_potential(p.u1v_f,u1Vint_f,p), build_potential(p.u1v_f,u2Vint_f,p),
-		    build_potential(p.u2v_f,u1Vint_f,p), build_potential(p.u2v_f,u2Vint_f,p)]
+	p.𝕍_Vint = [build_Cm(p.u1v_f,u1Vint_f,p), build_Cm(p.u1v_f,u2Vint_f,p),
+		    build_Cm(p.u2v_f,u1Vint_f,p), build_Cm(p.u2v_f,u2Vint_f,p)]
 
 	# Sums the blocks with and without Vint
 	p.𝕍 = p.𝕍_V .+ p.𝕍_Vint
@@ -229,6 +248,9 @@ function build_blocks_potentials(p)
 		p.Wminus_tot .+= p.W_non_local_minus
 	end
 end
+
+# direct space quantity
+mean_block(V,p) = [V[i][1,1] for i=1:4]/sqrt(p.cell_area) 
 
 function add_cst_block(B,cB,p) # B in Fourier so needs to add to the first component
 	nB = copy(B)
@@ -245,15 +267,15 @@ function compute_non_local_F_term(η,j,s,p) # η ∈ {±}, j,s ∈ {1,2}
 	u = j==1 ? p.u1_f : p.u2_f
 	φ = s==1 ? p.non_local_φ1_f : p.non_local_φ2_f
 	# φ = s==1 ? p.u1_f : p.u2_f
+	J = rotM(π/2)
+	as_cart = p.shifts_atoms_red[s][1]*p.a1_micro + p.shifts_atoms_red[s][2]*p.a2_micro
+	Jas = J*as_cart
+	k_ar = [cis(-η*((2π/p.L)*p.interlayer_distance*mz)) for mz in p.kz_axis]
 	for mix=1:p.N, miy=1:p.N
 		(m0,n0) = p.k_grid[mix,miy]
-		(m1,n1) = (-η*m0,-η*n0)
-		(B,m2,n2) = div_three(m1,n1,p)
-		if B
-			(m3,n3) = k_inv(m2,n2,p)
-
-			F[mix,miy] = sum(cis(-η*(2π*[m0,n0,0]⋅p.shifts_atoms_red[s]/3 + (2π/p.L)*p.interlayer_distance*p.kz_axis[miz]))*conj(φ[m3,n3,miz])*u[m3,n3,miz] for miz=1:p.Nz)
-		end
+		(m1,n1) = k_inv(η*m0,η*n0,p)
+		k_cart = k_red2cart([m0,n0],p)
+		F[mix,miy] = cis((1/2)*k_cart⋅Jas)*sum(k_ar[miz]*conj(φ[m1,n1,miz])*u[m1,n1,miz] for miz=1:p.Nz)
 	end
 	F
 end
@@ -329,23 +351,24 @@ end
 
 function compare(u,v)
 	α0 = [1.0]
-	f(α) = norm(α[1]*u .- v)/norm(v)
+	f(α) = distance(α[1]*u,v)
 	res = optimize(f, α0)
-	minimum(res)
+	mz = Optim.minimizer(res)
+	(minimum(res),mz)
 end
 
 function compare_blocks(A,B,p)
 	for j=1:4
-		m = compare(A[j],B[j])
-		px("Distance block ",j," ",m)
+		(m,mz) = compare(A[j],B[j])
+		px("Distance block ",j," ",m," minimizer ",mz)
 	end
 end
 
 function compare_one_block(A,n,p) # A is the function, not a 4×4 block
 	n1 = norm(A)
 	function dist(α)
-		T = hermitian_block(build_BM(α[1],α[2],p))
-		norm(T[n] .- A)/n1
+		T = build_BM(α[1],α[2],p)
+		distance(T[n],A)
 	end
 	α0 = [1.0,1.0]
 	res = optimize(dist, α0)
@@ -356,13 +379,13 @@ end
 
 function compare_to_BM(A,p)
 	function dist(α)
-		T = hermitian_block(build_BM(α[1],-α[1],p))
+		T = build_BM(α[1],α[1],p)
 		relative_distance_blocks(A,T)
 	end
 	res = optimize(dist, [1.0])
 	m = minimum(res)
 	α = Optim.minimizer(res)[1]
-	T = hermitian_block(build_BM(α,-α,p))
+	T = build_BM(α,α,p)
 	(m,α,T)
 	# px("Distance to BM ",m," with coefs (α,β)=(",α[1],",",α[2],")")
 end
@@ -380,7 +403,7 @@ function optimize_gauge_and_create_T_BM_with_θ_α(V_V_or_Σ,p) # does u1 -> u1 
 	# γ(θ) = V_V_or_Σ ? create_V_V(p.u1_f*cis(3π/4),p.u2_f*cis(-3π/4),p) : create_Σ(p.u1_f*cis(3π/4),p.u2_f*cis(-3π/4),p)
 	comp(x) = x
 	function f(λ) 
-		T = hermitian_block(build_BM(comp(λ[1]),-comp(λ[1]),p))
+		T = build_BM(comp(λ[1]),comp(λ[1]),p)
 		relative_distance_blocks(γ(λ[2]),T)
 	end
 	start = V_V_or_Σ ? [1.6e-4,1] : [1e-3,1]
@@ -390,7 +413,7 @@ function optimize_gauge_and_create_T_BM_with_θ_α(V_V_or_Σ,p) # does u1 -> u1 
 	α = comp(λ[1])
 	px("Optimized by changing gauge, angle ξ=",θ*180/π,"°")
 
-	p.T_BM = hermitian_block(build_BM(α,-α,p))
+	p.T_BM = build_BM(α,α,p)
 	# px("MIN with α and θ",res.minimum," with ",α)
 
 	change_gauge_wavefunctions(θ,p)
@@ -411,6 +434,11 @@ function wAA_wAB(p)
 	wAA = (1/(3*sqrt(p.cell_area)))*(C_Vu1_u1[1,1]+    C_Vu1_u1[2,1]+  C_Vu1_u1[1,2])
 	wAB = (1/(3*sqrt(p.cell_area)))*(C_Vu2_u1[1,1]+ω^2*C_Vu2_u1[2,1]+ω*C_Vu2_u1[1,2])
 
+	wAA = (1/(3*sqrt(p.cell_area)))*(p.𝕍_V[1][1,1]+    p.𝕍_V[1][2,1]+  p.𝕍_V[1][1,2])
+	wAB = (1/(3*sqrt(p.cell_area)))*(C_Vu2_u1[1,1]+ω^2*C_Vu2_u1[2,1]+ω*C_Vu2_u1[1,2])
+
+	px("wAA from 0,0 only ",hartree_to_ev*p.𝕍[1][1,1]/sqrt(p.cell_area))
+
 	C_u1_u1 = build_Cm(p.u1_f,p.u1_f,p) 
 	# C_u1_u2 = build_Cm(p.u1_f,p.u2_f,p) 
 	px("Fourier modes u1 u1")
@@ -430,16 +458,28 @@ function print_low_fourier_modes(v,p)
 	end
 end
 
+function rescale_A(V,p;shift=false) # M(x) = V(3x)
+	M = zeros(ComplexF64,p.N,p.N)
+	# (mK,nK) = Tuple(Int.(3*p.K_red))
+	for mix=1:p.N, miy=1:p.N
+		(m0,n0) = k_axis(mix,miy,p)
+		if shift m0 -= 1; n0 -= 1 end
+		(B,m1,n1) = div_A(m0,n0,p)
+		if !B
+			M[mix,miy] = 0
+		else
+			m2,n2 = k_inv(m1,n1,p)
+			M[mix,miy] = V[m2,n2]
+		end
+	end
+	M
+end
+
+rescale_A_block(V,p;shift=false) = [rescale_A(V[i],p;shift=shift) for i=1:4]
+
 ################## Symmetry tests
 
-function relative_distance_blocks(B,C)
-	count = 0; tot = 0
-	for i=1:4
-		count += sum(abs.(B[i].-C[i]))
-		tot += sum(abs.(B[i]))
-	end
-	count/tot
-end
+relative_distance_blocks(B,C) = sum(distance(B[i],C[i]) for i=1:4)
 
 function test_particle_hole_block(B,p;name="B")
 	PB_four = hermitian_block(B) # parity ∘ conj in direct becomes just conj in Fourier
@@ -496,10 +536,11 @@ function test_mirror_block(B,p;name="B",herm=false)
 	px("Test σ1 ",name,(herm ? "*" : ""),"(x1,-x2) σ1 = ",name,"(x) ",relative_distance_blocks(B,symB))
 end
 
-function test_build_potential_direct(g,f,p) # by P(x)= = ∑_m Cm e^{i2πxJ^*m}, used to test because it's much heavier than building by Fourier. PERIOD L, NOT L/2 !!
+function test_build_potential_direct(g,f,p) # by P(x) = ∑_m Cm e^{i2πxJ^*m}, used to test because it's much heavier than building by Fourier. PERIOD L, NOT L/2 !
 	C = build_Cm(g,f,p)
 	P = zeros(ComplexF64,p.N,p.N)
-	calJ_star = [1 -2;2 -1]
+	calJ_star = [1 -2;
+		     2 -1]
 	calJ_m = [calJ_star*[p.k_grid[m,n][1];p.k_grid[m,n][2]] for m=1:p.N, n=1:p.N]
 	for x=1:p.N, y=1:p.N
 		expos = [exp(im*2π*(p.x_axis_cart[x]*calJ_m[m1,m2][1]+p.x_axis_cart[y]*calJ_m[m1,m2][2])) for m1=1:p.N, m2=1:p.N]
@@ -544,8 +585,11 @@ function import_u1_u2_V_φ(N,Nz,p)
 	path = "graphene/exported_functions/"
 	f = string(path,"N",N,"_Nz",Nz,"_u1_u2_V_nonLoc.jld")
 
-	p.a = load(f,"a"); p.L = load(f,"L")
+	p.a_micro = load(f,"a"); p.L = load(f,"L")
+
+	init_cell_vectors(p;moire=true)
 	init_cell_infinitesimals(p)
+	px("a_micro = ",p.a_micro," a = ",p.a)
 
 	p.v_f = load(f,"v_f")
 	p.u1_f = load(f,"u1_f")
@@ -561,6 +605,7 @@ function import_u1_u2_V_φ(N,Nz,p)
 	p.v_dir = myifft(p.v_f,p.Vol)
 	p.u1_dir = myifft(p.u1_f,p.Vol)
 	p.u2_dir = myifft(p.u2_f,p.Vol)
+	# px("sca ",scaprod(p.u2_dir,p.u2_dir,p,false))
 	# pl = Plots.heatmap(real.([p.u1_f[x,y,5] for x=1:p.N,y=1:p.N]))
 	# savefig(pl,"lala.png")
 
@@ -578,12 +623,12 @@ function import_Vint(p)
 	if p.compute_Vint
 		path = "graphene/exported_functions/"
 		f = string(path,"N",p.N,"_Nz",p.Nz,"_Vint.jld")
-		a = load(f,"a"); L = load(f,"L"); @assert a==p.a && L==p.L
+		a = load(f,"a"); L = load(f,"L"); @assert a==p.a_micro && L==p.L
 
 		Vint_f = load(f,"Vint_f")
 		p.Vint_f = zeros(ComplexF64,p.N,p.N,p.Nz)
-		p.Vint_f[1,1,:] = Vint_f
-		p.Vint_dir = myifft(p.Vint_f,p.L)
+		p.Vint_f[1,1,:] = sqrt(p.cell_area_micro)*Vint_f
+		p.Vint_dir = myifft(p.Vint_f,p.Vol)
 	end
 end
 
@@ -608,6 +653,25 @@ function red_arr2red_fun(ϕ_four_red,p,k_red_shift=[0.0,0.0])
 	a
 end
 
+function red_arr2cart_fun(ϕ_four_red,p,k_red_shift=[0.0,0.0])
+	k1 = k_red_shift[1]; k2 = k_red_shift[2]
+	a(x,y) = 0
+	for i=1:p.N
+		ki = p.k_axis[i]
+		if abs(ki) <= p.plots_cutoff
+			for j=1:p.N
+				kj = p.k_axis[j]
+				if abs(kj) <= p.plots_cutoff
+					ma_star = (ki+k1)*p.a1_star+(kj+k2)*p.a2_star
+					c(x,y) = (ϕ_four_red[i,j] * cis(ma_star⋅[x,y]))/sqrt(p.cell_area)
+					a = a + c
+				end
+			end
+		end
+	end
+	a
+end
+
 # from function in reduced direct space to function in cartesian direct space
 function red2cart_function(f,p)
 	cart2red = inv(hcat(p.a1,p.a2))
@@ -620,9 +684,9 @@ end
 
 function eval_fun_to_plot(f_four,fun,n_motifs,p;k_red_shift=[0,0.0])
 	# Computes function in cartesian space
-	fu = red_arr2red_fun(f_four,p,k_red_shift)
-	ψ2 = red2cart_function(fu,p)
-	f = scale_fun2d(ψ2,n_motifs)
+	# fu = red_arr2red_fun(f_four,p,k_red_shift)
+	# ψ2 = red2cart_function(fu,p)
+	f = red_arr2cart_fun(f_four,p,k_red_shift)
 
 	# Evaluates
 	res = length(p.plots_x_axis_cart)
@@ -632,7 +696,7 @@ end
 
 # B is a 2 × 2 matrix of potentials
 # from array of Fourier coefficients to plot in direct cartesian space
-function plot_block_cart(B_four,p;title="plot_full",article=false) 
+function plot_block_cart(B_four,p;title="plot_full",article=false)
 	path = string(p.root_path,"plots_potentials_cartesian_N",p.N,"_Nz",p.Nz,"/")
 	create_dir(path)
 	funs = [real,imag,abs]; titles = ["real","imag","abs"]
@@ -720,7 +784,7 @@ function eval_blocks(B_four,funs,p;k_red_shift=[0,0.0])
 	ars
 end
 
-function plot_block_article(B_four,p;title="plot_full",other_block=-1,k_red_shift=[0.0,0.0])
+function plot_block_article(B_four,p;title="plot_full",other_block=-1,k_red_shift=[0.0,0.0],meV=true)
 	funs = [real,imag,abs]; titles = ["real","imag","abs"]
 	n = length(funs)
 	ars = eval_blocks(B_four,funs,p;k_red_shift=k_red_shift)
@@ -729,6 +793,13 @@ function plot_block_article(B_four,p;title="plot_full",other_block=-1,k_red_shif
 		op(x,y) = sqrt.(abs2.(x) .+ abs2.(y))
 		for i=1:3
 			ars[i] = op_two_blocks(op,ars[i],ars2[i])
+		end
+	end
+	# meV units
+	if meV
+		ars = ars*1e3*hartree_to_ev
+		if other_block!=-1
+			ars2 = ars2*1e3*hartree_to_ev
 		end
 	end
 	# Computes common colorbar
@@ -745,6 +816,7 @@ function plot_block_article(B_four,p;title="plot_full",other_block=-1,k_red_shif
 	clm = :Spectral
 	# clm = :linear_bmy_10_95_c78_n256
 	hm(fi,f) = Makie.heatmap(fi,p.plots_x_axis_cart,p.plots_x_axis_cart,f,colormap=clm,colorrange=joint_limits)
+
 	for I=1:n
 		fig = Figure(resolution=(res,res))
 		ff1,ax1 = hm(fig[1,1],ars[I][1])
@@ -755,14 +827,22 @@ function plot_block_article(B_four,p;title="plot_full",other_block=-1,k_red_shif
 		for ff in [ff1,ff2,ff4]
 			hidedecorations!(ff, grid = false)
 		end
+		fact = 1
+		arrows!(ff1,[0,0],[0,0],fact*[p.a1[1],p.a2[1]],fact*[p.a1[2],p.a2[2]], arrowsize = 10)
+		arrows!(ff2,[0,0],[0,0],fact*[p.a1[1],p.a2[1]],fact*[p.a1[2],p.a2[2]], arrowsize = 10)
+		# arrows!(ff1,[0],[0],[1],[4], arrowsize = 10)
+		sh = [1,0]
+		if funs[I]==abs
+			text!(ff1,[L"\epsilon_{\theta}^{-1} a_{M,1}",L"\epsilon_{\theta}^{-1} a_{M,2}"],position = Tuple.(fact*[p.a1.-1.3*sh,p.a2.-0.65*sh]),textsize=35)
+		end
 
 		titl = string(title,"_",titles[I],"_cart")
 		save(string(p.article_path,titl,".pdf"),fig)
-		Colorbar(fig_colors[1,1],ax1,vertical=(other_block!=-1),flipaxis=(other_block!=-1)) # records colorbar. flipaxis to have ticks down the colormap
+		Colorbar(fig_colors[1,1],ax1,vertical=(other_block!=-1),flipaxis=(other_block!=-1),label=meV ? "meV" : "") # records colorbar. flipaxis to have ticks down the colormap
 	end
 
 	# Saves colorbar
 	titl = string(p.article_path,title,"_colorbar.pdf")
 	save(titl,fig_colors)
-	px("Done ploting article ",title)
+	px("Done ploting article ",title," in meV")
 end

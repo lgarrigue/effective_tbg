@@ -23,15 +23,21 @@ function T_BM_four(N,α,β)
 	m = zeros(ComplexF64,N,N)
 	T = fill2d(m,2)
 
-	q1 = [-1;-1]; q2 = [1;0]; q3 = [0;1]
+	q1 = [0;0]; q2 = [-1;0]; q3 = [0;-1]
+	if false
+		for q in [q1,q2,q3]
+			q = -q
+		end
+	end
 	q1i1,q1i2 = kv2(q1); q2i1,q2i2 = kv2(q2); q3i1,q3i2 = kv2(q3)
 	for i=1:2
 		for j=1:2
-			# T[i,j][end,end] = T1[i,j]; T[i,j][2,1] = T2[i,j]; T[i,j][1,2] = T3[i,j]
 			# T[i,j][2,2] = T1[i,j]; T[i,j][3,end] = T2[i,j]; T[i,j][end,3] = T3[i,j]
 			T[i,j][q1i1,q1i2] = T1[i,j]
 			T[i,j][q2i1,q2i2] = T2[i,j]
 			T[i,j][q3i1,q3i2] = T3[i,j]
+			# T[i,j][1,1] = T1[i,j]; T[i,j][end,1] = T2[i,j]; T[i,j][1,end] = T3[i,j]
+			# T[i,j][end,end] = T1[i,j]; T[i,j][2,1] = T2[i,j]; T[i,j][1,2] = T3[i,j]
 		end
 	end
 	T

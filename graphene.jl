@@ -31,6 +31,7 @@ mutable struct Params
 	R_four_2d # rotation of 2π/3, in Fourier labels
 	M_four_2d # mirror
 	lattice_type_2πS3 # type 2π/3 if there is a rotation of 2π/3 between a1 and a2, type π/3 otherwise
+	C1; C2 # shift, in reduced coordinates, of the carbon atoms
 
 	# Dirac point quantities
 	K_red_3d; K_coords_cart; K_kpt # Dirac point in several formats
@@ -96,7 +97,7 @@ function init_params(p)
 	p.K_coords_cart = k_red2cart_3d(p.K_red_3d,p)
 	# (1-R_{2π/3})K = m a^*, shift of this vector
 	p.shift_K_R = [myfloat2int.((I-matrix_rot_red(2π/3,p))*p.K_red);0]
-	p.shift_K_M = [myfloat2int.((I-          p.M_four_2d)*p.K_red);0]
+	p.shift_K_M = [myfloat2int.((I-           p.M_four_2d)*p.K_red);0]
 
 	# Paths
 	p.root_path = "graphene/"
@@ -145,14 +146,20 @@ function R(u,p)
 	OpL(u,p,L)
 end
 
+function G(u,p) # mirror
+	L(h) = M2d_2_M3d(p.M_four_2d)*h
+	OpL(u,p,L)
+end
+
 function M(u,p) # mirror
-	L(G) = M2d_2_M3d(p.M_four_2d)*G
+	M = M2d_2_M3d(p.M_four_2d); M[3,3] = -1
+	L(G) = M*G
 	OpL(u,p,L)
 end
 
 # Equivalent to multiplication by e^{i cart(k) x), where k is in reduced, e^{im0 a^*⋅x} u = ∑ e^{ima^*⋅x} u_{m-m0}
 τ(u,k,p) = OpL(u,p,G -> G .- k)
-# Parity(u,p) = OpL(u,p,G -> -G)
+Parity(u,p) = OpL(u,p,G -> -G)
 
 z_translation(a,Z,p) = [a[x,y,mod1(z-Z,p.Nz)] for x=1:p.N, y=1:p.N, z=1:p.Nz]
 r_translation(a,s,p) = [a[mod1(x-s[1],p.N),mod1(y-s[2],p.N),z] for x=1:p.N, y=1:p.N, z=1:p.Nz] # s ∈ {0,…,p.N-1}^2, 0 for no translation
@@ -164,9 +171,9 @@ function scf_graphene_monolayer(p)
 	p.psp = load_psp("hgh/pbe/c-q4")
 	C = ElementPsp(:C, psp=p.psp)
 	minus = p.lattice_type_2πS3 ? -1 : 1
-	c1 = [1/3,minus*1/3,0.0]; c2 = -c1
-	p.shifts_atoms = [c1,c2]
-	p.atoms = [C => [c1,c2]]
+	p.C1 = [1/3,minus*1/3,0.0]; p.C2 = -p.C1
+	p.shifts_atoms = [p.C1,p.C2]
+	p.atoms = [C => [p.C1,p.C2]]
 	model = model_PBE(p.lattice_3d, p.atoms; temperature=1e-3, smearing=Smearing.Gaussian())
 	basis = PlaneWaveBasis(model; Ecut=p.ecut, p.kgrid)
 	# px("Number of spin components ",model.n_spin_components)
@@ -180,7 +187,7 @@ function scf_graphene_monolayer(p)
 	p.z_axis_red = ((0:p.Nz-1))/p.Nz
 	p.z_axis_cart = p.z_axis_red*p.L
 
-	init_cell_infinitesimals(p)
+	init_cell_infinitesimals(p;moire=false)
 	@assert abs(p.dv - basis.dvol) < 1e-10
 
 	# Extracts kpoint
@@ -233,11 +240,12 @@ end
 # Computes the Kohn-Sham potential of the bilayer at some stacking shift (disregistry)
 function scf_graphene_bilayer(sx,sy,p)
 	stacking_shift_red = [sx,sy,0.0]
-	D = p.interlayer_distance/(p.L*2)
-	c1_plus =  [ 1/3, 1/3, D] .+ stacking_shift_red
-	c2_plus =  [-1/3,-1/3, D] .+ stacking_shift_red
-	c1_moins = [ 1/3, 1/3,-D]
-	c2_moins = [-1/3,-1/3,-D]
+	D = [0;0;p.interlayer_distance/(p.L*2)]
+
+	c1_plus =  p.C1 .+ D .+ stacking_shift_red
+	c2_plus =  p.C2 .+ D .+ stacking_shift_red
+	c1_moins = p.C1 .- D
+	c2_moins = p.C2 .- D
 	C = ElementPsp(:C, psp=load_psp("hgh/pbe/c-q4"))
 	atoms = [C => [c1_plus,c2_plus,c1_moins,c2_moins]]
 	n_extra_states = 1
@@ -443,17 +451,30 @@ function exchange_u1_u2(p)
 	p.u1_dir,p.u2_dir = p.u2_dir,p.u1_dir
 end
 
-function compute_scaprod_Dirac(p)
-	(∂1_u2_f,∂2_u2_f,∂3_u2_f) = ∇(p.u2_fc,p)
-	c1 = -im*scaprod(p.u1_fc,∂1_u2_f,p,true); c2 = -im*scaprod(p.u1_fc,∂2_u2_f,p,true)
+function compute_scaprod_∇(u,v,p)
+	(∂1_u,∂2_u,∂3_u) = ∇(v,p)
+	c1 = -im*scaprod(u,∂1_u,p,true); c2 = -im*scaprod(u,∂2_u,p,true)
 	c1,c2
+end
+
+compute_scaprod_Dirac_u1_u2(p) = compute_scaprod_∇(p.u1_fc,p.u2_fc,p)
+
+function compute_scaprod_Dirac_u1_u1(p)
+	c1,c2 = compute_scaprod_∇(p.u1_fc,p.u1_fc,p)
+	A = k_red2cart(p.K_red,p)
+	(c1+A[1],c2+A[2])
 end
 
 # the gauge is fixed such that <Φ1,(-i∇_x)Φ2> = <u1,(-i∇_x)u2> = vF*goal where vF ∈ ℝ+, hence <e^(iξ) Φ1,(-i∇_x) e^(-iξ)Φ2> = e^(-2iξ) vF*goal
 # this is vF*goal which has to be chosen, and not another one, for our 𝕍 to look like T_BM
 function records_fermi_velocity_and_fixes_gauge(p) 
 	goal = [1;-im]
-	(c1,c2) = compute_scaprod_Dirac(p)
+	(c1,c2) = compute_scaprod_Dirac_u1_u2(p)
+	px("c1 ",c1,"; c2 ",c2)
+	px("sca1 ",scaprod(p.u1_fc,p.u1_fc,p))
+	px("sca2 ",scaprod(p.u2_fc,p.u2_fc,p))
+
+	px("sca3 ",compute_scaprod_Dirac_u1_u1(p))
 	@assert abs(goal[1]/goal[2] - c1/c2) <1e-4
 	# ratios = abs.([c1/c2+im,c1/c2-im]) # this can be one of the two, because of numerical instabilities choosing u1 and u2 which are interchangeable
 	# I = argmin(ratios)
@@ -472,9 +493,10 @@ function records_fermi_velocity_and_fixes_gauge(p)
 		p.v_fermi = r
 		@assert imag(fact*cis(-ξ)) < 1e-10
 		change_gauge_functions(ξ/2,p)
+		px("ADDED PI IN CHANGE GAUGE")
 
 		# Verification that vF is real positive and close to vF
-		(c1,c2) = compute_scaprod_Dirac(p)
+		(c1,c2) = compute_scaprod_Dirac_u1_u2(p)
 		# px("new c1,c2= ",c1," ",c2)
 		@assert norm([c1,c2] .- r*goal)<1e-4
 		# px("REMETTRE VERIFICATION DU RATIO !!!!!!!!!!!")
@@ -644,12 +666,18 @@ function test_mirror_sym(p)
 	(Mu1,Tu1) = (M(p.u1_fb,p),τ(p.u1_fb,p.shift_K_M,p)) # u0
 	(Mu2,Tu2) = (M(p.u2_fb,p),τ(p.u2_fb,p.shift_K_M,p)) # u0
 
+	Gu0 = G(p.u0_fb,p)
+	Gu1 = G(p.u1_fb,p)
+	Gu2 = G(p.u2_fb,p)
+
 	px("Test M Φ0 =     Φ0 ",distance(Mu0,Tu0))
-	px("Test M Φ1 = τ   Φ1 ",distance(Mu1,Tu2)) # M u1 = τ e^{ix⋅(1-R_{2π/3})K} u1 = τ e^{ix⋅[-1,0,0]a^*} u1
-	px("Test M Φ2 = τ^2 Φ2 ",distance(Mu2,Tu1))
-	# px("Test M φ1 = τ   φ1 ",distance(Rφ1, τau*Tφ1))
-	# px("Test M φ2 = τ^2 φ2 ",distance(Rφ2, τau^2*Tφ2))
+	px("Test M Φ1 =    -Φ2 ",distance(Mu1,-Tu2)) # M u1 = τ e^{ix⋅(1-R_{2π/3})K} u1 = τ e^{ix⋅[-1,0,0]a^*} u1
+	px("Test M Φ2 =    -Φ1 ",distance(Mu2,-Tu1))
 	px("Test M v  =      v ",distance(p.v_monolayer_fc,M_four(p.v_monolayer_fc,p)))
+
+	px("Test G Φ0 =     Φ0 ",distance(Gu0,Tu0))
+	px("Test G Φ1 =     Φ2 ",distance(Gu1,Tu2)) # M u1 = τ e^{ix⋅(1-R_{2π/3})K} u1 = τ e^{ix⋅[-1,0,0]a^*} u1
+	px("Test G Φ2 =     Φ1 ",distance(Gu2,Tu1))
 end
 
 ######################### Plot functions

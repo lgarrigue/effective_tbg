@@ -8,7 +8,7 @@ function produce_bloch_functions_and_potentials()
 	p.dim = 3
 	p.a = 4.66 # length of the vectors of the fundamental cell
 	p.L = 20 # periodicity in z (both for mono and bilayer computations)
-	p.ecut = 100*norm_K_cart(p.a)^2 # DFTK's ecut, convergence of u's for ecut ≃ 15
+	p.ecut = 30*norm_K_cart(p.a)^2 # DFTK's ecut, convergence of u's for ecut ≃ 15
 	px("ecut ",p.ecut)
 	p.interlayer_distance = 6.45 # distance between the two layers
 	p.i_state = 4 # u1 will be the i^th eigenmode, u1 the (i+1)^th, u0 the (i-1)^th
@@ -17,6 +17,7 @@ function produce_bloch_functions_and_potentials()
 	p.plots_cutoff = 3 # Fourier cutoff for plots
 
 	init_params(p)
+	px("Cell area ",p.cell_area)
 	p.Nint = 2
 	compute_Vint = false
 	p.export_plots_article = true
@@ -34,7 +35,6 @@ function produce_bloch_functions_and_potentials()
 	extract_nonlocal(p)
 	# Computes the non local contribution of the Fermi velocity
 	non_local_deriv_energy(4,p)
-
 	plot_mean_V(p)
 
 	test_scaprod_fft_commutation(p)
@@ -48,6 +48,9 @@ function produce_bloch_functions_and_potentials()
 	# p.v_fermi = get_fermi_velocity_with_finite_diffs(4,p) # Computing dE/dk with diagonalizations of H(k), should get 0.380 or 0.381
 	# fermi_velocity_from_rotated_us(p) # Doing scalar products
 	records_fermi_velocity_and_fixes_gauge(p) 
+
+
+	px("u1(x-(1/3)(-a1+a2)) = u2(x) ",distance(translation_interpolation(p.u1_fc,[-1/3,1/3],p),p.u2_fc))
 
 	# rapid_plot(p.v_monolayer_fc,p;n_motifs=2,name="v",res=50,bloch_trsf=false)
 	# Symmetry tests

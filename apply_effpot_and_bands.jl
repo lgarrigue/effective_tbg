@@ -10,29 +10,29 @@ function computes_and_plots_effective_potentials()
 	# N = 9;  Nz = 36
 	N = 12; Nz = 40
 	# N = 12; Nz = 45
-	# N = 15; Nz = 54
+	N = 15; Nz = 54
 	# N = 15; Nz = 60
 	# N = 20; Nz = 72
 	# N = 24; Nz = 90
 	# N = 24; Nz = 96
 	# N = 25; Nz = 108 # ecut 40|Kd|^2
 	# N = 30; Nz = 120 # ecut 50|Kd|^2 which blocks because of a bug on DFTK
-	# N = 30; Nz = 125 # ecut 55|Kd|^2
+	N = 30; Nz = 125 # ecut 55|Kd|^2
 	# N = 32; Nz = 135 # ecut 50
 	# N = 40; Nz = 160
-	N = 40; Nz = 180 # <-- Ecut = 100 |kD|^2
-	# N = 45; Nz = 180 # ecut 120|Kd|^2
+	N = 40; Nz = 180 # <-- Ecut = 100 |Kd|^2
+	# N = 45; Nz = 180 # Ecut = 120|Kd|^2
 	# N = 45; Nz = 192
 	# N = 48; Nz = 200
 
 	px("N ",N,", Nz ",Nz)
 	p = EffPotentials()
 
-	p.plots_cutoff = 7
-	p.plots_res = 40
+	p.plots_cutoff = 3
+	p.plots_res = 100
 	p.plots_n_motifs = 6
 	produce_plots = false
-	p.compute_Vint = false
+	p.compute_Vint = true
 	p.plot_for_article = true
 
 	# Imports untwisted quantities
@@ -41,20 +41,26 @@ function computes_and_plots_effective_potentials()
 	init_EffPot(p)
 	# px("Test norm ",norms3d(p.u1_dir,p,false)," and in Fourier ",norms3d(p.u1_f,p))
 
-	(wAA,wAB) = hartree_to_ev .*wAA_wAB(p)
-	px("wAA = ",wAA," eV, wAB = ",wAB," eV")
-	px("IL FAUT AUSSI PRENDRE EN COMPTE VINT !")
 
-	px("Cell area ",sqrt(p.cell_area))
+	px("SQRT Cell area ",sqrt(p.cell_area))
 
 	build_blocks_potentials(p) # computes Wplus, 𝕍_V and Σ
 	compare_to_BM_infos(p.𝕍_V,p,"V_V")
 	optimize_gauge_and_create_T_BM_with_α(true,p) # optimizes on α only, not on the global phasis, which was already well-chosen before at the graphene.jl level
+	T_BM = build_BM(5,5,p)
+	compare_to_BM_infos(T_BM,p,"T_BM")
+	px("Compare")
+	compare_blocks(T_BM,p.𝕍_V,p)
 
 	build_blocks_potentials(p) # computes Wplus, 𝕍_V and Σ
 	compare_to_BM_infos(p.𝕍_V,p,"V_V")
 
-	plot_block_reduced(p.T_BM,p;title="T")
+	# plot_block_reduced(p.T_BM,p;title="T")
+	# plot_block_reduced(p.𝕍_V,p;title="V_V")
+
+	(wAA,wAB) = hartree_to_ev .*wAA_wAB(p)
+	px("wAA = ",wAA," eV, wAB = ",wAB," eV")
+	px("IL FAUT AUSSI PRENDRE EN COMPTE VINT !")
 
 	# plot_block_reduced(p.T_BM,p;title="T")
 	p.add_non_local_W = true
@@ -67,12 +73,8 @@ function computes_and_plots_effective_potentials()
 	compare_to_BM_infos(p.Σ,p,"Σ")
 	build_block_𝔸(p) # computes 𝔸
 
-
-	means_W_V = [p.W_V_plus[i][1,1] for i=1:4]/sqrt(p.cell_area)
-	W_V_without_mean = add_cst_block(p.W_V_plus,-1*means_W_V,p)
-	px("Mean W_V_plus (in Fourier) :")
-	display(means_W_V)
-	# plot_block_article(W_V_without_mean,p;title="W_V_plus_without_mean")
+	px("V_{11}(x-(1/3)(a1-a2)) = V_{12}(x) ",distance(translation_interpolation(p.𝕍_V[1], [1/3,-1/3],p),p.𝕍_V[2]))
+	px("V_{11}(x+(1/3)(a1-a2)) = V_{12}(x) ",distance(translation_interpolation(p.𝕍_V[1],-[1/3,-1/3],p),p.𝕍_V[2]))
 
 	# plot_block_cart(p.Σ,p;title="Σ")
 	# plot_block_cart(p.𝕍_V,p;title="V_V")
@@ -83,17 +85,30 @@ function computes_and_plots_effective_potentials()
 
 	# testit(p)
 
+
+	# Mean W
+	means_W_V = mean_block(p.W_V_plus,p)
+	means_W_V_minus = mean_block(p.W_V_minus,p)
+	@assert distance(means_W_V_minus,means_W_V_minus)<1e-4
+	W_V_without_mean = add_cst_block(p.W_V_plus,-sqrt(p.cell_area)*means_W_V,p)
+	px("Mean W_V_plus (in Fourier) :")
+	display(means_W_V)
 	px("\nW_Vint matrix")
 	display(p.W_Vint_matrix)
+	px("Mean W_plus in meV :")
+	display(mean_block(p.W_V_minus,p)*1e3*hartree_to_ev)
 
 	# Plots for article
 	if p.plot_for_article
-		# plot_block_article(p.T_BM,p;title="T")
-		plot_block_article(p.𝕍_V,p;title="V_V",k_red_shift=[1/3,1/3])
-		# if p.compute_Vint plot_block_article(p.𝕍_Vint,p;title="V_Vint") end
-		# plot_block_article(p.Σ,p;title="Σ")
-		# plot_block_article(p.W_non_local_plus,p;title="W_nl_plus")
-		# plot_block_article(p.𝔸1*1/2,p;title="A",other_block=p.𝔸2*1/2)
+		# plot_block_reduced(p.𝕍_V,p;title="V_V")
+		# plot_block_reduced(p.𝕍,p;title="V")
+		# plot_block_article(p.𝕍,p;title="V",k_red_shift=-p.m_q1)
+		# plot_block_article(p.T_BM,p;title="T",k_red_shift=-p.m_q1)
+		# plot_block_article(W_V_without_mean,p;title="W_plus_without_mean")
+		# plot_block_article(p.𝔸1,p;title="A",other_block=p.𝔸2,k_red_shift=-p.m_q1)
+		# if p.compute_Vint plot_block_article(p.𝕍_Vint,p;title="V_Vint",k_red_shift=-p.m_q1) end
+		plot_block_article(p.Σ,p;title="Σ",k_red_shift=-p.m_q1,meV=false)
+		# plot_block_article(p.W_non_local_plus,p;title="W_nl_plus",k_red_shift=-p.m_q1)
 	end
 
 
@@ -143,6 +158,8 @@ function computes_and_plots_effective_potentials()
 	test_mirror_block(p.Σ,p;name="Σ",herm=false)
 	test_mirror_block(p.W_non_local_plus,p;name="Wnl+",herm=false)
 	test_mirror_block(p.W_non_local_minus,p;name="Wnl-",herm=false)
+
+	px("Compare W+ and W- ",distance(p.W_V_plus,p.W_V_minus))
 
 	# R
 	px("\nTests R symmetry")
@@ -202,6 +219,7 @@ function computes_and_plots_effective_potentials()
 		# plot_block_cart(p.𝔹1,p;title="B1")
 		# plot_block_cart(p.𝔹2,p;title="B2")
 	end
+	p
 end
 
 #################### Third step : compute the bands diagram
@@ -215,13 +233,77 @@ end
 
 function explore_band_structure_BM()
 	p = Basis()
+	p.N = 8
+	# @assert mod(p.N,2)==1 # for more symmetries
+	p.a_micro = 8π/sqrt(3)
+	p.dim = 2
+	p.l = 11 # number of eigenvalues we compute
+	init_basis(p)
+	α = 0 # anti-chiral / AA stacking weight
+	p.resolution_bands = 6
+	p.energy_unit_plots = "Hartree"
+	p.folder_plots_bands = "bands_BM"
+	p.energy_center = 0
+	p.energy_scale = 0.85
+	p.solver = "Exact"
+	mult_by_vF = true
+	p.coef_derivations = 1
+
+
+	no = norm(p.q2)
+	update_a(p.q2/no,p.q3/no,p)
+
+	K1 = [1/3,2/3]
+	K2 = [2/3,1/3]
+	K_reds = [K2,K1]
+
+	Γ = [0,0.0]
+	K = p.K_red
+	px("Kred ",p.K_red)
+	M = [0,1/2]
+
+	Klist = [Γ,K,M]; Klist_names = ["Γ","K","M"]
+	A = K2 # K'
+	B = K1 # K
+	C = 2*K1-K2 # Γ1
+	M = C/2
+	D = [0,0]
+
+	Klist = [A,B,C,M,D]
+	# Klist = [Klist[i]-p.K_red for i=1:length(Klist)]
+
+	Klist_names = ["A","B","C","M","D"]
+	# Klist = [Γ,K,M]; Klist_names = ["Γ","K","M"]
+
+	Kf = [k -> Dirac_k(k-K_reds[i],p;coef_∇=0) for i=1:2]
+	# Kf(k) = Dirac_k(k,p;coef_∇=0)
+
+	H0 = Dirac_k([0.0,0.0],p)
+	# for β in [0.586]
+	for β in vcat([0])
+	# for β in vcat([0,0.586])
+	# for β in vcat([0.586],(0:0.05:0.4))
+		print(" ",β)
+		TBM = build_BM(α,β,p)
+		TBM3 = rescale_A_block(TBM,p;shift=true)
+		T = V_offdiag_matrix(TBM3,p)*sqrt(p.cell_area)
+
+		σs = [spectrum_on_a_path(H0.+T,Kf[i],Klist,p) for i=1:2]
+		pl = plot_band_diagram(σs,Klist,Klist_names,p)
+		save_diagram(pl,β,p)
+	end
+	p
+end
+
+function explore_band_structure_BM2()
+	p = Basis()
 	p.N = 7
 	@assert mod(p.N,2)==1 # for more symmetries
 	p.a = 1 # decreasing a makes band energies increase
 	p.l = 11 # number of eigenvalues we compute
 	init_basis(p)
 	α = 1 # anti-chiral / AA stacking weight
-	p.resolution_bands = 20
+	p.resolution_bands = 4
 	p.energy_unit_plots = "Hartree"
 	p.folder_plots_bands = "bands_BM"
 	p.energy_center = 0
@@ -229,12 +311,6 @@ function explore_band_structure_BM()
 	p.solver = "Exact"
 	mult_by_vF = true
 	p.coef_derivations = 1
-	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
-	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
-	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
-	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
-	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
-	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
 	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
 	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
 	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
@@ -377,23 +453,16 @@ function explore_band_structure_Heff()
 	end
 end
 
-computes_and_plots_effective_potentials()
+# p = computes_and_plots_effective_potentials()
 # explore_band_structure_Heff()
-# explore_band_structure_BM()
+explore_band_structure_BM()
 # explore_free_graphene_bands()
 nothing
 
 #### Todo
-# voir si \cA peut pas etre sous la forme sum_123 A_j e^{ix qj}
-#
-# ajouter effet du terme non local
-# cube Fourier pour plus de symétrie
-# Ht_a ≂̸ t_a H comme dit par Watson, regarder son papier sur l'existence des magic angles
-# régler le pb du scaling -3/2 JX
-#
-# Régler pb de la convergence des pot effectifs quand N est grand
-# Reproduire diagramme de bandes de Tarnopolsky
-#
-# Does non local φ depends on the gauge we choose on wavefunctions ? in this case we should adapt it when we fix the gauge
-#
-# VERIFIER SYMMETRIEs
+# FAIRE GRAPH AVEC WAB ET SUIVANT EN FONCTION DE d, norm(Σ,∇Σ,W,V,V-T (qui aille plus vite vers 0 que V))
+#  Donner les coefs suivants de wAA et wAB
+# FAIRE GRAPH AVEC BILAYER, a_M et qj^*, et TBM
+# Donner wAA et wAB avec les 6 modes de Fourier. Pq real et imag sont pas invariants sous 2π/3 ?
+# Régler pb de phase pour W^nl
+# DANS TKV IL Y A LES DEUX VALLEES !!!

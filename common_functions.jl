@@ -25,25 +25,11 @@ function inverse_dict_from_2d_array(a)
 	Dict(value => (Ci[key][1],Ci[key][2]) for (key, value) in direct)
 end
 
-function init_cell_infinitesimals(p) # needs a, N, Nz
-	p.cell_area = sqrt(3)*0.5*p.a^2 
-	p.dx = p.a/p.N
-	p.dS = p.cell_area/p.N^2
-	p.k_axis = Int.(fftfreq(p.N)*p.N)
-	p.k_grid = axis2grid(p.k_axis)
-	p.x_axis_cart = (0:p.N-1)*p.dx
-	p.N2d = p.N^2; p.N3d = p.N2d*p.Nz
 
-	# z-dim quantities
-	p.dz = p.L/p.Nz
-	p.dv = p.dS*p.dz
-	p.kz_axis = Int.(fftfreq(p.Nz)*p.Nz)
-	p.Vol = p.cell_area*p.L
-end
 
-function myfloat2int(x)
+function myfloat2int(x;warning=true)
 	y = floor(Int,x+0.5)
-	if abs(x-y)>1e-5
+	if abs(x-y)>1e-5 && warning
 		px("NOT AN INT ",x," ",y)
 	end
 	y
@@ -58,23 +44,42 @@ end
 
 matrix_rot_red(θ,p) = myfloat2int.(cart2red_mat(rotM(θ),p))
 
-function init_cell_vectors(p;moire=false) # needs a. a_{i,M} = (1/2) J a_i
+function a_star_from_a(a1,a2)
+	lattice_rec = 2π*inv([a1 a2]')
+	a1_star = lattice_rec[1:2,1]
+	a2_star = lattice_rec[1:2,2]
+	a1_star,a2_star
+end
+
+length_a_to_length_a_star(a) = 4π/(a*sqrt(3))
+
+function init_cell_vectors(p;moire=true) # needs a. a_{i,M} = (1/2) J a_i
 	a1_unit = [1/2;-sqrt(3)/2]
 	a2_unit = [1/2; sqrt(3)/2]
 
-	# a1_unit = [sqrt(3)/2; 1/2]
-	# a2_unit = [sqrt(3)/2;-1/2]
-	p.a1,p.a2 = p.a.*(a1_unit,a2_unit) # not used
+	a = moire ? p.a_micro : p.a
+	p.a1,p.a2 = a.*(a1_unit,a2_unit) # not used
 
 	if moire
+		p.a1_micro,p.a2_micro = p.a1,p.a2
+		p.a1_star_micro,p.a2_star_micro = a_star_from_a(p.a1,p.a2)
 		J = rotM(π/2)
-		p.a1 = J*p.a1/2
-		p.a2 = J*p.a2/2
+		p.a1 = (1/2)*J*p.a1
+		p.a2 = (1/2)*J*p.a2
+		p.a = norm(p.a1)
+		p.cell_area = sqrt(3)*0.5*p.a^2
+		p.cell_area_micro = sqrt(3)*0.5*p.a_micro^2
+	else
+		p.cell_area = sqrt(3)*0.5*p.a^2
 	end
 
-	lattice_rec = 2π*inv([p.a1 p.a2]')
-	p.a1_star = lattice_rec[1:2,1]
-	p.a2_star = lattice_rec[1:2,2]
+	p.a1_star,p.a2_star = a_star_from_a(p.a1,p.a2)
+
+	if moire
+		p.q1 = -(1/3)*(p.a1_star.+p.a2_star)
+		p.q2 = rotM(2π/3)*p.q1
+		p.q3 = rotM(2π/3)*p.q2
+	end
 
 	# a1s_unit = [sqrt(3)/2;-1/2]
 	# a2s_unit = [sqrt(3)/2; 1/2]
@@ -89,11 +94,39 @@ function init_cell_vectors(p;moire=false) # needs a. a_{i,M} = (1/2) J a_i
 				zeros(1,2)             p.L]
 	end
 
-	p.cell_area = abs(det(p.lattice_2d[1:2,1:2]))
-	# p.cell_area = sqrt(3)*0.5*p.a^2 # not when moiré
 	p.lattice_type_2πS3 = distance(p.a1,rotM(2π/3)*p.a2)<1e-5 || distance(p.a1,rotM(-2π/3)*p.a2)<1e-5 
 	px("type ",p.lattice_type_2πS3)
 	p.K_red = p.lattice_type_2πS3 ? [1/3,1/3] : [-1/3;1/3]
+end
+
+function update_a(a1_star,a2_star,p)
+	p.a1_star = a1_star
+	p.a2_star = a2_star
+	p.a1,p.a2 = a_star_from_a(p.a1_star,p.a2_star)
+	p.a = norm(p.a1)
+	p.cell_area = sqrt(3)*0.5*p.a^2
+	p.lattice_2d = [p.a1 p.a2]
+	p.lattice_type_2πS3 = distance(p.a1,rotM(2π/3)*p.a2)<1e-5 || distance(p.a1,rotM(-2π/3)*p.a2)<1e-5 
+	p.K_red = p.lattice_type_2πS3 ? [1/3,1/3] : [-1/3;1/3]
+end
+
+# Runs after init_cell_vectors
+function init_cell_infinitesimals(p;moire=true) # needs a, N, Nz ; only micro quantities !
+	p.k_axis = Int.(fftfreq(p.N)*p.N)
+	p.k_grid = axis2grid(p.k_axis)
+	p.kz_axis = Int.(fftfreq(p.Nz)*p.Nz)
+	p.N2d = p.N^2; p.N3d = p.N2d*p.Nz
+	p.dS = p.cell_area/p.N^2
+	if moire
+		p.dS_micro = p.cell_area_micro/p.N^2
+		p.Vol = p.cell_area_micro*p.L
+	else
+		p.dx = p.a/p.N
+		p.x_axis_cart = (0:p.N-1)*p.dx
+		p.Vol = p.cell_area*p.L
+		p.dz = p.L/p.Nz
+	end
+	p.dv = p.Vol/(p.N^2*p.Nz)
 end
 
 function k_red2cart_list(k1,k2,p)
@@ -110,10 +143,21 @@ init_vec(p) = fill2d(zeros(ComplexF64,p.N,p.N),4)
 
 cyclic_conv(a,b,Vol) = myfft(myifft(a,Vol).*myifft(b,Vol),Vol)/sqrt(Vol)
 
+
+# translation u(x) := u(x - ya) = ∑_m u_m e^{ima^*(x-ya)}/sqrt(Vol) has Fourier coefs u_m e^{-i2π m⋅y}
+function translation_interpolation(u_f,y_red,p)
+	dim = length(size(u_f))
+	if dim==3
+		return [u_f[i,j,l]*cis(-2π*y_red⋅[p.k_axis[i],p.k_axis[j]]) for i=1:p.N, j=1:p.N, l=1:p.Nz]
+	else
+		return [u_f[i,j]*cis(-2π*y_red⋅[p.k_axis[i],p.k_axis[j]]) for i=1:p.N, j=1:p.N]
+	end
+end
+
 function scaprod(ϕ,ψ,p,four=true)
 	d = length(size(ϕ))
 	@assert d==length(size(ψ))
-	dVol = d==1 ? p.dx : d==2 ? p.dS : p.dv
+	dVol = d==1 ? p.dx : d==2 ? dS : p.dv
 	(four ? 1 : dVol)*ϕ⋅ψ
 end
 

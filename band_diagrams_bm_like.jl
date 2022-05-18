@@ -13,12 +13,23 @@ mutable struct Basis
 	k_axis; k_grid
 	K_red
 	N
-	cell_area
+
+	cell_area; cell_area_micro; Vol
+	dim
+	lattice_2d
+	R_four_2d
+	M_four_2d
+	lattice_type_2πS3
+	m_q1
+	a1_micro; a2_micro
+	a1_star_micro; a2_star_micro
+	q1; q2; q3
+	a_micro
+	dS_micro
 
 	# Useless parameters
 	Nz; L; dz
 	kz_axis
-	rotate_cell
 
 	# Parameters for the 4×4 matrix
 	N2d; Mfull
@@ -57,8 +68,7 @@ function init_basis(p)
 	p.folder_plots_matrices = "matrices/"
 	path2 = string(p.root_path,p.folder_plots_matrices)
 	create_dir(path2)
-	p.rotate_cell = false
-	init_cell_vectors(p;rotate=p.rotate_cell)
+	init_cell_vectors(p;moire=true)
 	p.S = nothing
 
 	### Parameters for the 4×4 matrix
@@ -83,7 +93,7 @@ function init_basis(p)
 	p.n_l = 2*p.l + 2
 end
 
-reload_a(p) = init_cell_vectors(p;rotate=p.rotate_cell)
+reload_a(p) = init_cell_vectors(p;moire=true)
 
 ######################### Main functions, to plot band diagrams
 
@@ -198,6 +208,7 @@ function Dirac_k(κ,p;coef_∇=1,valley=1) # κ in reduced coordinates, κ_cart 
 			(m1,m2) = k_axis(mi1,mi2,p)
 			vC += coef_∇*vec2C(m1*p.a1_star + m2*p.a2_star)*p.coef_derivations
 		end
+		# px(" KC ",abs(vC))
 		(c1,c2,c3,c4) = coords_ik2full_i(mi1,mi2,p)
 		H[c1,c2] = conj(vC); H[c2,c1] = vC; H[c3,c4] = conj(vC); H[c4,c3] = vC
 	end
