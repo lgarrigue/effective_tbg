@@ -1069,12 +1069,131 @@ and
 
 
 
+\section{Code}%
+\label{sec:code}
+
+\begin{multline*}
+b_1^* = \f{4\pi \ep}{a\sqrt{3}} \mat{-1/2 \\ -\sqrt{3}/2} = k_\theta \sqrt{3} \mat{-1/2 \\ -\sqrt{3}/2},\quad b_2^* = k_\theta \sqrt{3} \mat{1 \\ 0} \\
+R_{\f{2\pi}{3}} b_1^*= b_2^*,\quad R_{\f{2\pi}{3}} b_2^* = -b_1^* - b_2^* \\
+K_1 = \f 13 \pa{b_1^* + 2 b_2^*} = \f 13 \pa{a_1^* -2a_2^*} = k_\theta \mat{\sqrt{3}/2 \\ -1/2} \\
+K_2 = \f 13 \pa{-b_1^* +  b_2^*}= \f 13 \pa{2a_1^*  -a_2^*} = k_\theta \mat{\sqrt{3}/2 \\ 1/2} = R_{\f{2\pi}{6}} K_1
+\end{multline*}
+then
+\begin{align*}
+	H = \mat{\sigma^\xi \cdot \pa{-i\na + k - K_1} & T_\xi(x) \\ T_\xi(x)^* & \sigma^\xi \cdot \pa{-i\na + k - K_2}}
+\end{align*}
+where $\sigma^\xi := \pa{\xi \sigma_1,\sigma_2}$ and $T_\xi(x) = T^\xi_1  + T^\xi_2 e^{-i b_1^* x} + T^\xi_3 e^{-i(b_1^* + b_2^*) x}$ where
+\begin{align*}
+	T_1^\xi = \mat{\alpha & \beta \\ \beta & \alpha},\qquad T_2^\xi = \mat{\alpha & \beta e^{-i\xi\phi} \\ \beta e^{i\xi \phi} & \alpha}\qquad T^\xi_3 = \overline{T_2^\xi}
+\end{align*}
+and with $U := \mat{e^{iK_1 x} & 0 \\ 0 & e^{iK_2 x}}$, we have
+\begin{align*}
+U^* H U = \mat{\sigma^\xi \cdot \pa{-i\na + k} & T_\xi(x) e^{i\pa{K_1 - K_2}x} \\ T_\xi(x)^*e^{i\pa{K_2 - K_1}x} & \sigma^\xi \cdot \pa{-i\na + k}}
+\end{align*}
+and $K_1 - K_2 = \f 13 \pa{2b_1^* + b_2^*}$ so
+\begin{align*}
+T_\xi(x) e^{i\pa{K_1 - K_2}x} = T_1 e^{i \f 13 \pa{2b_1^* + b_2^*}} + T_2 e^{i \f 13 \pa{-b_1^* + b_2^*}}+ T_3 e^{i \f 13 \pa{-b_1^*-2 b_2^*} }
+\end{align*}
+If we define
+\begin{multline*}
+Q_1 := \f 13 \pa{2b_1^* + b_2^*} = k_\theta \mat{0 \\ -1} = q_1 \\
+Q_2 := \f 13\pa{-b_1^* + b_2^*},\qquad Q_3 :=  \f 13 \pa{-b_1^* - 2b_2^*}
+\end{multline*}
+we have
+\begin{align*}
+R_{\f{2\pi}{3}} Q_1 = Q_2,\qquad R_{\f{2\pi}{3}} Q_2 = Q_3,\qquad R_{\f{2\pi}{3}} Q_3 = Q_1
+\end{align*}
+and hence $Q_j = q_j$, of TKV, and $TT_\xi(x) e^{i\pa{K_1 -K_2}x} = T_\xi(x) e^{iq_1 x} = T(x)$. Also, we have $b_1^* + b_2^* = k_\theta \sqrt{3} \mat{1/2 \\ -\sqrt{3}/2} = -a_2^*$ and $b_1^* = - a_1^*$, so
+\begin{align*}
+b_1^* = -a_1^*,\qquad b_2^* = a_1^* - a_2^*
+\end{align*}
 
 
 
 
+\subsection{TKV}%
+\label{sub:tkv}
 
+In TKV, we have
+\begin{multline*}
+	a_1^* = q_2 - q_1 = k_\theta \sqrt{3} \mat{1/2 \\ \sqrt{3}/2},\qquad a_2^* = q_3 - q_1 = k_\theta \sqrt{3} \mat{-1/2 \\ \sqrt{3}/2} \\
+	q_1 = -q_2 - q_3
+\end{multline*}
+To have $q_j$ in terms of $a_j^*$, we compute $a_1^* \pm a_2^*$ and $a_1^* = 2q_2 + q_3$, $a_2^* = q_2 + 2 q_3$ and
+\begin{align*}
+q_3 = \f 13 \pa{-a_1^* + 2 a_2^*},\qquad q_2 = \f 13 \pa{ 2 a_1^* - a_2^*},\qquad q_1 = \f 13 \pa{-a_1^* - a_2^*} \\
+R_{\f{2\pi}{3}} q_1 = q_2,\qquad R_{\f{2\pi}{3}} q_2 = q_3,\qquad R_{\f{2\pi}{3}} q_3 = q_1
+\end{align*}
+(this was triples checked, including with the cartesian coordinates). Moreover,
+\begin{multline*}
+R_{-\f{2\pi}{6}} a_1^* = a_1^* - a_2^*,\qquad R_{-\f{2\pi}{6}} a_2^* = a_1^* \\
+R_{\f{2\pi}{6}} a_1^* = a_2^*,\qquad R_{\f{2\pi}{6}} a_2^* = a_2^* - a_1^*
+\end{multline*}
+If 
+\begin{align*}
+	S := \mat{a_1^* & a_2^*} = k_\theta \sqrt{3} \mat{1/2 & -1/2 \\ \sqrt{3}/2 & \sqrt{3}/2}, \qquad S^{-1} = \f{2}{3 k_\theta} \mat{\sqrt{3}/2 & 1/2 \\ -\sqrt{3}/2 & 1/2}
+\end{align*}
+and
+\begin{align*}
+\cM = \mat{a_1 & a_2} = 2\pi \pa{S^*}^{-1} = \f{4\pi}{3k_\theta} \mat{\sqrt{3}/2 & - \sqrt{3}/2 \\ 1/2 & 1/2}
+\end{align*}
 
+with $U := \mat{e^{-iK_1 x} & 0 \\ 0 & e^{-iK_2 x}}$, and
+\begin{align*}
+T(x) = T_1 e^{-iq_1 x}  +T_2 e^{-iq_2 x}  +T_3 e^{-iq_3 x} 
+\end{align*}
+we compute
+\begin{align}\label{eq:UmatU}
+	U^* \mat{-i\sigma \na & T \\ T^* & -i\sigma \na} U = \mat{\sigma\pa{-i\na - K_1} & T e^{i\pa{K_1 - K_2}x} \\ T^* e^{i\pa{K_2-K_1}x} & \sigma\pa{-i\na - K_2}} 
+\end{align}
+and with $K_1 - K_2 = q_1$,
+\begin{align*}
+T e^{i\pa{K_1 - K_2}x} = T_1 + T_2 e^{i\pa{-q_2+q_1}x} + T_3 e^{i\pa{-q_3+q_1}x} = T_1 + T_2 e^{-i a_1^* x} + T_3 e^{-ia_2^* x}
+\end{align*}
+% moreover,
+% \begin{align*}
+	% R^\text{red}_{-\f{2\pi}{6}} = S^{-1} R_{-\f{2\pi}{6}} S = \mat{1 & 1 \\ -1 & 0}
+% \end{align*}
+ and if $K_1 = \f 13 \pa{\alpha a_1^* + \beta a_2^*}$, then 
+\begin{align*}
+	K_2 &:= R_{-\f{2\pi}{6}} K_1 = \f 13 \pa{\alpha a_1^* + \pa{\beta-\alpha}a_2^*} \\
+K_1 - K_2 &= \f 13 \alpha a_2^* = q_1 = \f 13 \pa{-a_1^* - a_2 ^*}
+\end{align*}
+has no solution !!! We can try
+\begin{align*}
+	K_2 &:= R_{\f{2\pi}{6}} K_1 = \f 13 \pa{-\beta a_1^* + \pa{\alpha + \beta}a_2^*} \\
+K_1 - K_2 &= \f 13 \pa{\pa{\alpha -\beta}a_1^* - \alpha a_2^*} = q_1 = \f 13 \pa{-a_1^* - a_2 ^*}
+\end{align*}
+so $(\alpha,\beta) = (1,2)$ but then $K_1$ is not a Dirac point for this configuration !
+
+\subsection{Deductive from TKV}%
+\label{sub:deductive_from_tkv}
+
+From \eqref{eq:UmatU}, that we consider again, we want $K_1- K_2 = q_1$, so 
+\begin{align*}
+	T(x) e^{i(K_1-K_2)x} &= T(x) e^{iq_1 x} = T_1 +T_2 e^{i(q_1 - q_2)x} +T_3 e^{i(q_1 - q_3)x} \\
+& = T_1 +T_2 e^{-ic_1^*x} +T_3 e^{-i\pa{c_1^*+c_2^*}x}
+\end{align*}
+where
+\begin{multline*}
+c_1^* := q_2 - q_1 = a_1^*, \qquad c_2^* := q_3 - q_2 = -a_1^* + a_2^*, \qquad a_2^* = c_1^* + c_2^*
+\end{multline*}
+hence
+\begin{align*}
+q_1 = \f 13\pa{-2c_1^* - c_2^*}, \qquad q_2 = \f 13\pa{c_1^* - c_2^*},\qquad q_3 = \f 13\pa{c_1^* +2 c_2^*}
+\end{align*}
+and
+\begin{align*}
+R_{\f{2\pi}{6}} c_1^* = c_1^* + c_2^*, \qquad R_{\f{2\pi}{6}} c_2^* = -c_1^*
+\end{align*}
+so if $K_2 = \f 13 \pa{\alpha c_1^* + \beta c_2^*}$, and if we impose $K_1 = R_{\f{2\pi}{6}} K_2$, we have $K_1 = \f 13 \pa{\pa{\alpha - \beta} c_1^* + \alpha c_2^*}$ and
+\begin{align*}
+\f 13 \pa{-2c_1^* -c_2^*} = q_1 = K_1 - K_2 = \f 13\pa{-\beta c_1^* + \pa{\alpha - \beta} c_2^*} \implies (\alpha,\beta) = (1,2)
+\end{align*}
+so
+\begin{align*}
+K_1 = \f 13 \pa{ -c_1^* + c_2^*},\qquad K_2 = \f 13 \pa{c_1^* + 2c_2^*}
+\end{align*}
 
 \bibliographystyle{siam}
 \bibliography{../../../biblio}

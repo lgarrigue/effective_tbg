@@ -1,7 +1,7 @@
 include("common_functions.jl")
 using DFTK, LinearAlgebra, FFTW, JLD, LaTeXStrings
 using SharedArrays, Distributed
-using Plots
+using Plots, CairoMakie, AbstractPlotting, DataFrames
 setup_threading()
 px = println
 
@@ -76,8 +76,10 @@ mutable struct Params
 	root_path; path_exports; path_plots # paths
 	export_plots_article
 	path_plots_article
+	alleviate # alleviate computations, to work on plots for instance, doing computations quickly
 	function Params()
 		p = new()
+		p.export_plots_article = false
 		p
 	end
 end
@@ -103,7 +105,6 @@ function init_params(p)
 	p.root_path = "graphene/"
 	p.path_exports = string(p.root_path,"exported_functions/")
 	p.path_plots = string(p.root_path,"plots/")
-	p.export_plots_article = false
 	p.path_plots_article = "../../bm/ab_initio_model/pics/"
 	create_dir(p.root_path)
 	create_dir(p.path_exports)
@@ -164,6 +165,8 @@ Parity(u,p) = OpL(u,p,G -> -G)
 z_translation(a,Z,p) = [a[x,y,mod1(z-Z,p.Nz)] for x=1:p.N, y=1:p.N, z=1:p.Nz]
 r_translation(a,s,p) = [a[mod1(x-s[1],p.N),mod1(y-s[2],p.N),z] for x=1:p.N, y=1:p.N, z=1:p.Nz] # s ∈ {0,…,p.N-1}^2, 0 for no translation
 
+
+
 ######################### Solves Schrödinger's equations
 
 # Obtain the Kohn-Sham potential
@@ -173,9 +176,9 @@ function scf_graphene_monolayer(p)
 	minus = p.lattice_type_2πS3 ? -1 : 1
 	p.C1 = [1/3,minus*1/3,0.0]; p.C2 = -p.C1
 	p.shifts_atoms = [p.C1,p.C2]
-	p.atoms = [C => [p.C1,p.C2]]
-	model = model_PBE(p.lattice_3d, p.atoms; temperature=1e-3, smearing=Smearing.Gaussian())
+	model = model_PBE(p.lattice_3d, [C,C], p.shifts_atoms; temperature=1e-3, smearing=Smearing.Gaussian())
 	basis = PlaneWaveBasis(model; Ecut=p.ecut, p.kgrid)
+	px("ecut ",p.ecut," kgrid ",p.kgrid)
 	# px("Number of spin components ",model.n_spin_components)
 
 	(p.N,p.N,p.Nz) = basis.fft_size
@@ -188,7 +191,9 @@ function scf_graphene_monolayer(p)
 	p.z_axis_cart = p.z_axis_red*p.L
 
 	init_cell_infinitesimals(p;moire=false)
-	@assert abs(p.dv - basis.dvol) < 1e-10
+	if !p.alleviate
+		@assert abs(p.dv - basis.dvol) < 1e-10
+	end
 
 	# Extracts kpoint
 	i_kpt = 1
@@ -199,7 +204,10 @@ function scf_graphene_monolayer(p)
 	px("Energies")
 	display(p.scfres.energies)
 	p.v_monolayer_dir = DFTK.total_local_potential(p.scfres.ham)[:,:,:,1]
+	# px("Vmono en 0 ",p.v_monolayer_dir[1,1,1])
+	# p.v_monolayer_dir .-= 5
 	p.v_monolayer_fc = myfft(p.v_monolayer_dir,p.Vol)
+	substract_by_far_value(p.v_monolayer_dir,p)
 	# p.v_monolayer_fb = r_to_G(basis,kpt,p.v_monolayer_dir)
 
 	# Test potential energy
@@ -247,17 +255,25 @@ function scf_graphene_bilayer(sx,sy,p)
 	c1_moins = p.C1 .- D
 	c2_moins = p.C2 .- D
 	C = ElementPsp(:C, psp=load_psp("hgh/pbe/c-q4"))
-	atoms = [C => [c1_plus,c2_plus,c1_moins,c2_moins]]
+	positions = [c1_plus,c2_plus,c1_moins,c2_moins]
 	n_extra_states = 1
 
-	model = model_PBE(p.lattice_3d, atoms; temperature=1e-3, smearing=Smearing.Gaussian())
+	if D==0 px("CANNOT DO DFT WITH d=0") end
+	model = model_PBE(p.lattice_3d, [C,C,C,C], positions; temperature=1e-3, smearing=Smearing.Gaussian())#, symmetries=false)
 	basis = PlaneWaveBasis(model; Ecut=p.ecut, kgrid=p.kgrid)
-	@assert (p.N,p.N,p.Nz) == basis.fft_size
-	@assert abs(p.dv - basis.dvol) < 1e-10
-	@assert p.x_axis_red == first.(DFTK.r_vectors(basis))[:,1,1]
+	if !p.alleviate
+		b = (p.N,p.N,p.Nz) == basis.fft_size
+		if !b
+			px("Problem in scf bilayer, (N,Nz)=(",p.N,",",p.Nz,") but fftsize=",basis.fft_size,". To solve the issue, change ecut !")
+			@assert false
+		end
+		@assert abs(p.dv - basis.dvol) < 1e-10
+		@assert p.x_axis_red == first.(DFTK.r_vectors(basis))[:,1,1]
+	end
 
 	scfres = self_consistent_field(basis;tol=p.tol_scf,n_ep_extra=n_extra_states,eigensolver=lobpcg_hyper,maxiter=100,callback=x->nothing)
 	Vks_dir = DFTK.total_local_potential(scfres.ham)[:,:,:,1] # select first spin component
+	substract_by_far_value(Vks_dir,p)
 	myfft(Vks_dir,p.Vol)
 end
 
@@ -286,6 +302,7 @@ function get_dirac_eigenmodes(p)
 	p.n_fball = length(us_K[1]) # size of the Fourier ball
 	px("Size of Fourier ball: ",p.n_fball)
 	px("Size of Fourier cube: ",p.N,"×",p.N,"×",p.Nz)
+	px("L=",p.L)
 
 	# Fixes the gauges
 	ref_vec = ones(p.N,p.N,p.Nz)
@@ -426,7 +443,7 @@ function get_fermi_velocity_with_finite_diffs(n_samplings_over_2,p)
 	Ipoint = Int(floor(n_samplings/4)-1)
 	dK = norm(set_cart_K[Ipoint+1]-set_cart_K[Ipoint])
 	x_axis = norm.(set_cart_K)
-	pl = plot(x_axis,[values_down,values_up])
+	pl = Plots.plot(x_axis,[values_down,values_up])
 	savefig(pl,string(p.path_plots,"graph_fermi_velocity.png"))
 	vF = (values_down[Ipoint+1]-values_down[Ipoint])/dK
 	vF_up = (values_up[Ipoint+1]-values_up[Ipoint])/dK
@@ -468,14 +485,16 @@ end
 # the gauge is fixed such that <Φ1,(-i∇_x)Φ2> = <u1,(-i∇_x)u2> = vF*goal where vF ∈ ℝ+, hence <e^(iξ) Φ1,(-i∇_x) e^(-iξ)Φ2> = e^(-2iξ) vF*goal
 # this is vF*goal which has to be chosen, and not another one, for our 𝕍 to look like T_BM
 function records_fermi_velocity_and_fixes_gauge(p) 
-	goal = [1;-im]
+	goal = [-1;im]
 	(c1,c2) = compute_scaprod_Dirac_u1_u2(p)
 	px("c1 ",c1,"; c2 ",c2)
 	px("sca1 ",scaprod(p.u1_fc,p.u1_fc,p))
 	px("sca2 ",scaprod(p.u2_fc,p.u2_fc,p))
 
 	px("sca3 ",compute_scaprod_Dirac_u1_u1(p))
-	@assert abs(goal[1]/goal[2] - c1/c2) <1e-4
+	if !p.alleviate
+		@assert abs(goal[1]/goal[2] - c1/c2) <1e-4
+	end
 	# ratios = abs.([c1/c2+im,c1/c2-im]) # this can be one of the two, because of numerical instabilities choosing u1 and u2 which are interchangeable
 	# I = argmin(ratios)
 	# if I==2
@@ -498,7 +517,9 @@ function records_fermi_velocity_and_fixes_gauge(p)
 		# Verification that vF is real positive and close to vF
 		(c1,c2) = compute_scaprod_Dirac_u1_u2(p)
 		# px("new c1,c2= ",c1," ",c2)
-		@assert norm([c1,c2] .- r*goal)<1e-4
+		if !p.alleviate
+			@assert norm([c1,c2] .- r*goal)<1e-4
+		end
 		# px("REMETTRE VERIFICATION DU RATIO !!!!!!!!!!!")
 		px("<u1,(-i∇r) u2> = vF[",goal[1],",",goal[2],"] where vF=",r)
 	# end
@@ -618,7 +639,7 @@ function non_local_deriv_energy(n_samplings_over_2,p) # <u_nk, ∇_k (V_nl)_k u_
 	Ipoint = Int(floor(n_samplings/4)-1)
 	dK = norm(set_cart_K[Ipoint+1]-set_cart_K[Ipoint])
 	x_axis = norm.(set_cart_K)
-	pl = plot(x_axis,values)
+	pl = Plots.plot(x_axis,values)
 	# savefig(pl,string(p.path_plots,"graph_non_loc_der.png"))
 	nld = (values[Ipoint+1]-values[Ipoint])/dK
 	px("Non local deriv: ",nld)
@@ -629,13 +650,13 @@ end
 
 function exports_v_u1_u2_φ(p)
 	filename = string(p.path_exports,"N",p.N,"_Nz",p.Nz,"_u1_u2_V_nonLoc.jld")
-	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"v_f",p.v_monolayer_fc,"u1_f",p.u1_fc,"u2_f",p.u2_fc,"v_fermi",p.v_fermi,"φ1_f",p.non_local_φ1_fc,"φ2_f",p.non_local_φ2_fc,"non_local_coef",p.non_local_coef,"shifts_atoms",p.shifts_atoms,"interlayer_distance",p.interlayer_distance)
+	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"v_f",p.v_monolayer_fc,"u1_f",p.u1_fc,"u2_f",p.u2_fc,"v_fermi",p.v_fermi,"φ1_f",p.non_local_φ1_fc,"φ2_f",p.non_local_φ2_fc,"non_local_coef",p.non_local_coef,"shifts_atoms",p.shifts_atoms)
 	px("Exported : V, u1, u2 functions, Fermi velocity, and non local quantities, for N=",p.N,", Nz=",p.Nz)
 end
 
 function export_Vint(p)
-	filename = string(p.path_exports,"N",p.N,"_Nz",p.Nz,"_Vint.jld")
-	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"Vint_f",p.Vint_f)
+	filename = string(p.path_exports,"N",p.N,"_Nz",p.Nz,"_d",p.interlayer_distance,"_Vint.jld")
+	save(filename,"N",p.N,"Nz",p.Nz,"a",p.a,"L",p.L,"d",p.interlayer_distance,"Vint_f",p.Vint_f)
 	px("Exported : Vint for N=",p.N,", Nz=",p.Nz)
 end
 
@@ -670,21 +691,28 @@ function test_mirror_sym(p)
 	Gu1 = G(p.u1_fb,p)
 	Gu2 = G(p.u2_fb,p)
 
+	px("Test Φ1(-z)=-Φ1(z) ",distance(parity_z(p.u1_fc,p),-p.u1_fc))
+	px("Test Φ2(-z)=-Φ2(z) ",distance(parity_z(p.u2_fc,p),-p.u2_fc))
+
 	px("Test M Φ0 =     Φ0 ",distance(Mu0,Tu0))
-	px("Test M Φ1 =    -Φ2 ",distance(Mu1,-Tu2)) # M u1 = τ e^{ix⋅(1-R_{2π/3})K} u1 = τ e^{ix⋅[-1,0,0]a^*} u1
+	px("Test M Φ1 =    -Φ2 ",distance(Mu1,-Tu2))
+	px("Test M Φ1 =     Φ2 ",distance(Mu1,Tu2))
 	px("Test M Φ2 =    -Φ1 ",distance(Mu2,-Tu1))
+	px("Test M Φ2 =     Φ1 ",distance(Mu2,Tu1))
 	px("Test M v  =      v ",distance(p.v_monolayer_fc,M_four(p.v_monolayer_fc,p)))
 
 	px("Test G Φ0 =     Φ0 ",distance(Gu0,Tu0))
 	px("Test G Φ1 =     Φ2 ",distance(Gu1,Tu2)) # M u1 = τ e^{ix⋅(1-R_{2π/3})K} u1 = τ e^{ix⋅[-1,0,0]a^*} u1
+	px("Test G Φ1 =    -Φ2 ",distance(Gu1,-Tu2)) # M u1 = τ e^{ix⋅(1-R_{2π/3})K} u1 = τ e^{ix⋅[-1,0,0]a^*} u1
 	px("Test G Φ2 =     Φ1 ",distance(Gu2,Tu1))
+	px("Test G Φ2 =    -Φ1 ",distance(Gu2,-Tu1))
 end
 
 ######################### Plot functions
 
 function plot_mean_V(p) # rapid plot of V averaged over XY, to see which are the right orders of magnitude
 	Vz = [sum(p.v_monolayer_dir[:,:,z]) for z=1:p.Nz]/p.N^2
-	pl = plot(Vz)
+	pl = Plots.plot(Vz)
 	savefig(pl,string(p.path_plots,"Vz.png"))
 end
 
@@ -747,12 +775,12 @@ function rapid_plot(u,p;n_motifs=5,name="rapidplot",bloch_trsf=true,res=25)
 	Z = 10
 	funs = [abs,real,imag]
 	hm = [simple_plot(u,fun,Z,p;n_motifs=n_motifs,bloch_trsf=bloch_trsf,res=res) for fun in funs]
-	plot_z = plot(intXY(real.(myifft(u,p.L)),p))
+	plot_z = Plots.plot(intXY(real.(myifft(u,p.L)),p))
 	push!(hm,plot_z)
 	size = 600
 	r = length(hm)
-	pl = plot(hm...,layout=(r,1),size=(size+100,r*size),legend=false)
-	# pl = plot(hm...,layout=(1,r),size=(r*size,size-200),legend=false)
+	pl = Plots.plot(hm...,layout=(r,1),size=(size+100,r*size),legend=false)
+	# pl = Plots.plot(hm...,layout=(1,r),size=(r*size,size-200),legend=false)
 	full_name = string(p.path_plots,name,"_N",p.N,"_Nz",p.Nz)
 	savefig(pl,string(full_name,".png"))
 
@@ -760,41 +788,80 @@ function rapid_plot(u,p;n_motifs=5,name="rapidplot",bloch_trsf=true,res=25)
 	uXY = intZ(abs.(u),p)
 	uZ = intXY(abs.(u),p)
 	plXY = heatmap(uXY,size=(1500,1000))
-	plZ = plot(uZ,size=(1500,1000))
-	pl = plot(plXY,plZ)
+	plZ = Plots.plot(uZ,size=(1500,1000))
+	pl = Plots.plot(plXY,plZ)
 	savefig(pl,string(full_name,"_fourier.png"))
 	px("Plot of ",name," done")
 end
 
+
 function plot_Vint(p)
 	v_bilayer_f = [p.V_bilayer_Xs_fc[1,1,miz] for miz=1:p.Nz]/sqrt(p.cell_area)
 	# average of v_monolayer
-	v_f = myfft([sum(p.v_monolayer_dir[:,:,z]) for z=1:p.Nz]/p.N^2,p.L)
+	v_f = myfft(average_over_xy(p.v_monolayer_dir,p),p.L)
 	# shifts of ±d/2 of the monolayer KS potential
 	v_f_plus  = v_f.*cis.( 2π*p.kz_axis*p.interlayer_distance/(2*p.L))
 	v_f_minus = v_f.*cis.(-2π*p.kz_axis*p.interlayer_distance/(2*p.L))
 
 	# Builds u1 and u2
-	abs2_u1_averaged = p.cell_area*[sum(abs2.(p.u1_dir)[:,:,z]) for z=1:p.Nz]/p.N^2
+	abs2_u1_averaged = p.cell_area*average_over_xy(abs2.(p.u1_dir),p)
 	abs2_u1_f = myfft(abs2_u1_averaged,p.L)
 	abs2_u1_f_plus = abs2_u1_f.*cis.( 2π*p.kz_axis*p.interlayer_distance/(2*p.L))
 	abs2_u1_f_minus = abs2_u1_f.*cis.(-2π*p.kz_axis*p.interlayer_distance/(2*p.L))
 
-	res = 700
-	v_int = eval_fun_to_plot_1d(p.Vint_f,res,p.L)
-	v_plus = eval_fun_to_plot_1d(v_f_plus,res,p.L)
-	v_minus = eval_fun_to_plot_1d(v_f_minus,res,p.L)
-	v_bilayer = eval_fun_to_plot_1d(v_bilayer_f,res,p.L)
+	res = 1000
+	v_int = hartree_to_ev*eval_fun_to_plot_1d(p.Vint_f,res,p.L)
+	v_plus = hartree_to_ev*eval_fun_to_plot_1d(v_f_plus,res,p.L)
+	v_minus = hartree_to_ev*eval_fun_to_plot_1d(v_f_minus,res,p.L)
+	v_bilayer = hartree_to_ev*eval_fun_to_plot_1d(v_bilayer_f,res,p.L)
 	abs2_u1_plus = eval_fun_to_plot_1d(abs2_u1_f_plus,res,p.L)
 	abs2_u1_minus = eval_fun_to_plot_1d(abs2_u1_f_minus,res,p.L)
 
+
+	# pl = Plots.plot(z_axis,fftshift.([v_int,v_plus,v_minus,v_bilayer,abs2_u1_plus,abs2_u1_minus]),label=labels,size=(900,400),legend = :outerright, legendfontsize=10)
+	# savefig(pl,string(p.path_plots,"Vint.png"))
+
 	z_axis = (0:res-1)*p.L/res .- p.L/2
 
-	labels = [L"V_{\rm int, d}(z)" L"\frac{1}{|\Omega|} \int_\Omega V(x,z+d/2) d x" L"\frac{1}{|\Omega|} \int_\Omega V(x,z-d/2) d x" L"\frac{1}{|\Omega|^2} \int_{\Omega \times \Omega} V^{(2)}_{d,\bf{y}}(\bf{x},z) d \bf{x} d \bf{y}" L"\int_\Omega |\Phi_1|^2(x,z+d/2) d x" L"\int_\Omega |\Phi_1|^2(x,z-d/2) d x"]
-	pl = plot(z_axis,fftshift.([v_int,v_plus,v_minus,v_bilayer,abs2_u1_plus,abs2_u1_minus]),label=labels,size=(900,400),legend = :outerright, legendfontsize=10)
-	savefig(pl,string(p.path_plots,"Vint.png"))
+	res_plot = 500
+	fig = CairoMakie.Figure(resolution = (floor(Int,res_plot*2),res_plot))
 
-	if p.export_plots_article
-		savefig(pl,string(p.path_plots_article,"Vint.pdf"))
+	funs = fftshift.([v_int,v_plus,v_minus,v_bilayer,abs2_u1_plus,abs2_u1_minus])
+	labels = [L"V_{int, d}(z)" L"\frac{1}{\mid\Omega\mid} {\int_\Omega} V(x,z+d/2) d x" L"\frac{1}{\mid\Omega\mid} {\int_\Omega} V(x,z-d/2) d x" L"\frac{1}{\mid\Omega\mid^2} \int_{\Omega \times \Omega} V^{(2)}_{d,{y}}({x},z) d {x} d {y}" L"\int_\Omega \mid\Phi_1\mid^2(x,z+d/2) d x" L"\int_\Omega \mid\Phi_1\mid^2(x,z-d/2) d x"]
+	axs = [1,1,1,1,2,2]
+	colors = [:purple,:blue,:cyan,:darkblue,:orange,:red]
+
+	ax1 = fig[1,1] = CairoMakie.Axis(fig, xlabel = "x (Bohr)", ylabel = "eV")
+	ax2 = fig[1,1] = CairoMakie.Axis(fig, xlabel = "x (Bohr)", ylabel = "∅")
+	CairoMakie.ylims!(ax2,(-0.5,1))
+	for ax = [ax1,ax2]
+		xlim = 15
+		CairoMakie.xlims!(ax,(-xlim,xlim))
 	end
+
+	lins = []
+	for i=1:length(funs)
+		A = DataFrames.DataFrame(x=z_axis, y=funs[i])
+		l = CairoMakie.lines!(axs[i]==1 ? ax1 : ax2, A.x, A.y,linestyle= axs[i]==1 ? nothing : [0.5, 1.0, 1.5, 2.5],color = colors[i],ygridvisible = axs[i]==1)
+		push!(lins,l)
+	end
+
+	ax2.yaxisposition = :right
+	ax2.yticklabelalign = (:left, :center)
+	ax2.xticklabelsvisible = false
+	ax2.xticklabelsvisible = false
+	ax2.xlabelvisible = false
+
+	CairoMakie.linkxaxes!(ax1,ax2)
+
+	# leg = CairoMakie.Legend(fig[1,2], funs, labels)
+	leg = CairoMakie.Legend(fig[1,2], lins,labels)
+
+	# Save
+	CairoMakie.save(string(p.path_plots,"Vint.pdf"),fig)
+	if p.export_plots_article
+		# savefig(pl,string(p.path_plots_article,"Vint.pdf"))
+		CairoMakie.save(string(p.path_plots_article,"Vint.pdf"),fig)
+	end
+	px("Done plot Vint")
 end

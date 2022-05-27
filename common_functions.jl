@@ -35,14 +35,14 @@ function myfloat2int(x;warning=true)
 	y
 end
 
-cart2red_mat(M,p) = (p.lattice_2d')*M*inv(p.lattice_2d')
+cart2red_mat(M,p) = (p.lattice_2d')*M*inv(p.lattice_2d') # ok tested
 
 function cart2red_four(a,b,p) # G = ma^* to m 
 	S = cart2red_mat([a b],p)
 	(S[1:2,1],S[1:2,2])
 end
 
-matrix_rot_red(θ,p) = myfloat2int.(cart2red_mat(rotM(θ),p))
+matrix_rot_red(θ,p) = myfloat2int.(cart2red_mat(rotM(θ),p)) # DOES NOT WORK ON ROTATION IN MOMENTUM SPACE !!!
 
 function a_star_from_a(a1,a2)
 	lattice_rec = 2π*inv([a1 a2]')
@@ -53,24 +53,19 @@ end
 
 length_a_to_length_a_star(a) = 4π/(a*sqrt(3))
 
-function init_cell_vectors(p;moire=true) # needs a. a_{i,M} = (1/2) J a_i
+function init_cell_vectors(p;moire=true) # needs a. a_{i,M} = J a_i
 	a1_unit = [1/2;-sqrt(3)/2]
 	a2_unit = [1/2; sqrt(3)/2]
 
-	a = moire ? p.a_micro : p.a
-	p.a1,p.a2 = a.*(a1_unit,a2_unit) # not used
+	p.cell_area = sqrt(3)*0.5*p.a^2
+	p.a1,p.a2 = p.a.*(a1_unit,a2_unit) # not used
 
 	if moire
 		p.a1_micro,p.a2_micro = p.a1,p.a2
 		p.a1_star_micro,p.a2_star_micro = a_star_from_a(p.a1,p.a2)
 		J = rotM(π/2)
-		p.a1 = (1/2)*J*p.a1
-		p.a2 = (1/2)*J*p.a2
-		p.a = norm(p.a1)
-		p.cell_area = sqrt(3)*0.5*p.a^2
-		p.cell_area_micro = sqrt(3)*0.5*p.a_micro^2
-	else
-		p.cell_area = sqrt(3)*0.5*p.a^2
+		p.a1 = J*p.a1
+		p.a2 = J*p.a2
 	end
 
 	p.a1_star,p.a2_star = a_star_from_a(p.a1,p.a2)
@@ -86,8 +81,10 @@ function init_cell_vectors(p;moire=true) # needs a. a_{i,M} = (1/2) J a_i
 	# a1_star,a2_star = (4π/(p.a*sqrt(3))).*(a1s_unit,a2s_unit)
 
 	p.lattice_2d = [p.a1 p.a2]
-	p.R_four_2d = matrix_rot_red(-2π/3,p)
-	p.M_four_2d = myfloat2int.(cart2red_mat([1 0;0 -1],p)) # mirror symmetry
+	# if !moire
+		p.R_four_2d = matrix_rot_red(-2π/3,p)
+		p.M_four_2d = myfloat2int.(cart2red_mat([0 1;-1 0],p)) # mirror symmetry
+	# end
 
 	if p.dim == 3
 		p.lattice_3d = [p.lattice_2d    zeros(2,1);
@@ -96,18 +93,16 @@ function init_cell_vectors(p;moire=true) # needs a. a_{i,M} = (1/2) J a_i
 
 	p.lattice_type_2πS3 = distance(p.a1,rotM(2π/3)*p.a2)<1e-5 || distance(p.a1,rotM(-2π/3)*p.a2)<1e-5 
 	px("type ",p.lattice_type_2πS3)
-	p.K_red = p.lattice_type_2πS3 ? [1/3,1/3] : [-1/3;1/3]
+	p.K_red = p.lattice_type_2πS3 ? -[1/3,1/3] : [1/3;-1/3]
 end
 
 function update_a(a1_star,a2_star,p)
 	p.a1_star = a1_star
 	p.a2_star = a2_star
 	p.a1,p.a2 = a_star_from_a(p.a1_star,p.a2_star)
-	p.a = norm(p.a1)
-	p.cell_area = sqrt(3)*0.5*p.a^2
 	p.lattice_2d = [p.a1 p.a2]
 	p.lattice_type_2πS3 = distance(p.a1,rotM(2π/3)*p.a2)<1e-5 || distance(p.a1,rotM(-2π/3)*p.a2)<1e-5 
-	p.K_red = p.lattice_type_2πS3 ? [1/3,1/3] : [-1/3;1/3]
+	p.K_red = p.lattice_type_2πS3 ? -[1/3,1/3] : [1/3;-1/3]
 end
 
 # Runs after init_cell_vectors
@@ -117,15 +112,11 @@ function init_cell_infinitesimals(p;moire=true) # needs a, N, Nz ; only micro qu
 	p.kz_axis = Int.(fftfreq(p.Nz)*p.Nz)
 	p.N2d = p.N^2; p.N3d = p.N2d*p.Nz
 	p.dS = p.cell_area/p.N^2
-	if moire
-		p.dS_micro = p.cell_area_micro/p.N^2
-		p.Vol = p.cell_area_micro*p.L
-	else
-		p.dx = p.a/p.N
-		p.x_axis_cart = (0:p.N-1)*p.dx
-		p.Vol = p.cell_area*p.L
-		p.dz = p.L/p.Nz
-	end
+	p.Vol = p.cell_area*p.L
+
+	p.dx = p.a/p.N
+	p.x_axis_cart = (0:p.N-1)*p.dx
+	p.dz = p.L/p.Nz
 	p.dv = p.Vol/(p.N^2*p.Nz)
 end
 
@@ -157,8 +148,12 @@ end
 function scaprod(ϕ,ψ,p,four=true)
 	d = length(size(ϕ))
 	@assert d==length(size(ψ))
-	dVol = d==1 ? p.dx : d==2 ? dS : p.dv
-	(four ? 1 : dVol)*ϕ⋅ψ
+	if four
+		return ϕ⋅ψ
+	else
+		dVol = d==1 ? p.dx : d==2 ? dS : p.dv
+		return dVol*ϕ⋅ψ
+	end
 end
 
 function test_scaprod_fft_commutation(p)
@@ -216,6 +211,64 @@ end
 function Kinetic(u_four,p) # kinetic energy of u
 	(∂1u,∂2u,∂3u) = ∇(u_four,p)
 	norm2_3d(∂1u,p)+norm2_3d(∂2u,p)+norm2_3d(∂3u,p)
+end
+
+average_over_xy(f_dir,p) = [sum(f_dir[:,:,z]) for z=1:p.Nz]/p.N^2
+
+function substract_by_far_value(v_dir,p)
+	# x,z = floor(Int,p.N/2),floor(Int,p.Nz/2)
+	# m = v_dir[x,x,z]
+	vz = average_over_xy(v_dir,p)
+	Ns_mid = p.Nz/2; Ns1 = Ns_mid - p.Nz/10; Ns2 = Ns_mid + p.Nz/10
+	Ns_mid,Ns1,Ns2 = Int.(floor.((Ns_mid,Ns1,Ns2)))
+	sub = vz[Ns1:Ns2]
+	m = sum(sub)/length(sub)
+	v_dir .-= m
+end
+
+################## Computation of effective potentials
+
+# Builds the Fourier coefficients 
+# C_m = ∑_M conj(hat(g))_{m,M} hat(f)_{m,M} e^{i η d q_M 2π/L}, η ∈ {-1,1}
+function build_Cm(g,f,p;η=1) 
+	expo = [cis(2*η*p.interlayer_distance*kz*π/p.L) for kz in p.kz_axis]
+	C = sqrt(p.cell_area)*[sum(conj.(g[m,n,:]).*f[m,n,:].*expo) for m=1:p.N, n=1:p.N]
+	# D = η==-1 ? parity_four(C,p) : C
+	D = η==-1 ? C : parity_four(C,p)
+	# px("NOT THE RIGHT BUILD CM")
+	return D
+
+	# if prt
+		# x = C[2,1]
+		# px("MASS ",sum(abs.(C))," x ",x," abs(x) ",abs(x))
+		# for i=1:p.N, j=1:p.N
+			# if abs(C[i,j])> 1e-4
+				# px("ij ",i," ",j)
+			# end
+		# end
+	# end
+end
+
+function get_wAA_wC_from_fun(v_dir,p)
+	u1v_dir = v_dir.*p.u1_dir
+	u1_f = myfft(p.u1_dir,p.Vol)
+	u1v_f = myfft(u1v_dir,p.Vol)
+	C_Vu1_u1 = build_Cm(u1v_f,u1_f,p)
+	wAA,wC = Tuple(real.([C_Vu1_u1[1,1],C_Vu1_u1[end,2]]))
+	(wAA,wC)
+end
+
+function get_wAA_wC(v_dir,p,vint_dir=-1)
+	(wAA,wC) = get_wAA_wC_from_fun(v_dir,p)
+	c = 1e3*hartree_to_ev/sqrt(p.cell_area)
+	px("wAA_v = ",c*wAA," meV ; wC_v = ",c*wC," meV")
+	if vint_dir!=-1
+		(wAA_vint,wC_vint) = get_wAA_wC_from_fun(vint_dir,p)
+		wAA += wAA_vint; wC += wC_vint
+		px("wAA_vint = ",c*wAA_vint," meV ; wC_vint = ",c*wC_vint," meV")
+		px("wAA = ",c*wAA," meV ; wC = ",c*wC," meV")
+	end
+	(wAA,wC)
 end
 
 ####################################### Operations on functions in Fourier space

@@ -14,18 +14,16 @@ mutable struct Basis
 	K_red
 	N
 
-	cell_area; cell_area_micro; Vol
+	cell_area; Vol
 	dim
 	lattice_2d
-	R_four_2d
-	M_four_2d
 	lattice_type_2πS3
 	m_q1
 	a1_micro; a2_micro
 	a1_star_micro; a2_star_micro
 	q1; q2; q3
-	a_micro
-	dS_micro
+	R_four_2d
+	M_four_2d
 
 	# Useless parameters
 	Nz; L; dz
@@ -194,26 +192,33 @@ end
 # actionV(Vfour,Xfour,p) = vcat(cyclic_conv(Vfour,Xfour)/length(Vfour)...)
 # actionH(Vfour,p) = X -> p.k2lin.*X .+ actionV(Vfour,Reshape(X,p),p) # X = Xlin, v in direct space
 
-# Creates [σ(-i∇+k)        0]
-#         [0        σ(-i∇+k)]
-function Dirac_k(κ,p;coef_∇=1,valley=1) # κ in reduced coordinates, κ_cart = κ_red_1 a1_star + κ_red_2 a2_star
+# Creates [σ(-i∇+k-K1)           0]
+#         [0           σ(-i∇+k-K2)]
+function Dirac_k(κ,p;coef_∇=1,valley=1,K1=[0.0,0.0],K2=[0.0,0.0]) # κ in reduced coordinates, κ_cart = κ_red_1 a1_star + κ_red_2 a2_star
 	n = p.Mfull
 	H = zeros(ComplexF64,n,n)
-	kC = vec2C(valley*κ[1]*p.a1_star + κ[2]*p.a2_star)
 	do_∇ = coef_∇ != 0
 	for ck_lin=1:p.N2d
 		(mi1,mi2) = lin_k2coord_ik(ck_lin,p)
-		vC = kC
+		A = κ
 		if do_∇
 			(m1,m2) = k_axis(mi1,mi2,p)
-			vC += coef_∇*vec2C(m1*p.a1_star + m2*p.a2_star)*p.coef_derivations
+			m = coef_∇*[m1,m2]*p.coef_derivations
+			A += m
 		end
-		# px(" KC ",abs(vC))
+		A_up = A-K1
+		A_down = A-K2
+		G_up   =   A_up[1]*p.a1_star +   A_up[2]*p.a2_star
+		G_down = A_down[1]*p.a1_star + A_down[2]*p.a2_star
+		G_up[1] *= valley
+		G_down[1] *= valley
+		vC_up   = vec2C(G_up)
+		vC_down = vec2C(G_down)
 		(c1,c2,c3,c4) = coords_ik2full_i(mi1,mi2,p)
-		H[c1,c2] = conj(vC); H[c2,c1] = vC; H[c3,c4] = conj(vC); H[c4,c3] = vC
+		H[c1,c2] = conj(vC_up); H[c2,c1] = vC_up; H[c3,c4] = conj(vC_down); H[c4,c3] = vC_down
 	end
 	# test_hermitianity(H,"Kinetic Dirac part")
-	Hermitian(H)
+	Hermitian(conj.(H))
 end
 
 
@@ -274,6 +279,36 @@ function V_offdiag_matrix(v0,p) # v = [v1,v2,v3,v4] = mat(v1 & v2 \\ v3 & v4), F
 			c = 0
 			if α ≥ 3 && β ≤ 2
 				c = conj(v[β,α-2][Ki1,Ki2])
+				# c = conj(v[α-2,β][Ki1,Ki2])
+			elseif α ≤ 2 && β ≥ 3
+				c = v[α,β-2][Pi1,Pi2]
+			end
+			H[n_lin,m_lin] = c
+		end
+	end
+	# test_hermitianity(H,"offdiag V matrix")
+	# test_part_hole_sym_matrix(H,p,"H")
+	# save_H(H,"potential_V",p)
+	# display([H[mod1(x,p.Mfull),mod1(y,p.Mfull)] for x=1:30, y=1:30])
+	Hermitian(H)/sqrt(p.cell_area)
+end
+
+function V_offdiag_matrix22(v0,p) # v = [v1,v2,v3,v4] = mat(v1 & v2 \\ v3 & v4), Fourier coeffcients
+	v = lin2mat(v0)
+	n = p.Mfull
+	H = zeros(ComplexF64,n,n)
+	for n_lin=1:n
+		(α,ni1,ni2) = lin2coord(n_lin,p)
+		(n1,n2) = k_axis(ni1,ni2,p)
+		for m_lin=1:n
+			(β,mi1,mi2) = lin2coord(m_lin,p)
+			(m1,m2) = k_axis(mi1,mi2,p)
+			Pi1,Pi2 = k_inv(n1-m1,n2-m2,p)
+			Ki1,Ki2 = k_inv(m1-n1,m2-n2,p)
+			c = 0
+			if α ≥ 3 && β ≤ 2
+				c = conj(v[β,α-2][Ki1,Ki2])
+				# c = conj(v[α-2,β][Ki1,Ki2])
 			elseif α ≤ 2 && β ≥ 3
 				c = v[α,β-2][Pi1,Pi2]
 			end
@@ -642,6 +677,43 @@ function plot_heatmap(M,name,p)
 	Colorbar(fig[1,2], ax)
 	path = string(p.root_path,p.folder_plots_matrices)
 	save(string(path,name,".png"),fig)
+end
+
+function plot_sequence_of_points(Klist,Knames,p)
+	n = length(Klist)
+	Kcart = [k_red2cart(Klist[i],p) for i=1:n]
+	Kxs = [Kcart[i][1] for i=1:n]
+	Kys = [Kcart[i][2] for i=1:n]
+	points = [CairoMakie.Point2f0(Kxs[i],Kys[i]) for i=1:n]
+	CairoMakie.lines!(points)
+	CairoMakie.annotations!(Knames, points)
+	CairoMakie.scatter!(points)
+end
+
+plot_one_vector(v,name,p) = plot_sequence_of_points([[0.0,0],v],["",name],p)
+
+function plot_path(Klist,Knames,p)
+	# Init
+	res = 1000
+	f = CairoMakie.Figure(resolution=(res,res))
+
+	ax = CairoMakie.Axis(f[1, 1],aspect=1)
+	ax.aspect = CairoMakie.AxisAspect(1)
+	CairoMakie.limits!(ax, -1, 1, -1, 1) # x1, x2, y1, y2
+
+	# Plot list
+	plot_sequence_of_points(Klist,Knames,p)
+
+	# a1*,a2*
+	plot_one_vector([1.0,0.0],"a1*",p)
+	plot_one_vector([0.0,1.0],"a2*",p)
+
+	# q1, q2, q3
+	plot_one_vector([-2,-1]/3,"q1",p)
+	plot_one_vector([1,-1]/3,"q2",p)
+	plot_one_vector([1,2]/3,"q3",p)
+
+	save("path.png",f)
 end
 
 ######################### Low level functions

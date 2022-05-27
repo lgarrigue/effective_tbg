@@ -2,40 +2,65 @@ include("graphene.jl")
 
 #################### First step : produce Bloch eigenfunctions of the 3d monolayer, Vks and Vint. The long step is the computation of Vint
 
+
+# (L=30) waa ecut/kd^2 35 -> 104 ; 40 -> 103 ; 45 -> 103
+# (ecut/kd^2=40) L=30 -> 103 ; 40 -> 113 ; 50 -> 119 ; 60 -> 123 ; 70 -> 126 ; 80 -> 128 ; 90 -> 130 ; 100 -> 131 ; 110 -> 132 ; 120 -> 133 ; 130 -> 133.6 killed for saving ; 140 -> 134.3 ; 150 : killed before computing wAA
+# L=100, ecut/kd^2 = 40 ; tol_scf = 1e-6 -> wAA = 130.9 ; 1e-5 -> 130.9 ; 1e-4 -> 130.9 ; 1e-3 -> 130.6 ; 1e-2 -> 130.6 but other quantities like u1 are not as precise
+# L=60, ecut/kd^2 = 40, tol_scf = ;; kgrid = [8,8,1] -> wAA = 122.9 ; [7,7,1] -> 122.8 ; [6,6,1] -> 123.1 ; [5,5,1] -> 123.1 ; [4,4,1] -> 123.2 ; [3,3,1] -> 123.6
+
+# Quantities converged for ecut/kd^2 ≃ 40, L ≃ 125 (not really); tol_scf ≃ 1e-3; kgrid=[5,5,1]
 function produce_bloch_functions_and_potentials()
-	p = Params() # stores all we need to store
-	# Choose parameters
-	p.dim = 3
+	p = Params()
+
+	# Fixed parameters
+	p.dim = 3 # stores all we need to store
 	p.a = 4.66 # length of the vectors of the fundamental cell
-	p.L = 20 # periodicity in z (both for mono and bilayer computations)
-	p.ecut = 30*norm_K_cart(p.a)^2 # DFTK's ecut, convergence of u's for ecut ≃ 15
-	px("ecut ",p.ecut)
-	p.interlayer_distance = 6.45 # distance between the two layers
 	p.i_state = 4 # u1 will be the i^th eigenmode, u1 the (i+1)^th, u0 the (i-1)^th
-	p.kgrid = [10,10,1] # for computing the KS potential
+
+	# Changeable monolayers parameters
+	# p.L = 110 # periodicity in z (both for mono and bilayer computations)
+	p.L = 30
+	p.ecut = 41*norm_K_cart(p.a)^2; px("ecut ",p.ecut) # DFTK's ecut, convergence of u's for ecut ≃ 15
+	p.kgrid = [5,5,1] # for computing the KS potential
 	p.tol_scf = 1e-4
-	p.plots_cutoff = 3 # Fourier cutoff for plots
 
-	init_params(p)
-	px("Cell area ",p.cell_area)
-	p.Nint = 2
+	# Params Vint
 	compute_Vint = false
-	p.export_plots_article = true
+	p.Nint = 3
+	# d_list = vcat([0.01],(1:1:11))#,[6.45])
+	d_list = [6.45]
 
-	px("Computes the Kohn-Sham potential of the monolayer")
+	# Misc
+	p.plots_cutoff = 3 # Fourier cutoff for plots
+	p.export_plots_article = false
+	p.alleviate = false
+
+	# Init
+	init_params(p)
+
+	if p.alleviate
+		p.L = 30
+		p.kgrid = [4,4,1]
+		p.ecut = 30
+		p.tol_scf = 1e-3
+		p.Nint = 1
+	end
+
 	scfres = scf_graphene_monolayer(p)
-
 	# Computes the Dirac Bloch functions u1, u2 (at the Dirac point)
 	get_dirac_eigenmodes(p)
-
-	# Rotates u1 and u2 in U(2) to obtain the symmetric ones
 	get_natural_basis_u1_and_u2(p)
-
-	# Extracts the non local terms
 	extract_nonlocal(p)
+	test_rot_sym(p)
+	test_mirror_sym(p)
 	# Computes the non local contribution of the Fermi velocity
-	non_local_deriv_energy(4,p)
-	plot_mean_V(p)
+	# non_local_deriv_energy(4,p)
+	# plot_mean_V(p)
+	
+	p.interlayer_distance = 6.45
+	(wAA,wC) = get_wAA_wC(p.v_monolayer_dir,p)
+
+	px("norm u Four ",norm(p.u1_fc))
 
 	test_scaprod_fft_commutation(p)
 	# Tests normalization
@@ -47,23 +72,11 @@ function produce_bloch_functions_and_potentials()
 	# Computes the Fermi velocity
 	# p.v_fermi = get_fermi_velocity_with_finite_diffs(4,p) # Computing dE/dk with diagonalizations of H(k), should get 0.380 or 0.381
 	# fermi_velocity_from_rotated_us(p) # Doing scalar products
-	records_fermi_velocity_and_fixes_gauge(p) 
+	records_fermi_velocity_and_fixes_gauge(p)
 
-
-	px("u1(x-(1/3)(-a1+a2)) = u2(x) ",distance(translation_interpolation(p.u1_fc,[-1/3,1/3],p),p.u2_fc))
-
-	# rapid_plot(p.v_monolayer_fc,p;n_motifs=2,name="v",res=50,bloch_trsf=false)
-	# Symmetry tests
-	if true
-		test_rot_sym(p)
-		test_mirror_sym(p)
-		test_z_parity(p.u1_dir,-1,p;name="u1")
-		test_z_parity(p.u2_dir,-1,p;name="u2")
-		test_x_parity(abs.(p.u1_dir),p;name="|u1|")
-		test_x_parity(abs.(p.u0_dir),p;name="|u0|")
-		test_z_parity(p.v_monolayer_dir,1,p;name="v")
-		test_x_parity(p.v_monolayer_dir,p;name="v")
-	end
+	# p.u2_fb .*= -1
+	# p.u2_dir = G_to_r(p.basis,p.K_kpt,p.u2_fb)
+	# p.u2_fc = myfft(p.u2_dir,p.Vol)
 
 	# Exports v, u1, u2, φ and the non local coefficient
 	exports_v_u1_u2_φ(p)
@@ -72,29 +85,39 @@ function produce_bloch_functions_and_potentials()
 	px("Makes plots")
 	resolution = 10
 	n_motifs = 2
-	rapid_plot(p.u0_fc,p;n_motifs=n_motifs,name="ϕ0",res=resolution,bloch_trsf=true)
-	rapid_plot(p.u1_fc,p;n_motifs=n_motifs,name="ϕ1",res=resolution,bloch_trsf=true)
+	# rapid_plot(p.u0_fc,p;n_motifs=n_motifs,name="ϕ0",res=resolution,bloch_trsf=true)
+	# rapid_plot(p.u1_fc,p;n_motifs=n_motifs,name="ϕ1",res=resolution,bloch_trsf=true)
 	# if the plot of u1 is small, this is probably because of it's antisymmetry in z, and because the dominating Fourier transform coefficients are away from 0 and cut by plot_cutoff
 	# rapid_plot(p.u2_fc,p;n_motifs=n_motifs,name="ϕ2",res=resolution,bloch_trsf=true)
 	# rapid_plot(p.v_monolayer_fc,p;n_motifs=n_motifs,name="v",res=resolution,bloch_trsf=false)
 	# rapid_plot(p.non_local_φ_fc,p;n_motifs=n_motifs,name="non_local_φ",res=resolution,bloch_trsf=true)
 
 	# Computes Vint (expensive in time)
+	if p.alleviate d_list = [6.45] end
 	if compute_Vint
-		px("Computes the Kohn-Sham potential of the bilayer at each disregistry (long step): ",p.Nint,"×",p.Nint,"=",p.Nint^2," steps")
-		# p.V_bilayer_Xs_fc = randn(p.N,p.N,p.Nz)
-		compute_V_bilayer_Xs(p)
-		# Computes Vint(Xs,z)
-		Vint_Xs_fc = compute_Vint_Xs(p)
-		# Computes Vint(z)
-		p.Vint_f = form_Vint_from_Vint_Xs(Vint_Xs_fc,p)
-		# Computes the dependency of Vint_Xs on Xs
-		computes_δ_Vint(Vint_Xs_fc,p.Vint_f,p)
-		# Plots, exports, tests
-		p.Vint_dir = real.(myifft(p.Vint_f,p.L))
-		test_z_parity(p.Vint_dir,1,p;name="Vint")
-		export_Vint(p)
-		plot_Vint(p)
+		for d in d_list
+			p.interlayer_distance = d # distance between the two layers
+			px("Computes Vint for d=",d)
+			px("Computes the Kohn-Sham potential of the bilayer at each disregistry (long step): ",p.Nint,"×",p.Nint,"=",p.Nint^2," steps")
+			# p.V_bilayer_Xs_fc = randn(p.N,p.N,p.Nz)
+			compute_V_bilayer_Xs(p)
+			# Computes Vint(Xs,z)
+			Vint_Xs_fc = compute_Vint_Xs(p)
+			# Computes Vint(z)
+			p.Vint_f = form_Vint_from_Vint_Xs(Vint_Xs_fc,p)
+			# Computes the dependency of Vint_Xs on Xs
+			computes_δ_Vint(Vint_Xs_fc,p.Vint_f,p)
+			# Plots, exports, tests
+			p.Vint_dir = real.(myifft(p.Vint_f,p.L))
+
+			p.Vint_dir .-= p.Vint_dir[floor(Int,p.Nz/2)]
+			p.Vint_f = myfft(p.Vint_dir,p.L)
+			px("DONT DO THAT !!!!!!!!!!!!! FORBIDDEN FOR VINT, PROBLEM")
+
+			test_z_parity(p.Vint_dir,1,p;name="Vint")
+			export_Vint(p)
+			plot_Vint(p)
+		end
 	end
 	p
 end

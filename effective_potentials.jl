@@ -32,7 +32,7 @@ mutable struct EffPotentials
 	K_red
 	N2d; N3d
 	N; Nz; L; interlayer_distance
-	cell_area; cell_area_micro; Vol
+	cell_area; Vol
 	dim
 	lattice_2d
 	R_four_2d
@@ -42,8 +42,6 @@ mutable struct EffPotentials
 	a1_micro; a2_micro
 	a1_star_micro; a2_star_micro
 	q1; q2; q3
-	a_micro
-	dS_micro
 
 	# Quantities computed and exported by graphene.jl
 	v_f; u1_f; u2_f; u1v_f; u2v_f; prods_f; Vint_f
@@ -105,26 +103,6 @@ end
 
 ################## Core: computation of effective potentials
 
-# Builds the Fourier coefficients 
-# C_m = ∑_M conj(hat(g))_{m,M} hat(f)_{m,M} e^{i η d q_M 2π/L}, η ∈ {-1,1}
-function build_Cm(g,f,p;η=1) 
-	expo = [cis(2*η*p.interlayer_distance*kz*π/p.L) for kz in p.kz_axis]
-	C = sqrt(p.cell_area)*[sum(conj.(g[m,n,:]).*f[m,n,:].*expo) for m=1:p.N, n=1:p.N]
-	D = η==-1 ? parity_four(C,p) : C
-	px("NOT THE RIGHT BUILD CM")
-	return D
-
-	# if prt
-		# x = C[2,1]
-		# px("MASS ",sum(abs.(C))," x ",x," abs(x) ",abs(x))
-		# for i=1:p.N, j=1:p.N
-			# if abs(C[i,j])> 1e-4
-				# px("ij ",i," ",j)
-			# end
-		# end
-	# end
-end
-
 function div_three(m,n,p) # Test whether [m;n] is in 3ℤ^2, returns [m;n]/3 if yes
 	Q = 3
 	A = mod(m,Q); B = mod(n,Q)
@@ -157,7 +135,7 @@ function build_magnetic(g,f,magnetic_term,p;η=1) # η ∈ {-1,+1}
 	for m=1:p.N, n=1:p.N
 		(m0,n0) = p.k_grid[m,n]
 		K = J*(m0*p.a1_star .+ n0*p.a2_star)
-		P[m,n] = (1/2)*K[magnetic_term]*C[m,n]
+		P[m,n] = K[magnetic_term]*C[m,n]
 	end
 	P
 end
@@ -183,7 +161,7 @@ function build_block_𝔸(p)
 		build_magnetic(p.u2_f,p.u1_f,1,p), build_magnetic(p.u2_f,p.u2_f,1,p)]
 	p.𝔹2 = [build_magnetic(p.u1_f,p.u1_f,2,p), build_magnetic(p.u1_f,p.u2_f,2,p),
 		build_magnetic(p.u2_f,p.u1_f,2,p), build_magnetic(p.u2_f,p.u2_f,2,p)]
-	K = (1/2)*rotM(π/2)*p.q1
+	K = rotM(π/2)*p.q1
 	p.𝔸1 = p.𝔹1 .- K[1]*p.Σ
 	p.𝔸2 = p.𝔹2 .- K[2]*p.Σ
 	(p.J𝔸1,p.J𝔸2) = rot_block(π/2,p.𝔸1,p.𝔸2,p)
@@ -308,7 +286,9 @@ Fourier_cst_to_direct_cst(x,p) = x/p.N2d
 
 ################## Operations on (2×2) block functions
 
-norm_block(B) = sum(abs.(B[1])) + sum(abs.(B[2])) + sum(abs.(B[3])) + sum(abs.(B[4]))
+norm_block(B,p) = sqrt(norm2(B[1],p) + norm2(B[2],p) + norm2(B[3],p) + norm2(B[4],p))
+norm_block_potential(A1,A2,p) = sqrt(norm_block(A1,p)^2 + norm_block(A2,p)^2)
+# sum(sqrt.(abs2.(A1[1]).+abs2.(A2[1])))+sum(sqrt.(abs2.(A1[2]).+abs2.(A2[2])))+sum(sqrt.(abs2.(A1[3]).+abs2.(A2[3])))+sum(sqrt.(abs2.(A1[4]).+abs2.(A2[4])))
 app_block(map,B,p) = [map(B[1],p),map(B[2],p),map(B[3],p),map(B[4],p)]
 op_two_blocks(op,A,B) = [op(A[i],B[i]) for i=1:4]
 σ1_B_σ1(B) = [B[4],B[3],B[2],B[1]]
@@ -431,6 +411,14 @@ function wAA_wAB(p)
 	ω = cis(2π/3)
 	C_Vu1_u1 = build_Cm(p.u1v_f,p.u1_f,p)
 	C_Vu2_u1 = build_Cm(p.u2v_f,p.u1_f,p)
+
+	p.Vint_dir = myifft(p.Vint_f,p.Vol)
+
+	px("Fourier modes u1 V u1")
+	# print_low_fourier_modes(C_Vu1_u1,p,hartree_to_ev/sqrt(p.cell_area))
+	wC = C_Vu1_u1[2,end]*hartree_to_ev/sqrt(p.cell_area)
+	px("wC ",wC)
+
 	wAA = (1/(3*sqrt(p.cell_area)))*(C_Vu1_u1[1,1]+    C_Vu1_u1[2,1]+  C_Vu1_u1[1,2])
 	wAB = (1/(3*sqrt(p.cell_area)))*(C_Vu2_u1[1,1]+ω^2*C_Vu2_u1[2,1]+ω*C_Vu2_u1[1,2])
 
@@ -448,12 +436,11 @@ function wAA_wAB(p)
 	(wAA,wAB)
 end
 
-function print_low_fourier_modes(v,p)
-	m = 1
+function print_low_fourier_modes(v,p,c=1;m=1)
 	for mix=1:p.N, miy=1:p.N
 		mx,my = p.k_axis[mix],p.k_axis[miy]
 		if abs(mx) ≤ m && abs(my) ≤ m
-			px("mx,my= ",mx,",",my," : ",v[mix,miy])
+			px("mx,my= ",mx,",",my," : ",v[mix,miy]*c)
 		end
 	end
 end
@@ -585,13 +572,21 @@ function import_u1_u2_V_φ(N,Nz,p)
 	path = "graphene/exported_functions/"
 	f = string(path,"N",N,"_Nz",Nz,"_u1_u2_V_nonLoc.jld")
 
-	p.a_micro = load(f,"a"); p.L = load(f,"L")
+	p.a = load(f,"a"); p.L = load(f,"L")
 
 	init_cell_vectors(p;moire=true)
 	init_cell_infinitesimals(p)
-	px("a_micro = ",p.a_micro," a = ",p.a)
 
+	# Treats v
 	p.v_f = load(f,"v_f")
+	p.v_dir = myifft(p.v_f,p.Vol)
+	substract_by_far_value(p.v_dir,p)
+	p.v_f = myfft(p.v_dir,p.Vol)
+	px("SHOULD SUBSTRACT V AT THE MONOLAYER LEVEL")
+	# Vz = real.([sum(p.v_dir[:,:,z]) for z=1:p.Nz]/p.N^2)
+	# px(Vz[floor(Int,p.Nz/2)])
+	# display(Plots.plot(Vz))
+
 	p.u1_f = load(f,"u1_f")
 	p.u2_f = load(f,"u2_f")
 	p.v_fermi = load(f,"v_fermi")
@@ -599,10 +594,8 @@ function import_u1_u2_V_φ(N,Nz,p)
 	p.non_local_φ1_f = load(f,"φ1_f")
 	p.non_local_φ2_f = load(f,"φ2_f")
 	p.shifts_atoms_red = load(f,"shifts_atoms")
-	p.interlayer_distance = load(f,"interlayer_distance")
 
 	# Builds products from imports
-	p.v_dir = myifft(p.v_f,p.Vol)
 	p.u1_dir = myifft(p.u1_f,p.Vol)
 	p.u2_dir = myifft(p.u2_f,p.Vol)
 	# px("sca ",scaprod(p.u2_dir,p.u2_dir,p,false))
@@ -619,15 +612,16 @@ function import_u1_u2_V_φ(N,Nz,p)
 	p.prods_f = [myfft(p.prods_dir[i],p.Vol) for i=1:length(p.prods_dir)]
 end
 
-function import_Vint(p)
+function import_Vint(d,p)
 	if p.compute_Vint
 		path = "graphene/exported_functions/"
-		f = string(path,"N",p.N,"_Nz",p.Nz,"_Vint.jld")
-		a = load(f,"a"); L = load(f,"L"); @assert a==p.a_micro && L==p.L
+		f = string(path,"N",p.N,"_Nz",p.Nz,"_d",d,"_Vint.jld")
+		p.interlayer_distance = load(f,"d")
+		a = load(f,"a"); L = load(f,"L"); @assert a==p.a && L==p.L && p.interlayer_distance==d
 
 		Vint_f = load(f,"Vint_f")
 		p.Vint_f = zeros(ComplexF64,p.N,p.N,p.Nz)
-		p.Vint_f[1,1,:] = sqrt(p.cell_area_micro)*Vint_f
+		p.Vint_f[1,1,:] = sqrt(p.cell_area)*Vint_f
 		p.Vint_dir = myifft(p.Vint_f,p.Vol)
 	end
 end
@@ -811,38 +805,38 @@ function plot_block_article(B_four,p;title="plot_full",other_block=-1,k_red_shif
 	# Plots functions
 	res = 700
 	X,Y = ismag ? (floor(Int,res/3),floor(Int,1.0*res)) : (floor(Int,1.2*res),floor(Int,res/8))
-	fig_colors = Figure(resolution=(X,Y),fontsize = other_block==-1 ? 17 : 35) # creates colorbar
+	fig_colors = CairoMakie.Figure(resolution=(X,Y),fontsize = other_block==-1 ? 17 : 35) # creates colorbar
 	# colormap ∈ [:heat,:viridis]
 	clm = :Spectral
 	# clm = :linear_bmy_10_95_c78_n256
 	hm(fi,f) = Makie.heatmap(fi,p.plots_x_axis_cart,p.plots_x_axis_cart,f,colormap=clm,colorrange=joint_limits)
 
 	for I=1:n
-		fig = Figure(resolution=(res,res))
+		fig = CairoMakie.Figure(resolution=(res,res))
 		ff1,ax1 = hm(fig[1,1],ars[I][1])
 		ff2,ax2 = hm(fig[1,2],ars[I][2])
 		ff3,ax3 = hm(fig[2,1],ars[I][3])
 		ff4,ax4 = hm(fig[2,2],ars[I][4])
 
 		for ff in [ff1,ff2,ff4]
-			hidedecorations!(ff, grid = false)
+			CairoMakie.hidedecorations!(ff, grid = false)
 		end
 		fact = 1
-		arrows!(ff1,[0,0],[0,0],fact*[p.a1[1],p.a2[1]],fact*[p.a1[2],p.a2[2]], arrowsize = 10)
-		arrows!(ff2,[0,0],[0,0],fact*[p.a1[1],p.a2[1]],fact*[p.a1[2],p.a2[2]], arrowsize = 10)
+		CairoMakie.arrows!(ff1,[0,0],[0,0],fact*[p.a1[1],p.a2[1]],fact*[p.a1[2],p.a2[2]], arrowsize = 10)
+		CairoMakie.arrows!(ff2,[0,0],[0,0],fact*[p.a1[1],p.a2[1]],fact*[p.a1[2],p.a2[2]], arrowsize = 10)
 		# arrows!(ff1,[0],[0],[1],[4], arrowsize = 10)
 		sh = [1,0]
 		if funs[I]==abs
-			text!(ff1,[L"\epsilon_{\theta}^{-1} a_{M,1}",L"\epsilon_{\theta}^{-1} a_{M,2}"],position = Tuple.(fact*[p.a1.-1.3*sh,p.a2.-0.65*sh]),textsize=35)
+			CairoMakie.text!(ff1,[L"\epsilon_{\theta}^{-1} a_{M,1}",L"\epsilon_{\theta}^{-1} a_{M,2}"],position = Tuple.(fact*[p.a1.-1.3*sh,p.a2.-7*sh]),textsize=35)
 		end
 
 		titl = string(title,"_",titles[I],"_cart")
-		save(string(p.article_path,titl,".pdf"),fig)
-		Colorbar(fig_colors[1,1],ax1,vertical=(other_block!=-1),flipaxis=(other_block!=-1),label=meV ? "meV" : "") # records colorbar. flipaxis to have ticks down the colormap
+		CairoMakie.save(string(p.article_path,titl,".pdf"),fig)
+		CairoMakie.Colorbar(fig_colors[1,1],ax1,vertical=(other_block!=-1),flipaxis=(other_block!=-1),label=meV ? "meV" : "") # records colorbar. flipaxis to have ticks down the colormap
 	end
 
 	# Saves colorbar
 	titl = string(p.article_path,title,"_colorbar.pdf")
-	save(titl,fig_colors)
+	CairoMakie.save(titl,fig_colors)
 	px("Done ploting article ",title," in meV")
 end
