@@ -10,6 +10,8 @@ rotM(θ) = [cos(θ) -sin(θ);sin(θ) cos(θ)]
 scale_fun2d(f,λ) = (x,y) -> f(λ*x,λ*y) # x -> f(λx)
 scale_fun3d(f,λ) = (x,y,z) -> f(λ*x,λ*y,λ*z)
 
+polar(x) = abs(x),atan(imag(x),real(x))
+
 # Creates a dictionary which inverts an array, for instance [5,4,1] will give Dict(5 => 1, 2 => 4, 3 => 1)
 inverse_dict_from_array(a) = Dict(value => key for (key, value) in Dict(zip((1:length(a)), a)))
 
@@ -24,8 +26,6 @@ function inverse_dict_from_2d_array(a)
 	Ci = CartesianIndices(a)
 	Dict(value => (Ci[key][1],Ci[key][2]) for (key, value) in direct)
 end
-
-
 
 function myfloat2int(x;warning=true)
 	y = floor(Int,x+0.5)
@@ -71,6 +71,9 @@ function init_cell_vectors(p;moire=true) # needs a. a_{i,M} = J a_i
 	p.a1_star,p.a2_star = a_star_from_a(p.a1,p.a2)
 
 	if moire
+		p.q1_red = -[1/3,1/3]
+		p.q2_red = [2/3,-1/3]
+		p.q3_red = [-1/3,2/3]
 		p.q1 = -(1/3)*(p.a1_star.+p.a2_star)
 		p.q2 = rotM(2π/3)*p.q1
 		p.q3 = rotM(2π/3)*p.q2
@@ -83,7 +86,7 @@ function init_cell_vectors(p;moire=true) # needs a. a_{i,M} = J a_i
 	p.lattice_2d = [p.a1 p.a2]
 	# if !moire
 		p.R_four_2d = matrix_rot_red(-2π/3,p)
-		p.M_four_2d = myfloat2int.(cart2red_mat([0 1;-1 0],p)) # mirror symmetry
+		p.M_four_2d = myfloat2int.(cart2red_mat([1 0;0 -1],p)) # mirror symmetry, M_four_2d = [0 1;1 0]
 	# end
 
 	if p.dim == 3
@@ -178,6 +181,7 @@ axis2grid_ar(ax) = [[ax[i],ax[j]] for i=1:length(ax), j=1:length(ax)]
 k_inv_1d(k,N) = Int(mod(k,N))+1 # from k in reduced Fourier coordinate to ki such that f^D[ki] = f_k, where f_k = int e^{-ikx} f(x) dx and f^D is the array storing the coefficients f_k, k = fftfreq[ki] so k_inv_1d inverts fftfreq
 k_inv(k,l,p) = (k_inv_1d(k,p.N),k_inv_1d(l,p.N))
 kz_inv(k,p) = k_inv_1d(k,p.Nz)
+k_inv_v(K,p) = (k_inv_1d(K[1],p.N),k_inv_1d(K[2],p.N))
 
 function test_k_inv()
 	N = 10

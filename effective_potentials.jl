@@ -6,10 +6,11 @@ include("misc/create_bm_pot.jl")
 
 ################## Imports graphene.jl quantities (u1, u2, V, Vint) and produces effective potentials without plotting and tests
 
-function import_and_computes(N,Nz,compute_Vint)
+function import_and_computes(N,Nz,compute_Vint,d)
 	p = EffPotentials()
 	p.compute_Vint = compute_Vint
 	p.add_non_local_W = false
+	p.interlayer_distance = d
 	import_u1_u2_V_φ(N,Nz,p)
 	import_Vint(p)
 	init_EffPot(p)
@@ -41,12 +42,12 @@ mutable struct EffPotentials
 	m_q1
 	a1_micro; a2_micro
 	a1_star_micro; a2_star_micro
-	q1; q2; q3
+	q1; q2; q3; q1_red; q2_red; q3_red
 
 	# Quantities computed and exported by graphene.jl
 	v_f; u1_f; u2_f; u1v_f; u2v_f; prods_f; Vint_f
 	v_dir; u1_dir; u2_dir; u1v_dir; u2v_dir; prods_dir; Vint_dir
-	v_fermi # Fermi velocity
+	vF # Fermi velocity
 	non_local_coef
 	non_local_φ1_f
 	non_local_φ2_f
@@ -78,6 +79,7 @@ mutable struct EffPotentials
 		p.plots_res = 20
 		p.add_non_local_W = true
 		p.article_path = "../../bm/ab_initio_model/pics/"
+		p.vF = 0.380
 		p
 	end
 end
@@ -128,13 +130,13 @@ function div_A(m,n,p)
 end
 
 # 2 × 2 matrix, magnetic ∈ {1,2}, f and g are in Fourier
-function build_magnetic(g,f,magnetic_term,p;η=1) # η ∈ {-1,+1}
+function build_magnetic(g,f,magnetic_term,p;η=1,Q=[0.0,0.0],coef_∇=1) # η ∈ {-1,+1}, (-i∇ + Q) ((g,f))^{+-}, Q in reduced
 	C = build_Cm(g,f,p;η=η)
 	P = zeros(ComplexF64,p.N,p.N)
-	J = rotM(π/2)
+	q = Q[1]*p.a1_star .+ Q[2]*p.a2_star
 	for m=1:p.N, n=1:p.N
 		(m0,n0) = p.k_grid[m,n]
-		K = J*(m0*p.a1_star .+ n0*p.a2_star)
+		K = coef_∇*(m0*p.a1_star .+ n0*p.a2_star) .+ q
 		P[m,n] = K[magnetic_term]*C[m,n]
 	end
 	P
@@ -157,16 +159,19 @@ end
 ################## Computation of blocks
 
 function build_block_𝔸(p)
-	p.𝔹1 = [build_magnetic(p.u1_f,p.u1_f,1,p), build_magnetic(p.u1_f,p.u2_f,1,p),
-		build_magnetic(p.u2_f,p.u1_f,1,p), build_magnetic(p.u2_f,p.u2_f,1,p)]
-	p.𝔹2 = [build_magnetic(p.u1_f,p.u1_f,2,p), build_magnetic(p.u1_f,p.u2_f,2,p),
-		build_magnetic(p.u2_f,p.u1_f,2,p), build_magnetic(p.u2_f,p.u2_f,2,p)]
-	K = rotM(π/2)*p.q1
-	p.𝔸1 = p.𝔹1 .- K[1]*p.Σ
-	p.𝔸2 = p.𝔹2 .- K[2]*p.Σ
+	p.𝔸1,p.𝔸2 = build_mag_block(p;Q=-p.q1_red)
 	(p.J𝔸1,p.J𝔸2) = rot_block(π/2,p.𝔸1,p.𝔸2,p)
 end
 
+function build_mag_block(p;Q=[0.0,0.0],J=false,coef=1,coef_∇=1) # (-i∇ + Q) ((u_j,u_{j'}))^{+-}, Q in reduced
+	𝔸1 = coef.*[build_magnetic(p.u1_f,p.u1_f,1,p;Q=Q,coef_∇=coef_∇), build_magnetic(p.u1_f,p.u2_f,1,p;Q=Q,coef_∇=coef_∇),
+		    build_magnetic(p.u2_f,p.u1_f,1,p;Q=Q,coef_∇=coef_∇), build_magnetic(p.u2_f,p.u2_f,1,p;Q=Q,coef_∇=coef_∇)]
+	𝔸2 = coef.*[build_magnetic(p.u1_f,p.u1_f,2,p;Q=Q,coef_∇=coef_∇), build_magnetic(p.u1_f,p.u2_f,2,p;Q=Q,coef_∇=coef_∇),
+		    build_magnetic(p.u2_f,p.u1_f,2,p;Q=Q,coef_∇=coef_∇), build_magnetic(p.u2_f,p.u2_f,2,p;Q=Q,coef_∇=coef_∇)]
+	if !J return (𝔸1,𝔸2) end
+	(J𝔸1,J𝔸2) = rot_block(π/2,𝔸1,𝔸2,p)
+	(J𝔸1,J𝔸2)
+end
 
 function change_gauge_wavefunctions(θ,p)
 	# Change gauge on wavefunctions
@@ -347,7 +352,7 @@ end
 function compare_one_block(A,n,p) # A is the function, not a 4×4 block
 	n1 = norm(A)
 	function dist(α)
-		T = build_BM(α[1],α[2],p)
+		T = T_BM_four(α[1],α[2],p)
 		distance(T[n],A)
 	end
 	α0 = [1.0,1.0]
@@ -359,13 +364,13 @@ end
 
 function compare_to_BM(A,p)
 	function dist(α)
-		T = build_BM(α[1],α[1],p)
+		T = T_BM_four(α[1],α[1],p)
 		relative_distance_blocks(A,T)
 	end
 	res = optimize(dist, [1.0])
 	m = minimum(res)
 	α = Optim.minimizer(res)[1]
-	T = build_BM(α,α,p)
+	T = T_BM_four(α,α,p)
 	(m,α,T)
 	# px("Distance to BM ",m," with coefs (α,β)=(",α[1],",",α[2],")")
 end
@@ -383,7 +388,7 @@ function optimize_gauge_and_create_T_BM_with_θ_α(V_V_or_Σ,p) # does u1 -> u1 
 	# γ(θ) = V_V_or_Σ ? create_V_V(p.u1_f*cis(3π/4),p.u2_f*cis(-3π/4),p) : create_Σ(p.u1_f*cis(3π/4),p.u2_f*cis(-3π/4),p)
 	comp(x) = x
 	function f(λ) 
-		T = build_BM(comp(λ[1]),comp(λ[1]),p)
+		T = T_BM_four(comp(λ[1]),comp(λ[1]),p)
 		relative_distance_blocks(γ(λ[2]),T)
 	end
 	start = V_V_or_Σ ? [1.6e-4,1] : [1e-3,1]
@@ -393,7 +398,7 @@ function optimize_gauge_and_create_T_BM_with_θ_α(V_V_or_Σ,p) # does u1 -> u1 
 	α = comp(λ[1])
 	px("Optimized by changing gauge, angle ξ=",θ*180/π,"°")
 
-	p.T_BM = build_BM(α,α,p)
+	p.T_BM = T_BM_four(α,α,p)
 	# px("MIN with α and θ",res.minimum," with ",α)
 
 	change_gauge_wavefunctions(θ,p)
@@ -436,11 +441,35 @@ function wAA_wAB(p)
 	(wAA,wAB)
 end
 
+function analyze(x)
+	r,θ = polar(x)
+	c = cis(θ)
+	ω = cis(2π/3)
+	res = "?"
+	lim = 5e-2
+	if true # First method
+		pos = cis.(vcat([i*2π/6 for i=0:5],[π/2,-π/2,sqrt(3)/2]))
+		pos_str = ["1","2π/6","ω","-1","ω^2","-2π/6","i","-i","sqrt(3)/2"]
+	else # Second method
+		n = (3*2*5*7*11)^2
+		pos = [cis(i*2π/n) for i=0:5]
+		pos_str = [string(i,"*2π/",n) for i=0:n-1]
+	end
+	for j=1:length(pos)
+		if abs(c-pos[j])<lim
+			res = pos_str[j]
+		end
+	end
+	r,res,θ
+end
+
 function print_low_fourier_modes(v,p,c=1;m=1)
 	for mix=1:p.N, miy=1:p.N
 		mx,my = p.k_axis[mix],p.k_axis[miy]
 		if abs(mx) ≤ m && abs(my) ≤ m
-			px("mx,my= ",mx,",",my," : ",v[mix,miy]*c)
+			y = v[mix,miy]
+			r,x,θ = analyze(y)
+			px("mx,my= ",mx,",",my," : ",x!="?" ? x : x," ",r)
 		end
 	end
 end
@@ -589,7 +618,6 @@ function import_u1_u2_V_φ(N,Nz,p)
 
 	p.u1_f = load(f,"u1_f")
 	p.u2_f = load(f,"u2_f")
-	p.v_fermi = load(f,"v_fermi")
 	p.non_local_coef = load(f,"non_local_coef")
 	p.non_local_φ1_f = load(f,"φ1_f")
 	p.non_local_φ2_f = load(f,"φ2_f")
@@ -612,11 +640,11 @@ function import_u1_u2_V_φ(N,Nz,p)
 	p.prods_f = [myfft(p.prods_dir[i],p.Vol) for i=1:length(p.prods_dir)]
 end
 
-function import_Vint(d,p)
+function import_Vint(p)
 	if p.compute_Vint
 		path = "graphene/exported_functions/"
-		f = string(path,"N",p.N,"_Nz",p.Nz,"_d",d,"_Vint.jld")
-		p.interlayer_distance = load(f,"d")
+		f = string(path,"N",p.N,"_Nz",p.Nz,"_d",p.interlayer_distance,"_Vint.jld")
+		d = load(f,"d")
 		a = load(f,"a"); L = load(f,"L"); @assert a==p.a && L==p.L && p.interlayer_distance==d
 
 		Vint_f = load(f,"Vint_f")
@@ -778,12 +806,12 @@ function eval_blocks(B_four,funs,p;k_red_shift=[0,0.0])
 	ars
 end
 
-function plot_block_article(B_four,p;title="plot_full",other_block=-1,k_red_shift=[0.0,0.0],meV=true)
+function plot_block_article(B_four,p;title="plot_full",other_block=-1,k_red_shift=[0.0,0.0],meV=true,coef=1,vertical_bar=false) # coef applies a coef so that we draw coef*B
 	funs = [real,imag,abs]; titles = ["real","imag","abs"]
 	n = length(funs)
-	ars = eval_blocks(B_four,funs,p;k_red_shift=k_red_shift)
+	ars = eval_blocks(B_four,funs,p;k_red_shift=k_red_shift)*coef
 	if other_block!=-1 # case magnetic term with another block
-		ars2 = eval_blocks(other_block,funs,p)
+		ars2 = eval_blocks(other_block,funs,p)*coef
 		op(x,y) = sqrt.(abs2.(x) .+ abs2.(y))
 		for i=1:3
 			ars[i] = op_two_blocks(op,ars[i],ars2[i])
@@ -804,8 +832,8 @@ function plot_block_article(B_four,p;title="plot_full",other_block=-1,k_red_shif
 	ismag = other_block!=-1
 	# Plots functions
 	res = 700
-	X,Y = ismag ? (floor(Int,res/3),floor(Int,1.0*res)) : (floor(Int,1.2*res),floor(Int,res/8))
-	fig_colors = CairoMakie.Figure(resolution=(X,Y),fontsize = other_block==-1 ? 17 : 35) # creates colorbar
+	X,Y = vertical_bar ? (floor(Int,res/3),floor(Int,1.0*res)) : (floor(Int,1.2*res),floor(Int,res/8))
+	fig_colors = CairoMakie.Figure(resolution=(X,Y),fontsize = vertical_bar ? 22 : 35) # creates colorbar
 	# colormap ∈ [:heat,:viridis]
 	clm = :Spectral
 	# clm = :linear_bmy_10_95_c78_n256
@@ -832,7 +860,7 @@ function plot_block_article(B_four,p;title="plot_full",other_block=-1,k_red_shif
 
 		titl = string(title,"_",titles[I],"_cart")
 		CairoMakie.save(string(p.article_path,titl,".pdf"),fig)
-		CairoMakie.Colorbar(fig_colors[1,1],ax1,vertical=(other_block!=-1),flipaxis=(other_block!=-1),label=meV ? "meV" : "") # records colorbar. flipaxis to have ticks down the colormap
+		CairoMakie.Colorbar(fig_colors[1,1],ax1,vertical=vertical_bar,flipaxis=vertical_bar,label=meV ? "meV" : "") # records colorbar. flipaxis to have ticks down the colormap
 	end
 
 	# Saves colorbar

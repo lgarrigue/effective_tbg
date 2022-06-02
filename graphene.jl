@@ -69,7 +69,6 @@ mutable struct Params
 	recip_lattice; recip_lattice_inv # from k in reduced coords to a k in cartesian ones
 	tol_scf
 
-
 	# Misc
 	ref_gauge # reference for fixing the phasis gauge freedom
 	plots_cutoff
@@ -164,7 +163,6 @@ Parity(u,p) = OpL(u,p,G -> -G)
 
 z_translation(a,Z,p) = [a[x,y,mod1(z-Z,p.Nz)] for x=1:p.N, y=1:p.N, z=1:p.Nz]
 r_translation(a,s,p) = [a[mod1(x-s[1],p.N),mod1(y-s[2],p.N),z] for x=1:p.N, y=1:p.N, z=1:p.Nz] # s ∈ {0,…,p.N-1}^2, 0 for no translation
-
 
 
 ######################### Solves Schrödinger's equations
@@ -507,7 +505,7 @@ function records_fermi_velocity_and_fixes_gauge(p)
 		# c = fact*goal, fact ∈ ℝ+
 		# px("Fermi velocity, distance to theory of the ratio:",ratio)
 		# px("REMETTRE VERIFICATION DU RATIO !!!!!!!!!!!")
-		r,ξ = abs(fact),atan(imag(fact),real(fact))
+		r,ξ = polar(fact)
 		# px("<u1,(-i∇r) u2> = [i;",I==1 ? "-" : "+","1]*",r,"e^(i × ",ξ,") so vF=",r)
 		p.v_fermi = r
 		@assert imag(fact*cis(-ξ)) < 1e-10
@@ -826,10 +824,10 @@ function plot_Vint(p)
 	res_plot = 500
 	fig = CairoMakie.Figure(resolution = (floor(Int,res_plot*2),res_plot))
 
-	funs = fftshift.([v_int,v_plus,v_minus,v_bilayer,abs2_u1_plus,abs2_u1_minus])
-	labels = [L"V_{int, d}(z)" L"\frac{1}{\mid\Omega\mid} {\int_\Omega} V(x,z+d/2) d x" L"\frac{1}{\mid\Omega\mid} {\int_\Omega} V(x,z-d/2) d x" L"\frac{1}{\mid\Omega\mid^2} \int_{\Omega \times \Omega} V^{(2)}_{d,{y}}({x},z) d {x} d {y}" L"\int_\Omega \mid\Phi_1\mid^2(x,z+d/2) d x" L"\int_\Omega \mid\Phi_1\mid^2(x,z-d/2) d x"]
-	axs = [1,1,1,1,2,2]
-	colors = [:purple,:blue,:cyan,:darkblue,:orange,:red]
+	funs = fftshift.([v_int,v_plus,v_minus,abs2_u1_plus,abs2_u1_minus])#,v_bilayer
+	labels = [L"V_{int, d}(z)" L"\frac{1}{\mid\Omega\mid} {\int_\Omega} V(x,z+d/2) d x" L"\frac{1}{\mid\Omega\mid} {\int_\Omega} V(x,z-d/2) d x" L"\int_\Omega \mid\Phi_1\mid^2(x,z+d/2) d x" L"\int_\Omega \mid\Phi_1\mid^2(x,z-d/2) d x"] #L"\frac{1}{\mid\Omega\mid^2} \int_{\Omega \times \Omega} V^{(2)}_{d,{y}}({x},z) d {x} d {y}"
+	axs = [1,1,1,2,2]
+	colors = [:purple,:blue,:cyan,:orange,:red]#:darkblue,
 
 	ax1 = fig[1,1] = CairoMakie.Axis(fig, xlabel = "x (Bohr)", ylabel = "eV")
 	ax2 = fig[1,1] = CairoMakie.Axis(fig, xlabel = "x (Bohr)", ylabel = "∅")

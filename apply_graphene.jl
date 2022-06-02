@@ -18,14 +18,14 @@ function produce_bloch_functions_and_potentials()
 	p.i_state = 4 # u1 will be the i^th eigenmode, u1 the (i+1)^th, u0 the (i-1)^th
 
 	# Changeable monolayers parameters
-	# p.L = 110 # periodicity in z (both for mono and bilayer computations)
-	p.L = 30
+	p.L = 110 # periodicity in z (both for mono and bilayer computations)
+	# p.L = 
 	p.ecut = 41*norm_K_cart(p.a)^2; px("ecut ",p.ecut) # DFTK's ecut, convergence of u's for ecut ≃ 15
 	p.kgrid = [5,5,1] # for computing the KS potential
 	p.tol_scf = 1e-4
 
 	# Params Vint
-	compute_Vint = false
+	compute_Vint = true
 	p.Nint = 3
 	# d_list = vcat([0.01],(1:1:11))#,[6.45])
 	d_list = [6.45]

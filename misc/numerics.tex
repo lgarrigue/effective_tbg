@@ -345,17 +345,7 @@ Then,
 \lAngle f,g \rAngle ^{\eta,\eta'} = e^{i\pa{\eta-\eta'} \bK \cdot J \bX}\db{f,g}^{\eta,\eta'} =  \sum_{\bmm \in \Z^2} e^{i\pa{\eta-\eta'} \pa{m+m_K}a^* \cdot J \bX} C_\bmm
 \end{align*}
 
-Moreover, 
-\begin{align*}
-	\cA &= \f{1}{2} J \pa{-i\na} \Sigma= \f{1}{2} J \pa{-i\na} \pa{e^{-iq_1 x} \db{u_j,u_{j'}}^{+-}} \\
-	    &= e^{-iq_1 x}\f 12 \sum_{m \in \Z^2} J \pa{ma_{\text{M}}^*} \f{e^{ima^*\ind{M} \cdot \bX}}{\sqom} C_{\bmm}^{+,\Sigma} - \f 12 \Sigma J q_1 ,\\
-	    & \underset{\substack{q_1 = -2 JK}}{=} \; e^{-iq_1 x} \sum_{m \in \Z^2} \f{e^{ima^*\ind{M} \cdot \bX}}{\sqom} C_{\bmm}^{+,\cA} - \Sigma K,\\
-C_{m}^{+,\cA} &:= \f 12 J \pa{ma_{\text{M}}^*}C_{\bmm}^{+,\Sigma}
-\end{align*}
 
-To plot, we will need to shift the exponent $e^{-iq_1 x} = e^{\f{i}{3}\pa{a_{\text{M},1}^*+a_{\text{M},2}^*}x}$
-
-{\color{red}{TO RECTIFY}}
 
 Hence
 \begin{align*}
@@ -1169,31 +1159,133 @@ so $(\alpha,\beta) = (1,2)$ but then $K_1$ is not a Dirac point for this configu
 \subsection{Deductive from TKV}%
 \label{sub:deductive_from_tkv}
 
-From \eqref{eq:UmatU}, that we consider again, we want $K_1- K_2 = q_1$, so 
+With 
+\begin{align}\label{def:U}
+U := \mat{e^{-iK_2 x} & 0 \\ 0 & e^{-iK_1 x}},
+\end{align}
+we have
 \begin{align*}
-	T(x) e^{i(K_1-K_2)x} &= T(x) e^{iq_1 x} = T_1 +T_2 e^{i(q_1 - q_2)x} +T_3 e^{i(q_1 - q_3)x} \\
+U^* H U = \mat{\sigma^\xi \cdot \pa{-i\na + k - K_2} & T(x) e^{i\pa{K_2 - K_1}x} \\ T(x)^*e^{i\pa{K_1 - K_2}x} & \sigma^\xi \cdot \pa{-i\na + k -K_1}}
+\end{align*}
+From \eqref{eq:UmatU}, that we consider again, we want $K_2- K_1 = q_1$, so 
+\begin{align*}
+	T(x) e^{i(K_2-K_1)x} &= T(x) e^{iq_1 x} = T_1 +T_2 e^{i(q_1 - q_2)x} +T_3 e^{i(q_1 - q_3)x} \\
 & = T_1 +T_2 e^{-ic_1^*x} +T_3 e^{-i\pa{c_1^*+c_2^*}x}
 \end{align*}
 where
 \begin{multline*}
-c_1^* := q_2 - q_1 = a_1^*, \qquad c_2^* := q_3 - q_2 = -a_1^* + a_2^*, \qquad a_2^* = c_1^* + c_2^*
+c_1^* := q_2 - q_1 = a_1^* = k_\theta \sqrt{3} \mat{1/2 \\ \sqrt{3}/2}, \\
+c_2^* := q_3 - q_2 = -a_1^* + a_2^* = k_\theta \sqrt{3} \mat{-1 \\ 0}, \\
+a_2^* = c_1^* + c_2^*
 \end{multline*}
 hence
 \begin{align*}
 q_1 = \f 13\pa{-2c_1^* - c_2^*}, \qquad q_2 = \f 13\pa{c_1^* - c_2^*},\qquad q_3 = \f 13\pa{c_1^* +2 c_2^*}
 \end{align*}
-and
+We choose
 \begin{align*}
-R_{\f{2\pi}{6}} c_1^* = c_1^* + c_2^*, \qquad R_{\f{2\pi}{6}} c_2^* = -c_1^*
+K_1 = \f 13 \pa{c_1^* + 2 c_2^*}\qquad K_2 = \f 13 \pa{ -c_1^* + c_2^*},
 \end{align*}
-so if $K_2 = \f 13 \pa{\alpha c_1^* + \beta c_2^*}$, and if we impose $K_1 = R_{\f{2\pi}{6}} K_2$, we have $K_1 = \f 13 \pa{\pa{\alpha - \beta} c_1^* + \alpha c_2^*}$ and
+so that $K_2 - K_1 = \f 13 \pa{-2c_1^* - c_2^*} = q_1$ 
+
+\subsection{Application to our effective model}%
+\label{sub:application_to_our_effective_model}
+
+Still with $U$ defined in \eqref{def:U}, we have
 \begin{align*}
-\f 13 \pa{-2c_1^* -c_2^*} = q_1 = K_1 - K_2 = \f 13\pa{-\beta c_1^* + \pa{\alpha - \beta} c_2^*} \implies (\alpha,\beta) = (1,2)
+	U^* \mat{\bbW^+ & 0 \\ 0 & \bbW^-} U &= \mat{\bbW^+ & 0 \\ 0 & \bbW^-}
 \end{align*}
-so
+
+
+
+\subsection{From $a^*$ to $c^*$}%
+\label{sub:from_a_to_c_}
+
+The lattice $c^*$ enables to plot the bands diagram. Since $a_1^* = c_1^*$ and $a_2^* = c_1^* + c_2^*$, we have
 \begin{align*}
-K_1 = \f 13 \pa{ -c_1^* + c_2^*},\qquad K_2 = \f 13 \pa{c_1^* + 2c_2^*}
+\sum_m f_m \f{e^{ima^*x}}{\sqom} = \sum_m f_m \f{e^{i {\tiny{\mat{m_1 + m_2 \\ m_2}}} c^* x}}{\sqom} = \sum_ m f_{m} \f{e^{i\pa{A^{-1}m}c^*x}}{\sqom}= \sum_ m f_{Am} \f{e^{imc^*x}}{\sqom}
 \end{align*}
+where $A = \mat{1 & -1 \\ 0 & 1}$.
+
+
+\section{Magnetic term}%
+\label{sub:magnetic_term}
+
+We have
+\begin{align*}
+A := -i\na \Sigma = e^{-iq_1 x} \pa{-i\na - q_1} \db{u_j,u_{j'}}^{+-}
+\end{align*}
+hence with $\widetilde{f} := e^{iq_1 x} f$,
+\begin{align*}
+\widetilde{A} = \pa{-i\na - q_1} \widetilde{\Sigma}
+\end{align*}
+
+\begin{multline*}
+	U^* \mat{0 & JA (-i\na) \\ JA^* (-i\na)} U \\
+	= \mat{0 & e^{i(K_2 - K_1)x} JA \cdot(-i\na - K_1) \\ e^{i(K_1 - K_2)x} JA^* \cdot(-i\na - K_2) & 0} \\
+	= \mat{0 & e^{iq_1 x} JA \cdot(-i\na - K_1) \\ e^{-iq_1 x} JA^* \cdot(-i\na - K_2) & 0} \\
+	= \mat{0 & J \widetilde{A} \cdot(-i\na - K_1) \\  J\widetilde{A}^* \cdot(-i\na - K_2) & 0}
+\end{multline*}
+Now
+\begin{align*}
+\div JA = 0,\qquad -i\div J \widetilde{A} = q_1 J \widetilde{A}
+\end{align*}
+and since $\widetilde{A}^* = e^{-iq_1 x} A^*$, then $-i\div J \pa{\widetilde{A}^*} = -q_1 J  \pa{\widetilde{A}^*}$
+
+With $A$ a $4 \times 4$ matrix, computing $\ps{v, A u} = \ps{\mat{v_1 \\ v_2},\mat{A_{11} & A_{12} \\ A_{21} & A_{22}} \mat{u_1\\u_2}}$, we compute that $A^*$ is indeed the hermitian conjugate for any $x$. We remark also that $J A J = - \pa{A^{-1}}^T$
+The action of $J$ is on the composants of $A$, not on $u$ !!! So we have 
+\begin{align*}
+A = \mat{A^{(1)} \\ A^{(2)}} =: \mat{C \\ B} = \mat{\mat{C_{11} & C_{12} \\ C_{21} & C_{22}} \\ \mat{B_{11} & B_{12} \\ B_{21} & B_{22}}}
+\end{align*}
+and $A$ acts on $u$ as $A u = \mat{A^{(1)} u \\ A^{(2)} u}$ hence $A^* = \mat{\pa{A^{(1)}}^* \\ \pa{A^{(2)}}^*}$ and
+\begin{align*}
+JA = \mat{-A^{(2)} \\ A^{(1)}}, \qquad \pa{JA}^* = \mat{-\pa{A^{(2)}}^* \\ \pa{A^{(1)}}^*} = J A^* \neq -A^* J !!
+\end{align*}
+We recall that $\partial_j$ acts on $L^2(\R^d,\C^2)$ as
+\begin{align*}
+-i \partial_j u = \mat{-i\partial_j u_1 \\ -i\partial_j u_2}, \qquad -i\na u = \mat{-i\partial_1 u \\ -i\partial_2 u} = \mat{\mat{-i\partial_1 u_1 \\ -i\partial_1 u_2} \\ \mat{-i\partial_2 u_1 \\ -i\partial_2 u_2}}
+\end{align*}
+so $\pa{-i\partial_j}^* = -i\partial_j$ and $\pa{-i\na}^* = -i\na$. For any $4\times 4$ valued function $B$, wwe have
+\begin{align*}
+\partial_j \pa{B u} = \partial_j \mat{B_{11} u_1 + B_{12} u_2 \\ B_{21} u_1 + B_{22} u_2} = B \partial_j u + \pa{\partial_j B}u 
+\end{align*}
+where
+\begin{align*}
+	\partial_j B := \mat{\partial_j B_{11} & \partial_j B_{12} \\ \partial_j B_{21} & \partial_j B_{22}}
+\end{align*}
+i.e $\partial_j$ acts pointwise on vectors and matrices. Moreover, for $A = \mat{A^{(1)} \\ A^{(2)}}$, we have
+\begin{align*}
+	\div A u & = \partial_1 \pa{A^{(1)} u} + \partial_2 \pa{A^{(2)} u} = \sum_j A^{(j)} \partial_j u + \pa{\partial_j A^{(j)}}u  \\
+& = \pa{\div A}u  + A \cdot \na u
+\end{align*}
+where we also define $\div$ acting pointwise on the $4\times 4$ matrices, i.e
+\begin{align*}
+\div A := \pa{\div A_{ij}}_{1 \le i,j \le 2} = \pa{\partial_1 A^{(1)}_{ij} + \partial_2 A^{(2)}_{ij}}_{ij}
+\end{align*}
+In this case, $\div J \na f = 0$ for any $4 \times 4$ matrix valued function $f$. Moreover,
+\begin{align*}
+	& \ps{V, -i\na u} = \ps{\mat{V_1 \\ V_2}, -i\na u} = \ps{\mat{V_1 \\ V_2}, \mat{-i\partial_1 u \\ -i\partial_2 u}} =\sum_j  \ps{V_j,-i\partial_j u} \\
+&\qquad = \sum_j \ps{-i\partial_j V_j,u} = \ps{-i\div V, u}
+\end{align*}
+
+Hence for $A = -i\na \Sigma$,
+\begin{align*}
+	&\ps{v, JA \cdot \pa{-i\na -K_1} u} = \ps{\pa{JA}^* v, \pa{-i\na -K_1}u} = \ps{JA^* v, \pa{-i\na -K_1}u} \\
+	& \qquad =  \ps{\pa{-i\div -K_1}JA^* v, u} \\
+	& \qquad = \ps{ \pa{\pa{-i\div }\pa{JA^*}}v , u} + \ps{(JA^*) \cdot \pa{-i\na -K_1}v , u} \\
+	& \qquad = \ps{(JA^*) \cdot\pa{-i\na -K_1}v , u}
+\end{align*}
+Repeating the same computations, we find that
+\begin{align*}
+& \ps{v, \pa{J \widetilde{A}} \cdot \pa{-i\na -K_1} u} \\
+& \qquad = \ps{\pa{J \widetilde{A}^*} \cdot \pa{-i\na -K_1} v,u} + \ps{-i\div \pa{J \widetilde{A}^*} v,u} \\
+& \qquad = \ps{\pa{J \widetilde{A}^*} \cdot \pa{-i\na -K_2} v,u}
+\end{align*}
+so 
+\begin{align*}
+\pa{\pa{J \widetilde{A}} \cdot \pa{-i\na -K_1}}^* = \pa{J \widetilde{A}^*} \cdot \pa{-i\na -K_2} = \pa{J \widetilde{A}}^* \cdot \pa{-i\na -K_2}
+\end{align*}
+
 
 \bibliographystyle{siam}
 \bibliography{../../../biblio}

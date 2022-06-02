@@ -9,7 +9,6 @@ using AbstractPlotting: px
 
 function computes_and_plots_effective_potentials()
 	# Parameters
-	d = 6.45
 	# N = 8; Nz = 27
 	# N = 9;  Nz = 32 # has Vint
 	# N = 9;  Nz = 36
@@ -44,7 +43,6 @@ function computes_and_plots_effective_potentials()
 	# N = 45; Nz = 192
 	# N = 48; Nz = 200
 
-	px("N ",N,", Nz ",Nz," d ",d)
 	p = EffPotentials()
 
 	p.plots_cutoff = 3
@@ -54,10 +52,11 @@ function computes_and_plots_effective_potentials()
 	p.compute_Vint = true
 	p.plot_for_article = true
 	p.interlayer_distance = 6.45
+	px("N ",N,", Nz ",Nz," d ",p.interlayer_distance)
 
 	# Imports untwisted quantities
 	import_u1_u2_V_φ(N,Nz,p)
-	import_Vint(d,p)
+	import_Vint(p)
 	init_EffPot(p)
 	# px("Test norm ",norms3d(p.u1_dir,p,false)," and in Fourier ",norms3d(p.u1_f,p))
 
@@ -67,11 +66,6 @@ function computes_and_plots_effective_potentials()
 	compare_to_BM_infos(p.𝕍_V,p,"V_V")
 	compare_to_BM_infos(p.Σ,p,"Σ")
 	optimize_gauge_and_create_T_BM_with_α(true,p) # optimizes on α only, not on the global phasis, which was already well-chosen before at the graphene.jl level
-	T_BM = build_BM(5,5,p)
-	compare_to_BM_infos(T_BM,p,"T_BM")
-	px("Compare")
-	compare_blocks(T_BM,p.𝕍_V,p)
-
 	build_blocks_potentials(p) # computes Wplus, 𝕍_V and Σ
 	compare_to_BM_infos(p.𝕍_V,p,"V_V")
 
@@ -84,6 +78,12 @@ function computes_and_plots_effective_potentials()
 
 	(wAA,wC) = get_wAA_wC(p.v_dir,p,p.compute_Vint ? p.Vint_dir : -1)
 	wAB = wAA
+
+	# px("W[1,1] ")
+	# print_low_fourier_modes(p.W_V_plus[1],p;m=3)
+	# px("W[2,1] ")
+	# print_low_fourier_modes(p.W_V_plus[3],p;m=3)
+
 
 	# plot_block_reduced(p.T_BM,p;title="T")
 	p.add_non_local_W = true
@@ -110,7 +110,7 @@ function computes_and_plots_effective_potentials()
 
 	plot_block_reduced(p.𝕍_V,p;title="V_V")
 	plot_block_reduced(p.Σ,p;title="Σ")
-	plot_block_reduced(T_BM,p;title="T")
+	# plot_block_reduced(T_BM,p;title="T")
 
 
 	# Mean W
@@ -126,17 +126,20 @@ function computes_and_plots_effective_potentials()
 	px("Mean W_plus in meV :")
 	display(mean_block(p.Wplus_tot,p)*1e3*hartree_to_ev)
 
+	wAA = real(p.𝕍[1][1,1])
+	δ𝕍 = op_two_blocks((x,y)->x.-y,p.𝕍,T_BM_four(wAA,wAA,p))
+
 	# Plots for article
 	if p.plot_for_article
 		# plot_block_reduced(p.𝕍_V,p;title="V_V")
 		# plot_block_reduced(p.𝕍,p;title="V")
-		# plot_block_article(p.𝕍,p;title="V",k_red_shift=-p.m_q1)
+		# plot_block_article(δ𝕍,p;title="δV",k_red_shift=-p.m_q1)
 		# plot_block_article(p.T_BM,p;title="T",k_red_shift=-p.m_q1)
-		plot_block_article(W_without_mean,p;title="W_plus_without_mean")
-		# plot_block_article(p.𝔸1,p;title="A",other_block=p.𝔸2,k_red_shift=-p.m_q1)
+		# plot_block_article(W_without_mean,p;title="W_plus_without_mean")
+		# plot_block_article(p.𝔸1,p;title="A",other_block=p.𝔸2,k_red_shift=-p.m_q1,meV=false,coef=1/p.vF,vertical_bar=true)
 		# if p.compute_Vint plot_block_article(p.𝕍_Vint,p;title="V_Vint",k_red_shift=-p.m_q1) end
 		# plot_block_article(p.Σ,p;title="Σ",k_red_shift=-p.m_q1,meV=false)
-		# plot_block_article(p.W_non_local_plus,p;title="W_nl_plus",k_red_shift=-p.m_q1)
+		plot_block_article(p.W_non_local_plus,p;title="W_nl_plus",k_red_shift=-p.m_q1,vertical_bar=true)
 	end
 
 
@@ -261,26 +264,39 @@ function study_in_d()
 	p.compute_Vint = false
 	fine = true
 
-	list_d = (0.01:1:10)
-	list_d = (0:0.05:10)
+	list_d = (0:0.05:11)
 	measures = Dict()
 	cf = 4
 
-	meas = ["wAA","wC","wD","wΣ","norm_∇Σ","norm_W","distV","distΣ"]
-	ax = [1,1,1,2,1,1,1,2]
-	ps(s) = LaTeXString(string("\$",cf==1 ? "" : string("\\frac{1}{",cf,"}"),"{\\Vert}",s,"\\Vert_{L^2}\$"))
-	labels = [L"$w_{AA}$",L"$w_{C}$",L"$w_{D}$",L"$w_{Σ}$",ps("∇\\Sigma_d"),ps("𝕎^+_d"),ps("𝐕_{w_{AA}} - 𝕍_d"),ps("𝐕_{w_{\\Sigma}} - \\Sigma_d")]
+	meas = ["wAA","wC","wΣ","norm_∇Σ","norm_W_without_mean","distV","distΣ"] #"Wmean"
+	id_graph = ["1","1","2","2","2","1","2"]
+	wAA_str = "w_{AA}^{d=6.45}"
+	ps(s) = string("\\frac{1}{",cf,"} {\\Vert}",s,"\\Vert_{L^2}")
+	function cS(a,b=wAA_str;norm=false)
+		aa = norm ? ps(a) : a
+		LaTeXString(string("\$\\frac{",aa,"}{",b,"}\$")) # s/wAA
+	end
+	labels = [cS("w_{AA}"),cS("[V_{d} u_1,u_1]_{d,-1,-1}"),L"$[u_1,u_1]_{d,0,0}$",cS("∇\\Sigma_d","v_F";norm=true),cS("𝕎_d - W_d 𝕀 ";norm=true),cS("𝕍_d - [V u_1,u_1]_{d,0,0} 𝐕 - [V u_1,u_1]_{d,-1,-1} 𝐕";norm=true),LaTeXString(string("\$",ps("\\Sigma_d - [u_1,u_1]_{d,0,0} 𝐕"),"\$"))] # cS("W_d")
+	colors = [:blue,:green1,:pink,:red,:black,:brown,:orange,:cyan,:darkgreen]
 	for m in meas
 		measures[m] = zeros(Float64,length(list_d))
 	end
 
 	# print_low_fourier_modes(C_Vu1_u1,p,hartree_to_ev/sqrt(p.cell_area))
 
-	c = hartree_to_ev/sqrt(p.cell_area)
-	cΣ = 1/sqrt(p.cell_area)
+	c = 1/sqrt(p.cell_area)
+
+	# Compute wAA for d=6.45
+	p.interlayer_distance = 6.45
+	import_Vint(p)
+	build_blocks_potentials(p)
+	build_block_𝔸(p)
+	V = p.compute_Vint ? p.𝕍 : p.𝕍_V
+	wAA_ref = real(V[1][1,1])
+
 	for i=1:length(list_d)
 		p.interlayer_distance = list_d[i]
-		import_Vint(p.interlayer_distance,p)
+		import_Vint(p)
 		build_blocks_potentials(p)
 		build_block_𝔸(p)
 		V = p.compute_Vint ? p.𝕍 : p.𝕍_V
@@ -291,20 +307,25 @@ function study_in_d()
 		# wE = real(V[1][2,2])
 		wΣ = real(p.Σ[1][1,1])
 
+		# W
+		mean_W_block = mean_block(W,p)
+		W_without_mean = add_cst_block(W,-sqrt(p.cell_area)*mean_W_block,p)
+		meanW = real(mean_W_block[1,1])
 
-		# px("small ",p.W_V_plus[1][1,1]," large ",p.W_V_plus[1][floor(Int,p.N/2),floor(Int,p.N/2)])
-
-		measures["wAA"][i] = c*wAA
-		measures["wC"][i] = c*wC
-		measures["wD"][i] = c*wD
-		measures["wΣ"][i] = cΣ*wΣ
+		measures["wAA"][i] = wAA/wAA_ref
+		measures["wC"][i] = wC/wAA_ref
+		# measures["wD"][i] = c*wD
+		measures["wΣ"][i] = c*wΣ
 		# measures["wE"][i] = c*wE
-		measures["distV"][i] = c*norm_block(op_two_blocks((x,y)->x.-y,build_BM(wAA,wAA,p),V),p)/cf
-		measures["distΣ"][i] = cΣ*norm_block(op_two_blocks((x,y)->x.-y,build_BM(wΣ,wΣ,p),p.Σ),p)/cf
+
+		sm = op_two_blocks((x,y)->x.+y,T_BM_four(wAA,wAA,p),T_BM_four(wC,wC,p;second=true))
+		measures["distV"][i] = norm_block(op_two_blocks((x,y)->x.-y,sm,V),p)/(cf*wAA_ref)
+		measures["distΣ"][i] = c*norm_block(op_two_blocks((x,y)->x.-y,T_BM_four(wΣ,wΣ,p),p.Σ),p)/cf
 		# measures["norm_V"][i] = c*norm_block(V)/cf
 		# measures["norm_Σ"][i] = c*norm_block(p.Σ)/cf
-		measures["norm_∇Σ"][i] = cΣ*norm_block_potential(p.𝔸1,p.𝔸2,p)/cf
-		measures["norm_W"][i] = c*norm_block(p.W_V_plus,p)/cf
+		measures["norm_∇Σ"][i] = c*norm_block_potential(p.𝔸1,p.𝔸2,p)/(cf*p.vF)
+		# measures["Wmean"][i] = meanW*sqrt(p.cell_area)/wAA_ref
+		measures["norm_W_without_mean"][i] = norm_block(W_without_mean,p)/(cf*wAA_ref)
 		px(p.interlayer_distance," ")
 	end
 	# Print measures
@@ -312,390 +333,235 @@ function study_in_d()
 		mea = meas[i]
 		px(mea,"\n",measures[mea],"\n")
 	end
-	function save_fig(fine)
+	function save_fig(fine,graphs_V)
 		res = 500
+		resX_not_fine = 200
+		resX_fine = 350
 		meV = fine; c_meV = meV ? 1e3 : 1
-		fig = CairoMakie.Figure(resolution=(res,res))
-		colors = [:blue,:green1,:cyan,:red,:black,:darkred,:orange,:darkgreen]
+		fig = CairoMakie.Figure(resolution=(fine ? resX_fine : resX_not_fine,res))
 
-		ax1 = CairoMakie.Axis(fig[1, 1], xlabel = "d (Bohr)", ylabel = meV ? "meV" : "eV")
-		ax2 = CairoMakie.Axis(fig[1, 1], xlabel = "d (Bohr)", ylabel = "∅")
+		ax = CairoMakie.Axis(fig[1, 1], xlabel = "d (Bohr)")#, ylabel = "∅")
 		xlim = fine ? maximum(list_d) : 7
-		ax1.xticks = (0:1:xlim)
-		CairoMakie.xlims!(ax1,0,xlim)
+		ax.xticks = (0:1:xlim)
+		CairoMakie.xlims!(ax,0,xlim)
 
+		maxY2 = 1e2
+		minY2 = 1e-5
 
 		if fine
-			# Axis 1
-			minY = c_meV*1e-3
-			CairoMakie.ylims!(ax1,minY,c_meV*1e1)
-			ax1.yscale = log10
-			X = 6.45
-			CairoMakie.vlines!(ax1,[X],color = :black)
 			minY2 = 1e-5
+			X = 6.45
+			CairoMakie.vlines!(ax,[X],color = :black)
 			CairoMakie.annotations!([string("d=",X)], [Point2f0(X+0.2,minY2*1.1)], textsize =20)
+			CairoMakie.ylims!(ax,minY2,maxY2)
+			ax.yscale = log10
+		# else
 			# Axis 2
-			CairoMakie.ylims!(ax2,minY2,1e-1)
-			ax2.yscale = log10
-		else
-			# Axis 2
-			CairoMakie.ylims!(ax2,-0.1,0.35)
+			# CairoMakie.ylims!(ax,-0.1,0.35)
 		end
 		lin = []
 		fun = fine ? abs : x-> x
 
 		for i=1:length(meas)
 			mea = meas[i]
-			l = CairoMakie.lines!(ax[i]==1 ? ax1 : ax2, list_d, (ax[i]==1 ? c_meV : 1)*fun.(measures[mea]),label=labels[i],color=colors[i],linestyle= ax[i]==1 ? nothing : [0.5, 1.0, 1.5, 2.5])
-			push!(lin,l)
-		end
-
-		ax2.yaxisposition = :right
-		ax2.yticklabelalign = (:left, :center)
-		ax2.xticklabelsvisible = false
-		ax2.xticklabelsvisible = false
-		ax2.xlabelvisible = false
-		CairoMakie.linkxaxes!(ax1,ax2)
-		patchsize = 10
-
-		figlegend = CairoMakie.Figure(resolution=(700,200))
-		if !fine
-			type_legend = 1
-			if type_legend == 1
-				CairoMakie.Legend(figlegend[1, 2],lin,labels,framevisible = true,patchsize = (patchsize, patchsize),fontsize=20,nbanks=4)
-			else
-				CairoMakie.axislegend(ax1; labelsize=20, position = :rb,nbanks = 3)
-				CairoMakie.axislegend(ax2; labelsize=20, position = :rt,nbanks = 2)
+			if !fine || (graphs_V && id_graph[i]=="1") || (!graphs_V && id_graph[i]=="2")
+				l = CairoMakie.lines!(ax, list_d, fun.(measures[mea]),label=labels[i],color=colors[i],linestyle=nothing)
+				push!(lin,l)
 			end
 		end
-		add_name = fine ? "_log" : ""
+
+		# ax.yaxisposition = :right
+		# ax.yticklabelalign = (:left, :center)
+		# ax.xticklabelsvisible = false
+		# ax.xticklabelsvisible = false
+		# ax.xlabelvisible = false
+		# CairoMakie.linkxaxes!(ax,ax)
+		patchsize = 10
+
+		figlegend = CairoMakie.Figure(resolution=(1000,300))
+		if !fine
+			CairoMakie.Legend(figlegend[1, 2],lin,labels,framevisible = true,patchsize = (patchsize, patchsize),fontsize=20,nbanks=5)
+		end
+		add_name = !fine ? "" : (graphs_V ? "_log_V" : "_log_others")
 		post_path = string("study_d",add_name,".pdf")
 		for pre in ["effective_potentials/",p.article_path]
 			CairoMakie.save(string(pre,post_path),fig)
-			CairoMakie.save(string(pre,"legend_study_d.pdf"),figlegend)
+			# CairoMakie.save(string(pre,"legend_study_d.pdf"),figlegend)
 		end
 	end
-	save_fig(true)
-	save_fig(false)
+	save_fig(true,true)
+	save_fig(true,false)
+	save_fig(false,true)
 end
 
 
 #################### Third step : compute the bands diagram
 
-# Reproduire TKV :
-# p.a1_star = [ sqrt(3)/2; 1/2]
-# p.a2_star = [-sqrt(3)/2; 1/2]
-# p.a doesn't matter it is not used
-# T = V_offdiag_matrix(build_BM(α,β,p;scale=false),p)*sqrt(p.cell_area)
-# for β in [0.586]
-
-function explore_band_structure_BM()
+# Adimentionalized quantities, wAA and wAB independent
+function explore_band_structure_BM_TKV()
 	p = Basis()
-	p.N = 8
+	p.N = 10
 	# @assert mod(p.N,2)==1 # for more symmetries
 	p.a = 4π/sqrt(3)
 	p.dim = 2
 	p.l = 15 # number of eigenvalues we compute
 	init_basis(p)
-	α = 0 # anti-chiral / AA stacking weight
-	p.resolution_bands = 6
+	p.resolution_bands = 5
 	p.energy_unit_plots = "Hartree"
 	p.folder_plots_bands = "bands_BM"
 	p.energy_center = 0
-	p.energy_scale = 1
+	p.energy_scale = 1.5
 	p.solver = "Exact"
-	mult_by_vF = true
 	p.coef_derivations = 1
+	p.plots_article = false
 
-	update_a(p.a1_star,-p.a1_star+p.a2_star,p)
-	K1 = [-1,1]/3
-	K2 = [1,2]/3
+	for q in [p.q1,p.q2,p.q3] q ./= norm(q) end
+	update_a(p.q2-p.q1,p.q3-p.q2,p)
 
-	# b1 = [-1/2,sqrt(3)/2]
-	# b2 = [1.0,0]
-	# update_a(b1,b2,p)
-	# update_a(sqrt(3)*[-1/2;-sqrt(3)/2],sqrt(3)*[1;0],p)
-	# K1 = [1,2]/3
-	# K2 = [-1,1]/3
-
-
-	Γ = [0.0,0.0]
-	K_reds = [K1,K2]
-
-	Γ2 = 2*K1-K2
-	M = Γ2/2
+	K1 = [1,2]/3; K2 = [-1,1]/3
+	Γ = [0.0,0.0]; Γ2 = 2*K1-K2; M = Γ2/2
 
 	Klist = [K2,K1,Γ2,M,Γ]
 	Klist_names = ["K2","K1","Γ'","M","Γ"]
 	plot_path(Klist,Klist_names,p)
 	# Klist = [K2,Γ,M]; Klist_names = ["K2","Γ","M"]
-
-	return nothing
 	valleys = [1;-1]
-
-	# J_red = cart2red_mat(rotM(π/2),p)
-	# Rot_Ks = [J_red*K for K in K_reds]
-
-	# px("rotK1 ",Rot_Ks[1])
 	Kf = [k -> Dirac_k(k,p;coef_∇=1,valley=valleys[i],K1=K1,K2=K2) for i=1:2]
-	# Kf(k) = Dirac_k(k,p;coef_∇=0)
 
-	# for β in [0.586]
-	# for β in [0.0]
-	# for β in [0.05]
-	# for β in vcat([0,0.586])
-	# for β in vcat([0.586],(0:0.05:0.4))
-	for β in vcat((0:0.2:1))
-		print(" ",β)
-		T0 = build_BM(α,β,p)
-		TBMs = [T0,app_block((M,p)->conj.(M),T0,p)]
+	output = "BM"
+	αEgβ = true # α = β or α = 0
+
+	θs = [1.05]
+	βs = [0.605]
+
+	w = 110*1e-3*ev_to_hartree
+	if output=="BM"
+		θrads = (π/180)*θs
+		kθs = 2*sin.(θrads/2)*4π/(4.66*3)
+		βs = w./(kθs.*p.vF)
+		p.energy_scale = 250
+	else
+		# βs = [0.586]
+		# βs = vcat([0.586],(0:0.05:0.8))
+	end
+	for i in length(βs)
+		if output=="BM" p.coef_energies_plot = hartree_to_ev*1e3*kθs[i]*p.vF end # energies in meV
+
+		β = βs[i]
+		α = αEgβ ? β : 0
+		print("(α,β)=(",α,",",β,")")
+		T0 = T_BM_four(β,β,p)
+		T = a2c(T0,p)
+		TBMs = [T,app_block((M,p)->conj.(M),T,p)]
 		Ts = [TBMs[1],app_block(parity_four,TBMs[2],p)]
-		Ts_full = [V_offdiag_matrix(Ts[i],p)*sqrt(p.cell_area) for i=1:2]
+		Ts_full = [build_offdiag_V(Ts[i],p) for i=1:2]#*sqrt(p.cell_area)
 		σs = [spectrum_on_a_path(Ts_full[i],Kf[i],Klist,p) for i=1]
 		pl = plot_band_diagram([σs[1]],Klist,Klist_names,p)
-		save_diagram(pl,β,p)
+		θ = θs[i]
+		title = output=="BM" ? θ : β
+		save_diagram(pl,title,p;post_name="bm")
 	end
 	p
 end
 
-function explore_band_structure_BM_rescale_3()
-	p = Basis()
-	p.N = 10
-	# @assert mod(p.N,2)==1 # for more symmetries
-	p.a = 8π/sqrt(3)
-	p.dim = 2
-	p.l = 11 # number of eigenvalues we compute
-	init_basis(p)
-	α = 0 # anti-chiral / AA stacking weight
-	p.resolution_bands = 6
-	p.energy_unit_plots = "Hartree"
-	p.folder_plots_bands = "bands_BM"
-	p.energy_center = 0
-	p.energy_scale = 0.85
-	p.solver = "Exact"
-	mult_by_vF = true
-	p.coef_derivations = 1
-
-	no = norm(p.q2)
-	update_a(p.q2/no,p.q3/no,p)
-
-	K1 = [1/3,2/3]
-	K2 = [-1/3,1/3]
-	K_reds = [K1,K2]
-
-	Γ = [0,0.0]
-	K = p.K_red
-	px("Kred ",p.K_red)
-	M = [0,1/2]
-
-	Klist = [Γ,K,M]; Klist_names = ["Γ","K","M"]
-	A = K2 # K'
-	B = K1 # K
-	C = 2*K1-K2 # Γ1
-	M = C/2
-	D = [0,0]
-
-	Klist = [A,B,C,M,D]
-	# Klist = [Klist[i]-p.K_red for i=1:length(Klist)]
-
-	Klist_names = ["A","B","C","M","D"]
-	# Klist = [Γ,K,M]; Klist_names = ["Γ","K","M"]
-
-	valleys = [1;-1]
-	Kf = [k -> Dirac_k(k-K_reds[i],p;coef_∇=0,valley=valleys[i]) for i=1:2]
-	# Kf(k) = Dirac_k(k,p;coef_∇=0)
-
-	H0 = Dirac_k([0.0,0.0],p)
-	# for β in [0.586]
-	# for β in vcat([0])
-	for β in vcat([0.586])
-	# for β in vcat([0.586],(0:0.05:0.4))
-		print(" ",β)
-		T0 = build_BM(α,β,p)
-		TBMs = [T0,app_block((M,p)->conj.(M),T0,p)]
-
-		TBM3s = [rescale_A_block(TBMs[i],p;shift=true) for i=1:2]
-
-		Ts = [TBM3s[1],app_block(parity_four,TBM3s[2],p)]
-
-		Ts_full = [V_offdiag_matrix(Ts[i],p)*sqrt(p.cell_area) for i=1:2]
-
-		σs = [spectrum_on_a_path(H0.+Ts_full[i],Kf[i],Klist,p) for i=1:2]
-		pl = plot_band_diagram(σs,Klist,Klist_names,p)
-		save_diagram(pl,β,p)
-	end
-	p
-end
-
-function explore_band_structure_BM2()
-	p = Basis()
-	p.N = 7
-	@assert mod(p.N,2)==1 # for more symmetries
-	p.a = 1 # decreasing a makes band energies increase
-	p.l = 11 # number of eigenvalues we compute
-	init_basis(p)
-	α = 1 # anti-chiral / AA stacking weight
-	p.resolution_bands = 4
-	p.energy_unit_plots = "Hartree"
-	p.folder_plots_bands = "bands_BM"
-	p.energy_center = 0
-	p.energy_scale = 0.2
-	p.solver = "Exact"
-	mult_by_vF = true
-	p.coef_derivations = 1
-	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
-	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
-	# TKV EST UN REPLIEMENT DES BANDES !!!!!!!!!!!!!!!!!!
-
-	# T = V_offdiag_matrix(build_BM(0,1,p;scale=false),p)
-	# plot_heatmap(imag.(T).+real.(T),"T_BM",p)
-	# plot_heatmap(real.(Dirac_k([0,0],p)),"free_dirac",p)
-
-	# 1° × 2π/360 = 0.017 rad
-	# for β in vcat((0.1:0.1:1)) # chiral / AB stacking weight
-	# for β in (0:0.05:1.2)
-	# for β in vcat((0:0.05:1.2),(0.85:0.01:1)) # chiral / AB stacking weight
-	
-	Γ = [0,0.0]
-	K = p.K_red
-	M = [0,1/2]
-	Klist = [K,Γ,M]; Klist_names = ["K","Γ","M"]
-	valleys = [1,-1]
-	K_reds = [v*[-1/3,1/3] for v in valleys]
-	Kf = [k -> Dirac_k(k.-K_reds[i],p;coef_∇=0,valley=valleys[i]) for i=1:2]
-
-	H0 = Dirac_k([0.0,0.0],p)
-	for β in [0.586]
-		print(" ",β)
-		T = V_offdiag_matrix(build_BM(α,β,p;scale=false),p)*sqrt(p.cell_area)
-		σs = [spectrum_on_a_path(H0.+T,Kf[i],Klist,p) for i=1:2]
-		pl = plot_band_diagram(σs,Klist,Klist_names,p)#;K_relative=p.K_red)
-		save_diagram(pl,β,p)
-	end
-	p
-end
-
-function explore_free_graphene_bands()
-	p = Basis()
-	p.N = 8
-	p.a = 4.66
-	# p.a = 4.66
-	p.l = p.N^2-1 # number of eigenvalues we compute
-	p.double_dirac = false
-	init_basis(p)
-	p.resolution_bands = 11
-	p.energy_unit_plots = "Hartree"
-	p.folder_plots_bands = "bands_free_graphene"
-	p.energy_scale = 2
-	p.energy_center = 0
-	p.solver = "Exact"
-	mult_by_vF = true
-	p.coef_derivations = 1
-
-	Kdep(k_red) = free_Dirac_k_monolayer(k_red,p)
-	# Kdep(k_red) = 0.05*free_Schro_k_monolayer(k_red,p)
-	# K-independent part
-	Hv = 0*Kdep([0,0.0])
-	plot_band_structure(Hv,Kdep,"free",p)
-	p
-end
-
-# CHOQUANT : Σ = T !!!!!!!!!!!?!!!!
 function explore_band_structure_Heff()
-	N = 8; Nz = 27
-	N = 32; Nz = 135
+	# N = 24 : does it
+	# N = 15; Nz = 108
+	N = 24; Nz = 180
+	# N = 20; Nz = 150
+	interlayer_distance = 6.45
+	# N = 32; Nz = 135
+	# N = 27; Nz = 576 # ecut 40|Kd|^2, L = 125
 
 	# Imports u1, u2, V, Vint, v_fermi and computes the effective potentials
-
 	compute_Vint = false
-	EffV = import_and_computes(N,Nz,compute_Vint)
-	p.add_non_local_W = true
+	EffV = import_and_computes(N,Nz,compute_Vint,interlayer_distance)
 
 	p = Basis()
-	p.N = N; p.a = EffV.a
-	p.l = 12 # number of eigenvalues we compute
-	p.coef_derivations = 1
+	p.N = EffV.N
+	# @assert mod(p.N,2)==1 # for more symmetries
+	p.a = 4π/sqrt(3)
+	p.dim = 2
+	p.l = 15 # number of eigenvalues we compute
 	init_basis(p)
 
-	######## Base Hamiltonian
 	# Mass matrix
-	SΣ = V_offdiag_matrix(EffV.Σ,p)
+	Σc = a2c(EffV.Σ,p); Vc = a2c(EffV.𝕍,p); Wc_plus = a2c(EffV.Wplus_tot,p); Wc_minus = a2c(EffV.Wminus_tot,p)
+	𝔸1c = a2c(EffV.𝔸1,p); 𝔸2c = a2c(EffV.𝔸2,p)
+	J𝔸1c = a2c(EffV.J𝔸1,p); J𝔸2c = a2c(EffV.J𝔸2,p)
+	SΣ = build_offdiag_V(Σc,p)
 	S = Hermitian(I + 1*SΣ)
 	p.ISΣ = Hermitian(inv(sqrt(S)))
+	# p.ISΣ = I
 	# test_hermitianity(S,"S"); test_part_hole_sym_matrix(S,p,"S")
 	
 	# On-diagonal potential
-	W = V_ondiag_matrix(EffV.Wplus_tot,EffV.Wminus_tot,p) # WHY THIS IS NOT CONSTANT AS IN THE COMPUTATION ????
+	# W = V_ondiag_matrix(EffV.Wplus_tot,EffV.Wminus_tot,p) # WHY THIS IS NOT CONSTANT AS IN THE COMPUTATION ????
 	
 	# Off-diagonal potential
-	V = V_offdiag_matrix(EffV.𝕍,p)
-
-	# Other parameters
-	p.solver="Exact"
-
+	p.resolution_bands = 5
+	p.energy_unit_plots = "Hartree"
 	p.folder_plots_bands = "bands_eff"
-	p.energy_center = -0.5
-	p.energy_scale = 10
-	p.resolution_bands = 10
-	p.energy_unit_plots = "eV"
+	p.solver = "Exact"
+	p.coef_derivations = 1
+	p.plots_article = true
 
-	method = "natural" # ∈ ["weight","natural"]
-	if method=="natural"
-		# for θ in (0.01:0.01:0.3) # 1° × 2π/360 = 0.017 rad
-		for θ_degres in (0.1:0.2:3)
-		# for θ in (0.0001:0.0001:0.001)
-			θ = 0.017*θ_degres
-			print(" ",θ)
-			# p.a = sqrt(3)*4.66/(2*sin(θ/2))
-			reload_a(p)
-			cθ = cos(θ/2); εθ = sin(θ/2)
-			# If needed to accelerate : compute all the operators for all k, then multiply by each constant depending on θ. Ici on forme plein de fois des operateurs HkV alors qu'on peut l'éviter
+	for q in [p.q1,p.q2,p.q3] q ./= norm(q) end
+	update_a(p.q2-p.q1,p.q3-p.q2,p)
 
-			# K-dependent part
-			function Kdep(k_red)
-				# Off-diagonal magnetic operator
-				A∇ = A_offdiag_matrix(EffV.𝔸1,EffV.𝔸2,k_red,p)
-				JA∇ = A_offdiag_matrix(EffV.J𝔸1,EffV.J𝔸2,k_red,p)
-				ΣmΔ = VΔ_offdiag_matrix(EffV.Σ,k_red,p)
-				Δ = mΔ(k_red,p)
-				EffV.v_fermi*p.ISΣ*(cθ*(Dirac_k(k_red,p) +A∇) + εθ*(0.5*(Δ + ΣmΔ) - JA∇ + J_Dirac_k(k_red,p)))*p.ISΣ
-			end
+	K2 = [1,2]/3; K1 = [-1,1]/3
+	Γ = [0.0,0.0]; Γ2 = 2*K1-K2; M = Γ2/2
 
-			# K-independent part
-			Hv = p.ISΣ*( (1/εθ)*(V+ 0*W) )*p.ISΣ
+	Klist = [K2,K1,Γ2,M,Γ]
+	Klist_names = ["K2","K1","Γ'","M","Γ"]
+	plot_path(Klist,Klist_names,p)
+	# Klist = [K2,Γ,M]; Klist_names = ["K2","Γ","M"]
+	valleys = [1;-1]
 
-			# px("mass W ",sum(abs.(W)))
-			# test_hermitianity(Hv)#; test_part_hole_sym_matrix(W,p,"W")
-			s = string(θ_degres,"00000000000")
-			title = s[1:min(6,length(s))]
-			plot_band_structure(Hv,Kdep,title,p)
-		end
-	else
-		H1 = p.H0 + V + A∇
-		α = 1.0
-		for β in (0:1:2)
-			print(" ",β)
-			W_weighted = weights_off_diag_matrix(W0,α,β,p)
-			# px("mass W ",sum(abs.(W)))
-			Hv = p.ISΣ*(H1 + W_weighted)*p.ISΣ
-			# test_hermitianity(Hv); test_part_hole_sym_matrix(W,p,"W")
-			s = string(β,"00000000000")
-			plot_band_structure(Hv,s[1:min(6,length(s))],p)
-		end
-	end
+	αEgβ = true # α = β or α = 0
+	θ = 1.05
+	# θ = 1.05
+	θrad = θ*π/180
+	kθ = 2*sin(θrad/2)*4π/(4.66*3)
+	w = 110*1e-3*ev_to_hartree
+	β = 1/(kθ*p.vF*sqrt(p.cell_area))
+
+	p.energy_scale = 250
+	meanW = real(mean_block(EffV.Wplus_tot,p)[1,1])
+	p.energy_center = 0 #meanW*1e3*hartree_to_ev
+	p.energy_center = meanW*1e3*hartree_to_ev
+
+	p.coef_energies_plot = hartree_to_ev*1e3*kθ*p.vF # energies in meV
+	βs = [β]
+	px("Computes band diagram, (N,d,θ)=(",p.N,",",interlayer_distance,",",θ,")")
+
+	compare_to_BM_infos(EffV.𝕍_V,EffV,"V")
+
+	# k-dependent part
+	(JA1,JA2) = build_mag_block(EffV;Q=-EffV.q1_red,J=true)
+	JA1c  = a2c(JA1,EffV)
+	JA2c  = a2c(JA2,EffV)
+
+	Kf(K) = p.ISΣ*( Dirac_k(K,p;valley=1,K1=K1,K2=K2) + β*offdiag_A_k(JA1c,JA2c,JA1c,JA2c,K,p;valley=1,K1=K1,K2=K2) )*p.ISΣ
+	
+	# Off-diagonal part
+	V(β) = β*p.ISΣ*( build_offdiag_V(Vc,p) + build_ondiag_W(Wc_plus,Wc_minus,p) )*p.ISΣ
+
+	@time σs = spectrum_on_a_path(V(β),Kf,Klist,p;print_progress=true)
+	pl = plot_band_diagram([σs],Klist,Klist_names,p)
+	save_diagram(pl,θ,p;post_name="eff")
+	# end
+	p
 end
 
-p = computes_and_plots_effective_potentials()
-# explore_band_structure_Heff()
-# explore_band_structure_BM()
-# explore_free_graphene_bands()
+# p = computes_and_plots_effective_potentials()
+explore_band_structure_Heff()
+# explore_band_structure_BM_TKV()
 # study_in_d()
 nothing
 
 #### Todo
-# FAIRE GRAPH AVEC WAB ET SUIVANT EN FONCTION DE d, norm(Σ,∇Σ,W,V,V-T) (qui aille plus vite vers 0 que V)
-#  Donner les coefs suivants de wAA et wAB
 # FAIRE GRAPH AVEC BILAYER, a_M et qj^*, et TBM, et pareil avec le dual
-# Donner wAA et wAB avec les 6 modes de Fourier. Pq real et imag sont pas invariants sous 2π/3 ?
+# Donner wAA et wAB avec les 6 modes de Fourier pour W. Pq real et imag sont pas invariants sous 2π/3 ?
 # Régler pb de phase pour W^nl
 # DANS TKV IL Y A LES DEUX VALLEES !!!
