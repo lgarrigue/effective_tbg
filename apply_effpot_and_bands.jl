@@ -542,7 +542,7 @@ function explore_band_structure_Heff()
 	JA1c  = a2c(JA1,EffV)
 	JA2c  = a2c(JA2,EffV)
 
-	Kf(K) = p.ISΣ*( Dirac_k(K,p;valley=1,K1=K1,K2=K2) + β*offdiag_A_k(JA1c,JA2c,JA1c,JA2c,K,p;valley=1,K1=K1,K2=K2) )*p.ISΣ
+	Kf(K) = p.ISΣ*( Dirac_k(K,p;valley=1,K1=K1,K2=K2) + kθ*β*offdiag_A_k(JA1c,JA2c,JA1c,JA2c,K,p;valley=1,K1=K1,K2=K2) )*p.ISΣ
 	
 	# Off-diagonal part
 	V(β) = β*p.ISΣ*( build_offdiag_V(Vc,p) + build_ondiag_W(Wc_plus,Wc_minus,p) )*p.ISΣ

@@ -168,9 +168,12 @@ function build_mag_block(p;Q=[0.0,0.0],J=false,coef=1,coef_∇=1) # (-i∇ + Q) 
 		    build_magnetic(p.u2_f,p.u1_f,1,p;Q=Q,coef_∇=coef_∇), build_magnetic(p.u2_f,p.u2_f,1,p;Q=Q,coef_∇=coef_∇)]
 	𝔸2 = coef.*[build_magnetic(p.u1_f,p.u1_f,2,p;Q=Q,coef_∇=coef_∇), build_magnetic(p.u1_f,p.u2_f,2,p;Q=Q,coef_∇=coef_∇),
 		    build_magnetic(p.u2_f,p.u1_f,2,p;Q=Q,coef_∇=coef_∇), build_magnetic(p.u2_f,p.u2_f,2,p;Q=Q,coef_∇=coef_∇)]
-	if !J return (𝔸1,𝔸2) end
-	(J𝔸1,J𝔸2) = rot_block(π/2,𝔸1,𝔸2,p)
-	(J𝔸1,J𝔸2)
+	if !J
+		return (𝔸1,𝔸2) 
+	else
+		(J𝔸1,J𝔸2) = rot_block(π/2,𝔸1,𝔸2,p)
+		return (J𝔸1,J𝔸2)
+	end
 end
 
 function change_gauge_wavefunctions(θ,p)
