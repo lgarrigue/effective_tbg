@@ -98,6 +98,13 @@
 
 \def\lAngle{\langle\!\langle}
 \def\rAngle{\rangle\!\rangle}
+\def\ri{{\rm i}}
+\def\rd{{\rm d}}
+\def\re{{\rm e}}
+\def\per{{\rm{per}}}
+\newcommand{\ppa}[1]{\pa{\!\pa{#1}\!}_d}
+\newcommand{\ept}{\varepsilon_\theta}
+\def\bsigma{{\boldsymbol\sigma}}
 
 %%%%%%%%%%%%%%%%%%%% End macros
 
@@ -287,29 +294,25 @@ is small. We also verify that $V\ind{int}(-z) = V\ind{int}(z)$.
 
 We defined
 \begin{align*}
-\db{ f, g}^{\eta,\eta'}(\bX) :=   \int_{\Omega \times \R} \overline{f}\pa{x -\eta J\bX,z- \eta\dd} g\pa{x - \eta' J \bX, z- \eta'\dd} \d \bx \d z
+\db{ f, g}^{\eta,\eta'}(\bX) :=   \int_{\Omega \times \R} \overline{f}\pa{x - \tfrac 12 \eta J\bX,z- \eta\dd} g\pa{x - \tfrac 12 \eta' J \bX, z- \eta'\dd} \d \bx \d z
 \end{align*}
 and
 \begin{align*}
-\boxed{\lAngle f, g \rAngle^{\eta,\eta'} := e^{i\pa{\eta'-\eta} \bK \cdot J \bX}\db{ f, g}^{\eta,\eta'}}
+\boxed{\lAngle f, g \rAngle^{\eta,\eta'} := e^{i\f 12 \pa{\eta-\eta'} \bK \cdot J \bX}\db{ f, g}^{\eta,\eta'}}
 \end{align*}
-and in particular since $q_1 = -2J K$, then
-\begin{align*}
-\lAngle f, g \rAngle^{+-} = e^{-iq_1 x}\db{ f, g}^{+-}, \qquad \lAngle f, g \rAngle^{-+} = e^{iq_1 x}\db{ f, g}^{-+}
-\end{align*}
- Now we make the approximation
+and in particular since $q_1 = J K$, then $\lAngle f, g \rAngle^{+-} = e^{-iq_1 x}\db{ f, g}^{+-}$. Now we make the approximation
 \begin{align*}
 \int_{\Omega\times\R} \simeq  \int_{\Omega\times \seg{0,L}}
 \end{align*}
-The situation is drawn on Figure \ref{fig:z_drawing}. The functions are defined on $[-L/2,L/2]$ but we need to integrate on the common segment, which is $[-\f{L-d}{2},\f{L-d}{2}]$, so on $[-L/2,L/2]$ to recover the initial domain.
+The functions are defined on $[-L/2,L/2]$ but we need to integrate on the common segment, which is $[-\f{L-d}{2},\f{L-d}{2}]$, so on $[-L/2,L/2]$ to recover the initial domain.
 
 
 
 
 Firstly, using the Fourier decomposition \eqref{eq:dec_four},
 \begin{align*}
-	\db{f,g}^{\eta,\eta'} &=   \sum_{\bmm \in \Z^2} e^{i\pa{\eta-\eta'} ma^* \cdot J \bX} \sum_{m_z \in \Z} e^{i\pa{\eta-\eta'} \f{2\pi}{L} m_z \f{d}{2}} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}\\
-& = \sum_{\bmm \in \Z^2} \f{e^{i\pa{\eta-\eta'} ma^* \cdot J \bX}}{\sqom} C_{-\bmm}
+	\db{f,g}^{\eta,\eta'} &=   \sum_{\bmm \in \Z^2} e^{i\f 12 \pa{\eta-\eta'} ma^* \cdot J \bX} \sum_{m_z \in \Z} e^{i\pa{\eta-\eta'} \f{2\pi}{L} m_z \f{d}{2}} \overline{\widehat{f}_{m,m_z}} \widehat{g}_{m,m_z}\\
+& = \sum_{\bmm \in \Z^2} \f{e^{-i\f 12 \pa{\eta-\eta'} ma^* \cdot J \bX}}{\sqom} C_{-\bmm}
 \end{align*}
 where
 \begin{align*}
@@ -324,43 +327,12 @@ C^\eta_\bmm := \sqom\sum_{m_z \in \Z} e^{\eta i2 \f{d\pi}{L} m_z} \overline{\wid
 \end{align*}
 
 
-We have $a^*\ind{M} = 2 J a^*$ hence $2 ma^* \cdot JX = -m a\ind{M}^* \cdot X$ and
+We have $a^*\ind{M} = J a^*$ hence $ma^* \cdot JX = -m a\ind{M}^* \cdot X$ and
 \begin{align*}
 \db{f,g}^{+-} = \sum_{\bmm \in \Z^2} \f{e^{ima^*\ind{M} \cdot \bX}}{\sqom} C_{\bmm}^+, \qquad \db{f,g}^{-+} = \sum_{\bmm \in \Z^2} \f{e^{ima^*\ind{M} \cdot \bX}}{\sqom} C_{\bmm}^-
 \end{align*}
-Now, since $q_{2,3} - q_1 = a^*_{\text{M},j}$, we know that
-\begin{align*}
-G(x) &= e^{-iq_1 x} \pa{1 + e^{-i a_{\text{M} ,1}^* x} +e^{-i a_{\text{M},2}^* x}} \\
-F(x) &= e^{-iq_1 x} \pa{1 + \omega^2 e^{-i a_{\text{M} ,1}^* x} + \omega e^{-i a_{\text{M},2}^* x}}
-\end{align*}
-
-We have $\bbV^{1,1} \simeq w\ind{AA} G$ so $\ps{G,\bbV} \simeq w\ind{AA} \int_{\Omega\ind{M}} \ab{G}^2 = 3 \ab{\Omega\ind{M}} w\ind{AA}$ and hence 
-\begin{align*}
-	w\ind{AA} &\simeq \f{\ps{G,\bbV^{1,1}}}{3 \ab{\Omega\ind{M}}} = \f{1}{3 \sqom}\pa{\widehat{\bbV}^{1,1}_{0,0} +\widehat{\bbV}^{1,1}_{-1,0} + \widehat{\bbV}^{1,1}_{0,-1}} \\
-	w\ind{AB} &\simeq \f{\ps{F,\bbV^{1,2}}}{3 \ab{\Omega\ind{M}}} = \f{1}{3 \sqom}\pa{\widehat{\bbV}^{1,2}_{0,0} + \omega\widehat{\bbV}^{1,2}_{-1,0} + \omega^2 \widehat{\bbV}^{1,2}_{0,-1}}
-\end{align*}
-
-Then,
-\begin{align*}
-\lAngle f,g \rAngle ^{\eta,\eta'} = e^{i\pa{\eta-\eta'} \bK \cdot J \bX}\db{f,g}^{\eta,\eta'} =  \sum_{\bmm \in \Z^2} e^{i\pa{\eta-\eta'} \pa{m+m_K}a^* \cdot J \bX} C_\bmm
-\end{align*}
 
 
-
-Hence
-\begin{align*}
-\boxed{\db{f,g}^{+-}\pa{-\tfrac{3}{2} J \bX} =  \sum_{\bmm \in \Z^2} e^{i 3 ma^* \cdot \bX} C^+_\bmm=  \sum_{\bmm \in \Z^2} e^{i m a^* \cdot \bX} C^+_{\f{\bmm}{3}},}
-\end{align*}
-and
-\begin{align*}
-\boxed{\lAngle f,g \rAngle^{+-}\pa{-\tfrac{3}{2} J\bX} =  \sum_{\bmm \in \Z^2} e^{i 3 \pa{m+m_k}a^* \cdot \bX} C^+_\bmm =  \sum_{\bmm \in \Z^2} e^{i m a^* \cdot \bX} C^+_{\f{\bmm-3\bmm_K}{3}}}
-\end{align*}
-where $C_{\f{\bmm}{n}} := 0$ if $n$ does not divide $m_1$ and $m_2$. Numerically, there is no loss of information since all $C_m$'s are taken into account if the ``ecut'' is large enough.
-
-Similarly
-\begin{align*}
-\db{f,g}^{-+}\pa{-\tfrac{3}{2} J \bX} =  \sum_{\bmm \in \Z^2} e^{-i 3 ma^* \cdot \bX} C^-_\bmm=  \sum_{\bmm \in \Z^2} e^{i m a^* \cdot \bX} C^-_{-\f{\bmm}{3}},
-\end{align*}
 
 For the potentials, we finally need to implement
 \begin{multline*}
@@ -369,32 +341,7 @@ For the potentials, we finally need to implement
 \end{multline*}
 
 
-If $f(z) = \ep f(-z)$, then $\widehat{f}_{-m_z} = \ep \widehat{f}_{m_z}$, from this we see that $\overline{C_\bmm^{u_{j'},u_{j}}} = C_\bmm^{u_{j},u_{j'}}$ and hence $\bbV(-X)^* = \bbV(X)$
 
-
-\subsection{Magnetic term}%
-
-
-As for the magnetic term, we have
-\begin{align*}
-\pa{-i\na_\bx + \bK} g = \sum_{\bmm,m_z} \pa{\bmm + \bmm_K} \ba^* e^{i\pa{\bmm \ba^* \cdot \bx + m_z \f{2\pi}L z}} \widehat{f}_{\bmm,m_z}
-\end{align*}
-so
-\begin{align*}
-	\lAngle &f, (-i\nabla_\bx+\bK) g \rAngle^{+-}(\bX) =  \sum_{\bmm \in \Z^2} \pa{\bmm + \bmm_K}\ba^* \; C_\bmm e^{2i \pa{\bmm + \bmm_K} \ba^* \cdot J\bX} 
-\end{align*}
-and
-\begin{align*}
-\lAngle f, (-i\nabla_\bx+\bK) g \rAngle^{+-}\pa{-\tfrac{3}{2}J\bX} =  \sum_{\bmm \in \Z^2} \pa{\bmm + \bmm_K}\ba^* \; C_\bmm e^{i 3 \pa{\bmm + \bmm_K} \ba^* \cdot \bX}
-\end{align*}
-so
-\begin{align*}
-\boxed{\lAngle f, (-i\nabla_\bx+\bK) g \rAngle^{+-}\pa{-\tfrac{3}{2}J\bX} = \f {1}3 \sum_{\bmm \in \Z^2} \bmm \ba^* \; C_{\f{\bmm - 3\bmm_K}{3}} e^{i \bmm \ba^* \cdot \bX} }
-\end{align*}
-so we can implement
-\begin{align*}
-\bm{\cA}_{j,j'}\pa{-\tfrac{3}{2}J\bX} = \lAngle u_j, (-i\nabla_\bx+\bK) u_{j'} \rAngle^{+-}\pa{-\tfrac{3}{2}J\bX}
-\end{align*}
 
 \subsection{$\bbW$'s $V\ind{int}$ term}%
 \label{sub:_bbw_s_vint_term}
@@ -442,26 +389,7 @@ g(x) := f(x) -  \frac{1}{\ab{\Omega}} \int f \qquad \implies \qquad \widehat{g}_
 We have $V\ind{int}^{3d}(x,z) := V\ind{int}(z)$ hence $\pa{\widehat{V}\ind{int}^{3d}}_{m,m_z} = \sqom \pa{\widehat{V}\ind{int}}_{m_z}$
 
 
-\section{Form}%
-\label{sec:form}
 
-If we have
-\begin{align*}
-	T(x) = \mat{e^{-iq_1 x} g(x) & e^{-iq_1 x} f(x) \\ e^{-iq_1 x}\overline{f}(-x) & e^{-iq_1 x}g(x)} = e^{-iq_1 x}\mat{ g(x) &  f(x) \\ \overline{f}(-x) & g(x)},
-\end{align*}
-then
-\begin{align*}
-T^*(x) = e^{iq_1 x}\mat{ \overline{g}(x) &  f(-x) \\ \overline{f}(x) & \overline{g}(x)}
-\end{align*}
-and $\bbW$ does not have an exponent $e^{-iq_1 x}$.
-
-\subsection{From $T(x)$ to $T(3x)$}%
-\label{sub:from_t_x_to_t_3x_}
-
-With $T(x) = e^{-iq_1 x} \sum T_m e^{i m a_M^* x}$, we have
-\begin{align*}
-\mathcal{T}(x) := T(3x) = e^{i\pa{a_{1,M}^* + a_{2,M}^*}x}  \sum T_m e^{i m a_M^* 3x} = \sum_m T_{\f{m-\mat{1\\1}}{3}} e^{ima_M^* x}
-\end{align*}
 
 
 \section{BM configuration}%
@@ -470,40 +398,27 @@ With $T(x) = e^{-iq_1 x} \sum T_m e^{i m a_M^* x}$, we have
 
 From \cite{BecEmbWitZwo21}, the BM Hamiltonian is
 \begin{align*}
-	H = \mat{-i\sigma \na & T^c(x) \\ T^c(x)^* & -i \sigma \na},
+	H = \mat{-i\sigma \na & T(x) \\ T(x)^* & -i \sigma \na},
 \end{align*}
 where
 \begin{align*}
-\boxed{T_1 = \mat{w_0 & w_1 \\ w_1 & w_0}, \quad  T_2 = \mat{w_0 &  w_1e^{-i\phi} \\  w_1e^{i\phi} & w_0}, \quad T_3 = \mat{w_0 &  w_1e^{i\phi} \\  w_1e^{-i\phi} & w_0}}
+\boxed{T_1 = \mat{w_{AA} & w_{AB} \\ w_{AB} & w_{AA}}, \quad  T_2 = \mat{w_{AA} &  w_{AB}e^{-i\phi} \\  w_{AB}e^{i\phi} & w_{AA}}, \quad T_3 = \mat{w_{AA} &  w_{AB}e^{i\phi} \\  w_{AB}e^{-i\phi} & w_{AA}}}
 \end{align*}
 and where, for $x \in \R^2$,
 \begin{align*}
-T^c(x) := \sum_{j=1}^3 T_j e^{-iq^c_j \cdot x} = \sum_{j=1}^3 T_j e^{iq_j a^*\cdot x}, \qquad \widehat{T}_p = \sum_{j=1}^{3} T_j \delta_{p,q_j^c}
+	T(x) := \sum_{j=1}^3 T_j e^{-iq_j \cdot x} = \mat{w_{AA} G(x) & w_{AB} \overline{F(-x)} \\ w_{AB} F(x) & w_{AA} G(x)}
 \end{align*}
-and
-\begin{multline*}
-q^c_1 = \f{4\pi}{a\sqrt{3}} \mat{1 \\ 0} = a_1^* + a_2^*, \\
-q^c_2 = \f{4\pi}{a\sqrt{3}} \mat{-\f 12 \\ \f{\sqrt{3}}{2}} = -a_2^*, \qquad q^c_3 = \f{4\pi}{a\sqrt{3}} \mat{-\f 12 \\ -\f{\sqrt{3}}{2}} = -a_1^*,
-\end{multline*}
-where we took rotated $q_j^c$'s by $J$ with respect to \cite{BecEmbWitZwo21}, and with a rescaling of $\f{4\pi}{a\sqrt{3}}$.
-
-We define the reduced dual vectors $q_j := -\cM^* q^c_j /2\pi$ so
+Now, since $q_{2,3} - q_1 = a^*_{\text{M},j}$, we know that
 \begin{align*}
-T(x) = T^c(\cM x) = \sum_{j=1}^3 T_j e^{-ix\cdot \cM^* q_j^c}= \sum_{j=1}^3 T_j e^{i2\pi x\cdot q_j}
+G(x) &= e^{-iq_1 x} \pa{1 + e^{-i a_{\text{M} ,1}^* x} +e^{-i a_{\text{M},2}^* x}} \\
+F(x) &= e^{-iq_1 x} \pa{1 + \omega e^{-i a_{\text{M} ,1}^* x} + \omega^2 e^{-i a_{\text{M},2}^* x}}
 \end{align*}
-and we compute
+
+We have $\bbV^{1,1} \simeq w\ind{AA} G$ so $\ps{G,\bbV} \simeq w\ind{AA} \int_{\Omega\ind{M}} \ab{G}^2 = 3 \ab{\Omega\ind{M}} w\ind{AA}$ and hence 
 \begin{align*}
-\boxed{q_1 = \mat{1 \\ 1}, \qquad q_{2} = \mat{0 \\ -1}, \qquad q_{3} = \mat{-1 \\ 0}}
+	w\ind{AA} &\simeq \f{\ps{G,\bbV^{1,1}}}{3 \ab{\Omega\ind{M}}} = \f{1}{3 \sqom}\pa{\widehat{\bbV}^{1,1}_{0,0} +\widehat{\bbV}^{1,1}_{-1,0} + \widehat{\bbV}^{1,1}_{0,-1}} \\
+	w\ind{AB} &\simeq \f{\ps{F,\bbV^{1,2}}}{3 \ab{\Omega\ind{M}}} = \f{1}{3 \sqom}\pa{\widehat{\bbV}^{1,2}_{0,0} + \omega\widehat{\bbV}^{1,2}_{-1,0} + \omega^2 \widehat{\bbV}^{1,2}_{0,-1}}
 \end{align*}
-Or
-\begin{align*}
-\boxed{T(x) = \sum_{j=1}^3 T_j e^{i q_j a^* \cdot x}}
-\end{align*}
-
-Since $T_j^* = T_j$, then $T(-x)^* = T(x)$
-
-
-
 
 \section{Operators in basis}%
 \label{sec:operators_in_basis}
@@ -525,15 +440,7 @@ T &:=  v_{\rm F} \left( \begin{array}{cc} \bm\sigma \cdot (-i \nabla)  &  \bm{\m
 T^{(1)} &:= v_{\rm F} \left( \begin{array}{cc}  -  \bm\sigma \cdot J (-i \nabla) - \frac 12  \Delta &  \bm{\mathcal A} \cdot J (-i\nabla) - \frac 12  \Sigma \Delta  \\  \bm{\mathcal A}^*  \cdot J (-i\nabla) - \frac 12 \Sigma^* \Delta &  \bm\sigma \cdot J (-i \nabla) - \frac 12   \Delta \end{array} \right), \\
 \cV &:=  \left( \begin{array}{cc}  \bbW &   \bbV \\   \bbV^* &   \bbW \end{array} \right),
 \end{align*}
-and their Bloch transform becomes
-\begin{align*}
-T_k &:=  v_{\rm F} \left( \begin{array}{cc} \bm\sigma \cdot (-i\na +k)  &  \bm{\mathcal A} \cdot (-i\na +k)   \\  \bm{\mathcal A}^* \cdot (-i\na +k) &  \bm\sigma \cdot (-i\na +k)  \end{array} \right),  \\
-\hspace{-5cm} T_k^{(1)} &:= v_{\rm F} \left( \begin{array}{cc}  -  \bm\sigma \cdot J (-i\na +k) +\f 12  (-i\na +k)^2 &  \bm{\mathcal A} \cdot J (-i\na +k) +\f 12  \Sigma (-i\na +k)^2  \\  \bm{\mathcal A}^*  \cdot J (-i\na +k) +\f 12 \Sigma^* (-i\na +k)^2 &  \bm\sigma \cdot J (-i\na +k) +\f 12   (-i\na +k)^2 \end{array} \right)
-\end{align*}
-and we want the middle of the spectrum of
-\begin{align*}
-\cH_k := \cS^{-\f 12} \pa{\f{1}{\ep_\theta} \cV + c_\theta T_k + \ep_\theta T^{(1)}_k}\cS^{-\f 12}
-\end{align*}
+
 
 
 \subsection{Basis}%
@@ -661,22 +568,6 @@ For a general $V = \sum_m \widehat{V}_m e^{ima^*\cdot x}$, we have $V^* = \sum_m
 =  \pa{ma^* +k}^2 \pa{\delta_{\alpha \in \acs{1,2}}^{\beta \in \acs{3,4}} \pa{\widehat{V}_{n-m}}_{\alpha_1 \beta_2} + \delta_{\alpha \in \acs{3,4}}^{\beta \in \acs{1,2}}   \overline{\pa{\widehat{V}_{m-n}}_{\beta_1 \alpha_2}}}
 \end{multline*}
 
-\section{Renormalization of the equation}%
-\label{sec:renormalization_of_the_equation}
-
-We know that
-\begin{align*}
-\pa{-i\na +k + A(x) \pa{-i\na} +v(x)} \p = E \p
-\end{align*}
-with $x=\lambda y$, we define $\phi(y) := \p(\lambda y)$ and
-\begin{align*}
-\pa{\pa{\pa{-i\na +k} + A(\lambda y) \pa{-i\na} +v(\lambda y)} \p}(\lambda y) = E \p(\lambda y)
-\end{align*}
-but $\pa{\na \p}(\lambda y) = \f{1}{\lambda} \na \phi(y)$, so
-\begin{align*}
-\pa{\f{-i\na}{\lambda}+k+ \f{A(\lambda y)}{\lambda} \pa{-i\na} + v(\lambda y)} \phi =   E \phi
-\end{align*}
-We enter $V\pa{\f{3}{2}J X}$ for each potential $V$, hence we need to apply a coefficient $\f{2}{3}$ to each derivation operator.
 
 
 
@@ -870,18 +761,6 @@ and $\phi_2(x) = \overline{\phi_1(-x)}$. By multiplying by $e^{-iKx}$, we also o
 and $u_2(x) = \overline{u_1(-x)}$.
 
 
-\section{The $1/3$ scaling of coordinates}%
-\label{sec:the_1_3_scaling_of_coordinates}
-
-Taken from \cite[Appendix G.3, G.4]{WatLus21} for instance, the moiré lattice vectors are 
-\begin{align*}
-a_1 = \f{2\pi}{3k_\theta} \mat{\sqrt 3 \\ 1},\qquad a_2 = \f{2\pi}{3k_\theta} \mat{-\sqrt 3 \\ 1}
-\end{align*}
-and $T(x) = \sum_{j=1}^3 T_j e^{-iq_j x}$ has 
-\begin{align*}
-q_1 = k_\theta \mat{0 \\ -1},\qquad q_{2,3} = \f{k_\theta}{2} \mat{\pm \sqrt 3 \\ 1}
-\end{align*}
-and we remark that $a_1 \cdot q_1 = -\f{2\pi}{3}$ so actually $q_j \not\in \L^*$ but $3 q_j \in \L^*$.
 
 \section{Change of gauge on the phasis of wavefunctions}%
 \label{sec:change_of_gauge_on_the_phasis_of_wavefunctions}
@@ -909,16 +788,41 @@ hence if we define $H_\theta$ to be $H$ with $u_1 \rightarrow u_1 e^{i\theta}$, 
 is constant in $\theta$.
 
 
-\section{Comparision between BM and our model}%
+\section{Plan}%
+\label{sec:plan}
+
+Given a macroscopic model, BM of ours, we need to proceed the following way to build the band diagrams numerically
+\begin{enumerate}
+	\item We rescale the model and remove dimensions by applying the conjugation $\f{1}{v_0 k_\theta^3} S \cdot S^*$ as in \eqref{def:conjugation}
+	\item We conjugate by $U = \mat{e^{-iK_2 x} & 0 \\ 0 & e^{iK_1 x}}$ to remove the $e^{-iq_1 x}$ factors
+\end{enumerate}
+
+\subsection{From $a^*$ to $c^*$}%
+\label{sub:from_a_to_c_}
+
+The lattice $c^*$ enables to plot the bands diagram. Since $a_1^* = c_1^*$ and $a_2^* = c_1^* + c_2^*$, we have
+\begin{align*}
+\sum_m f_m \f{e^{ima^*x}}{\sqom} = \sum_m f_m \f{e^{i {\tiny{\mat{m_1 + m_2 \\ m_2}}} c^* x}}{\sqom} = \sum_ m f_{m} \f{e^{i\pa{A^{-1}m}c^*x}}{\sqom}= \sum_ m f_{Am} \f{e^{imc^*x}}{\sqom}
+\end{align*}
+where $A = \mat{1 & -1 \\ 0 & 1}$.
+
+
+
+\section{Treating the Bistritzer-MacDonal model}
 \label{sec:comparision_between_bm_and_our_model}
 
+In this section, we apply the plan of Section \ref{sec:plan} to treat the BM model.
 
 \subsection{Rescaling}%
 \label{sub:rescaling}
 
+We consider 
+\begin{align*}
+T(x) = \sum_{j=1}^3 T_j e^{-i q_j x}, \qquad q_{2,3} = \mat{\pm \sqrt{3}/2 \\ 1/2}, \qquad q_1 = - q_2 - q_3.
+\end{align*}
 The BM Hamiltonian is
 \begin{align*}
-\mat{-i v_0 \sigma \na & w_1 T^{\text{TKV}}(k_\theta x) \\ w_1 T^{*,\text{TKV}}(k_\theta x) & -iv_0 \sigma \na}.
+\mat{-i v_0 \sigma \na & w T(k_\theta x) \\ w T^*(k_\theta x) & -iv_0 \sigma \na}.
 \end{align*}
 We consider the rescaling
 \begin{align*}
@@ -926,238 +830,13 @@ Su(x) := u\pa{\f{x}{k_\theta}}, \qquad S^*u(y) = k_\theta^2 u\pa{k_\theta y}, \q
 \end{align*}
 where we defined $S^*$ as $\int_\Omega \overline{f} \; Sg = \int_{L\Omega/k_\theta} g \; \overline{S^*f}$.
 We have $\na S^* = k_\theta S^* \na$ so $S \na S^* = k_\theta^3 \na$ and $SfS^* = k_\theta^2 f\pa{\f{x}{k_\theta}}$ so when $x = y k_\theta$ is the microscopic scale
-\begin{multline*}
-	\f{1}{k_\theta^3 v_0} S \pa{\mat{-i v_0 \sigma \na & w_1 T^{\text{TKV}}(k_\theta x) \\ w_1 T^{*,\text{TKV}}(k_\theta x) & -iv_0 \sigma \na} -E} S^* \\
-	= \mat{-i\sigma \na & \alpha T^{\text{TKV}}\pa{x} \\ \alpha T^{*,\text{TKV}}(x) & -i\sigma \na} - \ep
-\end{multline*}
-where $\alpha := \f{w_1}{k_\theta v_0}$ and where $\ep = \f{E}{v_0 k_\theta}$ is the unit of \cite[Fig 1]{TarKruVis19} defined in the caption, and
-\begin{align*}
-T^{\text{TKV}}(x) = \sum_{j=1}^3 T_j e^{-i q_j x}, \qquad q_{2,3} = \mat{\pm \sqrt{3}/2 \\ 1/2}, \qquad q_1 = - q_2 - q_3.
-\end{align*}%Hence we need to multiply our energies by $v_0 k_\theta \ll 1$ to obtain the true ones. 
-
-% We will do another rescaling because in our numerical simulations we do not implement $m_{q_j}$ but a transformation of it.
-% \begin{align*}
-% G u(x) := u\pa{Lx}, \qquad G ^*u(y) = \f{1}{\ab{\det L}} u\pa{ L^{-1}y}, \qquad G  G ^* = \f{1}{\ab{\det L}}
-% \end{align*}
-% where we defined $G ^*$ as $\int_\Omega \overline{f} \; G g = \int_{L\Omega} g \; \overline{G ^*f}$, and the multiplication operator $T$ transforms as
-% \begin{align*}
-% G  T G ^* = \f{1}{\ab{\det L}} T\pa{Lx}, \qquad G  \na G ^* = \f{1}{\ab{\det L}} \pa{L^{-1}}^* \na
-% \end{align*}
-% and
-% \begin{align*}
-	% T\pa{Lx} &= \sum T_j e^{i m_{q_j} a^* \cdot Lx} = \sum T_j e^{i\pa{\widetilde{L} m_{q_j}} a^* x} = \sum T_j e^{i m_{Q_j} a^* x} \\
-% &=: \widetilde{T}(x)
-% \end{align*}
-% where $\widetilde{L} = \cM^* L^* \pa{\cM^*}^{-1}$. From the numerical needs, we want
-% \begin{align*}
-% \widetilde{L} = \mat{-1 & 2 \\ -2 & 1}
-% \end{align*}
-% and hence
-% \begin{align*}
-% L = \cM \pa{\widetilde{L}}^* \cM^{-1} = -\sqrt 3  J, \qquad \pa{L^{-1}}^* = -\f{1}{\sqrt{3}} J
-% \end{align*}
-% \begin{align*}
-% \ab{\det L} G \mat{-i\sigma \na - \ep & \alpha T\pa{x} \\ \alpha T^*(x) & -i\sigma \na - \ep}  G ^* = \mat{ i\f{1}{\sqrt 3}\sigma  J \na - \ep & \alpha \widetilde{T}\pa{x} \\ \alpha \widetilde{T}^*(x) &  i\f{1}{\sqrt 3}\sigma J \na - \ep}
-% \end{align*}
-
-
-\subsection{Rotation and reduced coordinates of $q$}%
-\label{sub:rotation_and_reduced_coordinates_of_q_}
-
-
-In \cite{TarKruVis19}, the orientation of the lattice (one of the equations below (6)), is with reciprocal vectors
-\begin{align*}
-b^{*,\text{TKV}}_{1,2} = \sqrt 3 \mat{\pm 1/2 \\ \sqrt{3}/2}
-\end{align*}
-and to compare with our lattice defined in \eqref{def:lattice_b}, we have
-\begin{align*}
--J b_1^{*,\text{TKV}} = b_1^*, \qquad -J b_2^{*,\text{TKV}} = -b_2^*, \qquad b = \f{4\pi}{3}
-\end{align*}
-corresponding to the direct lattice 
-\begin{align*}
-b_1 = b \mat{-1/2 \\ \sqrt{3} /2}, \qquad  b_2 = b\mat{1/2 \\ \sqrt{3}/2}, \qquad \cM_b = \f{b}{2} \mat{-1 & 1 \\ \sqrt{3} & \sqrt{3}}
-\end{align*}
-The $q_j$'s are
-\begin{align*}
-q^{\text{TKV}}_{2,3} = \mat{\pm\f{\sqrt 3}{2} \\ \f{1}{2}}, \qquad q^{\text{TKV}}_1 = -q^{\text{TKV}}_2 - q^{\text{TKV}}_3
-\end{align*}
-so
-\begin{align*}
-\sqrt{3} J q_{2,3}^{\text{TKV}} = \pm b_{2,1}^{*,\text{TKV}}
-\end{align*}
-and we do a rotation, $q_j := -J q^{\text{TKV}}_j$,
-\begin{align*}
-q_1 = \mat{-1 \\ 0}, \qquad q_{2,3} = \mat{\f 12 \\ \mp \f{\sqrt 3}{2} }, \qquad  q_1 = -q_2 - q_3
-\end{align*}
-We have
-\begin{align*}
-T(x) := T^{\text{TKV}}(Jx) = \sum_j T_j e^{-iq_j x} \underset{\substack{\eqref{eq:inv_q}}}{=} \; \sum_j T_j e^{i\widetilde{m}_{q_j} b^* x}
-\end{align*}
-where $\widetilde{m}_{q_j} = -\f{1}{2\pi} \cM_b^* q_j$, that is
-\begin{align*}
-\widetilde{m}_{q_1} = \f{1}{3} \mat{-1 \\ 1}, \qquad \widetilde{m}_{q_2} = \f{1}{3} \mat{2 \\ 1}, \qquad \widetilde{m}_{q_3} =  \f{1}{3} \mat{-1 \\ -2}
-\end{align*}
-and we redefine
-\begin{align}\label{eq:fourier_TBM}
-m_{q_1} =  \mat{-1 \\ 1}, \qquad m_{q_2} =  \mat{2 \\ 1}, \qquad m_{q_3} =   \mat{-1 \\ -2}
+\begin{align}\label{def:conjugation}
+	\f{1}{k_\theta^3 v_0} S \pa{\mat{-i v_0 \sigma \na & w T(k_\theta x) \\ w T^*(k_\theta x) & -iv_0 \sigma \na} -E} S^* = \mat{-i\sigma \na & \alpha T\pa{x} \\ \alpha T^*(x) & -i\sigma \na} - \ep =: H_{BM}
 \end{align}
-so
-\begin{align}\label{eq:bm_our_way}
-T(x) = \sum_j T_j e^{i m_{q_j} \f{b^*}{3} x}
-\end{align}
-We conjugate again and get
-\begin{multline*}
-\cR_{-\f{\pi}{2}} \pa{ \mat{-i\sigma \na & \alpha T^{\text{TKV}}\pa{x} \\ \alpha T^{*,\text{TKV}}(x) & -i\sigma \na} - \ep}\cR_{\f{\pi}{2}} \\
-= \mat{-i\sigma \cdot J\na & \alpha T\pa{x} \\ \alpha T^{*}(x) & -i\sigma \cdot J\na} - \ep
-\end{multline*}
-the action of $J$ corresponding to the rotation of the dual lattice vectors, so if we write $\na$ in our new lattice $b$, we have
-\begin{align*}
-\mat{-i\sigma \na & \alpha T\pa{x} \\ \alpha T^{*}(x) & -i\sigma\na} - \ep
-\end{align*}
+where $\alpha := \f{w}{k_\theta v_0}$ and where $\ep = \f{E}{v_0 k_\theta}$ is the unit of \cite[Fig 1]{TarKruVis19} defined in the caption, and
 
-\subsection{Rescaling again}%
-\label{sub:rescaling_again}
+\subsection{Removing $e^{-iq_1 x}$}%
 
-To write the Fourier coefficients of $T$, we need to rescale, so ne define $Su(x) := u(3x)$ and as previously, doing ``$k_\theta = 1/3$'', we have $S S^* = 1/9$, $S \na S^* = \pa{1/3^3} \na$
-\begin{align*}
-3^2 S \pa{\mat{-i\sigma \na & \alpha T\pa{x} \\ \alpha T^{*}(x) & -i\sigma\na} - \ep} S^* = \mat{-\f{1}{3}i\sigma \na & \alpha T\pa{3x} \\ \alpha T^{*}(3x) & - \f{1}{3} i\sigma\na} - \ep
-\end{align*}
-and now we can implement the Fourier coefficients of $T(3\cdot)$, given by \eqref{eq:fourier_TBM}, because
-\begin{align*}
-T(3x) = \sum_j T_j e^{i m_{q_j} b^* x}
-\end{align*}
-
-
-
-\subsection{Relation to our model}%
-\label{sub:relation_to_our_model}
-
-
-
-We compute, for $j \in \acs{1,2,3}$,
-\begin{align*}
-	v^m_\theta(x) &= v_m e^{ima^* \pa{\cos \f{\theta}{2} x + \sin \f{\theta}{2} J x}} +   v_m e^{ima^* \pa{\cos \f{\theta}{2} x - \sin \f{\theta}{2} J x}} \\
-		    &= 2i v_m e^{ima^* \cos \f{\theta}{2} x}  \sin ma^* \sin \f{\theta}{2}  Jx \\
-		    &=  2i v_m e^{ima^* \cos \f{\theta}{2} x}  \sin m\f{a^*}{2 k_D} k_\theta J x
-\end{align*}
-and
-\begin{align*}
-\f{a^*_1}{2 k_D} = \f{\sqrt 3}{2} \mat{ \f{1}{2} \\ \f{\sqrt 3}{2}} = - \f{\sqrt 3}{2} Jq_2, \qquad \f{a^*_2}{2 k_D} = \f{\sqrt 3}{2} \mat{ \f{1}{2} \\ -\f{\sqrt 3}{2}}= - \f{\sqrt 3}{2} Jq_3
-\end{align*}
-We deduce that
-\begin{align*}
-	v^m_\theta(x) =  -2i v_m e^{ima^* \cos \f{\theta}{2} x}  \sin k_\theta \f{\sqrt 3}{2} mb^* \cdot x
-\end{align*}
-where $b^*_1 := q_2$, $b^*_2 := q_3$. We define $m_2=(1,0)$, $m_3=(0,1)$, $m_1 = (-1,-1)$, so the three modes are
-\begin{align*}
-m_j b^* = q_j
-\end{align*}
-and
-\begin{align*}
-	v^{m_j}_\theta(x) &=  \cdot \sin k_\theta \f{\sqrt 3}{2} q_j \cdot x 
-\end{align*}
-
-
-
-\section{Code}%
-\label{sec:code}
-
-\begin{multline*}
-b_1^* = \f{4\pi \ep}{a\sqrt{3}} \mat{-1/2 \\ -\sqrt{3}/2} = k_\theta \sqrt{3} \mat{-1/2 \\ -\sqrt{3}/2},\quad b_2^* = k_\theta \sqrt{3} \mat{1 \\ 0} \\
-R_{\f{2\pi}{3}} b_1^*= b_2^*,\quad R_{\f{2\pi}{3}} b_2^* = -b_1^* - b_2^* \\
-K_1 = \f 13 \pa{b_1^* + 2 b_2^*} = \f 13 \pa{a_1^* -2a_2^*} = k_\theta \mat{\sqrt{3}/2 \\ -1/2} \\
-K_2 = \f 13 \pa{-b_1^* +  b_2^*}= \f 13 \pa{2a_1^*  -a_2^*} = k_\theta \mat{\sqrt{3}/2 \\ 1/2} = R_{\f{2\pi}{6}} K_1
-\end{multline*}
-then
-\begin{align*}
-	H = \mat{\sigma^\xi \cdot \pa{-i\na + k - K_1} & T_\xi(x) \\ T_\xi(x)^* & \sigma^\xi \cdot \pa{-i\na + k - K_2}}
-\end{align*}
-where $\sigma^\xi := \pa{\xi \sigma_1,\sigma_2}$ and $T_\xi(x) = T^\xi_1  + T^\xi_2 e^{-i b_1^* x} + T^\xi_3 e^{-i(b_1^* + b_2^*) x}$ where
-\begin{align*}
-	T_1^\xi = \mat{\alpha & \beta \\ \beta & \alpha},\qquad T_2^\xi = \mat{\alpha & \beta e^{-i\xi\phi} \\ \beta e^{i\xi \phi} & \alpha}\qquad T^\xi_3 = \overline{T_2^\xi}
-\end{align*}
-and with $U := \mat{e^{iK_1 x} & 0 \\ 0 & e^{iK_2 x}}$, we have
-\begin{align*}
-U^* H U = \mat{\sigma^\xi \cdot \pa{-i\na + k} & T_\xi(x) e^{i\pa{K_1 - K_2}x} \\ T_\xi(x)^*e^{i\pa{K_2 - K_1}x} & \sigma^\xi \cdot \pa{-i\na + k}}
-\end{align*}
-and $K_1 - K_2 = \f 13 \pa{2b_1^* + b_2^*}$ so
-\begin{align*}
-T_\xi(x) e^{i\pa{K_1 - K_2}x} = T_1 e^{i \f 13 \pa{2b_1^* + b_2^*}} + T_2 e^{i \f 13 \pa{-b_1^* + b_2^*}}+ T_3 e^{i \f 13 \pa{-b_1^*-2 b_2^*} }
-\end{align*}
-If we define
-\begin{multline*}
-Q_1 := \f 13 \pa{2b_1^* + b_2^*} = k_\theta \mat{0 \\ -1} = q_1 \\
-Q_2 := \f 13\pa{-b_1^* + b_2^*},\qquad Q_3 :=  \f 13 \pa{-b_1^* - 2b_2^*}
-\end{multline*}
-we have
-\begin{align*}
-R_{\f{2\pi}{3}} Q_1 = Q_2,\qquad R_{\f{2\pi}{3}} Q_2 = Q_3,\qquad R_{\f{2\pi}{3}} Q_3 = Q_1
-\end{align*}
-and hence $Q_j = q_j$, of TKV, and $TT_\xi(x) e^{i\pa{K_1 -K_2}x} = T_\xi(x) e^{iq_1 x} = T(x)$. Also, we have $b_1^* + b_2^* = k_\theta \sqrt{3} \mat{1/2 \\ -\sqrt{3}/2} = -a_2^*$ and $b_1^* = - a_1^*$, so
-\begin{align*}
-b_1^* = -a_1^*,\qquad b_2^* = a_1^* - a_2^*
-\end{align*}
-
-
-
-
-\subsection{TKV}%
-\label{sub:tkv}
-
-In TKV, we have
-\begin{multline*}
-	a_1^* = q_2 - q_1 = k_\theta \sqrt{3} \mat{1/2 \\ \sqrt{3}/2},\qquad a_2^* = q_3 - q_1 = k_\theta \sqrt{3} \mat{-1/2 \\ \sqrt{3}/2} \\
-	q_1 = -q_2 - q_3
-\end{multline*}
-To have $q_j$ in terms of $a_j^*$, we compute $a_1^* \pm a_2^*$ and $a_1^* = 2q_2 + q_3$, $a_2^* = q_2 + 2 q_3$ and
-\begin{align*}
-q_3 = \f 13 \pa{-a_1^* + 2 a_2^*},\qquad q_2 = \f 13 \pa{ 2 a_1^* - a_2^*},\qquad q_1 = \f 13 \pa{-a_1^* - a_2^*} \\
-R_{\f{2\pi}{3}} q_1 = q_2,\qquad R_{\f{2\pi}{3}} q_2 = q_3,\qquad R_{\f{2\pi}{3}} q_3 = q_1
-\end{align*}
-(this was triples checked, including with the cartesian coordinates). Moreover,
-\begin{multline*}
-R_{-\f{2\pi}{6}} a_1^* = a_1^* - a_2^*,\qquad R_{-\f{2\pi}{6}} a_2^* = a_1^* \\
-R_{\f{2\pi}{6}} a_1^* = a_2^*,\qquad R_{\f{2\pi}{6}} a_2^* = a_2^* - a_1^*
-\end{multline*}
-If 
-\begin{align*}
-	S := \mat{a_1^* & a_2^*} = k_\theta \sqrt{3} \mat{1/2 & -1/2 \\ \sqrt{3}/2 & \sqrt{3}/2}, \qquad S^{-1} = \f{2}{3 k_\theta} \mat{\sqrt{3}/2 & 1/2 \\ -\sqrt{3}/2 & 1/2}
-\end{align*}
-and
-\begin{align*}
-\cM = \mat{a_1 & a_2} = 2\pi \pa{S^*}^{-1} = \f{4\pi}{3k_\theta} \mat{\sqrt{3}/2 & - \sqrt{3}/2 \\ 1/2 & 1/2}
-\end{align*}
-
-with $U := \mat{e^{-iK_1 x} & 0 \\ 0 & e^{-iK_2 x}}$, and
-\begin{align*}
-T(x) = T_1 e^{-iq_1 x}  +T_2 e^{-iq_2 x}  +T_3 e^{-iq_3 x} 
-\end{align*}
-we compute
-\begin{align}\label{eq:UmatU}
-	U^* \mat{-i\sigma \na & T \\ T^* & -i\sigma \na} U = \mat{\sigma\pa{-i\na - K_1} & T e^{i\pa{K_1 - K_2}x} \\ T^* e^{i\pa{K_2-K_1}x} & \sigma\pa{-i\na - K_2}} 
-\end{align}
-and with $K_1 - K_2 = q_1$,
-\begin{align*}
-T e^{i\pa{K_1 - K_2}x} = T_1 + T_2 e^{i\pa{-q_2+q_1}x} + T_3 e^{i\pa{-q_3+q_1}x} = T_1 + T_2 e^{-i a_1^* x} + T_3 e^{-ia_2^* x}
-\end{align*}
-% moreover,
-% \begin{align*}
-	% R^\text{red}_{-\f{2\pi}{6}} = S^{-1} R_{-\f{2\pi}{6}} S = \mat{1 & 1 \\ -1 & 0}
-% \end{align*}
- and if $K_1 = \f 13 \pa{\alpha a_1^* + \beta a_2^*}$, then 
-\begin{align*}
-	K_2 &:= R_{-\f{2\pi}{6}} K_1 = \f 13 \pa{\alpha a_1^* + \pa{\beta-\alpha}a_2^*} \\
-K_1 - K_2 &= \f 13 \alpha a_2^* = q_1 = \f 13 \pa{-a_1^* - a_2 ^*}
-\end{align*}
-has no solution !!! We can try
-\begin{align*}
-	K_2 &:= R_{\f{2\pi}{6}} K_1 = \f 13 \pa{-\beta a_1^* + \pa{\alpha + \beta}a_2^*} \\
-K_1 - K_2 &= \f 13 \pa{\pa{\alpha -\beta}a_1^* - \alpha a_2^*} = q_1 = \f 13 \pa{-a_1^* - a_2 ^*}
-\end{align*}
-so $(\alpha,\beta) = (1,2)$ but then $K_1$ is not a Dirac point for this configuration !
-
-\subsection{Deductive from TKV}%
-\label{sub:deductive_from_tkv}
 
 With 
 \begin{align}\label{def:U}
@@ -1165,18 +844,27 @@ U := \mat{e^{-iK_2 x} & 0 \\ 0 & e^{-iK_1 x}},
 \end{align}
 we have
 \begin{align*}
-U^* H U = \mat{\sigma^\xi \cdot \pa{-i\na + k - K_2} & T(x) e^{i\pa{K_2 - K_1}x} \\ T(x)^*e^{i\pa{K_1 - K_2}x} & \sigma^\xi \cdot \pa{-i\na + k -K_1}}
+	U^* H_{BM} U &= \mat{\sigma \cdot \pa{-i\na  - K_2} & T(x) e^{i\pa{K_2 - K_1}x} \\ T(x)^*e^{i\pa{K_1 - K_2}x} & \sigma\cdot \pa{-i\na  -K_1}} \\
+		&= \mat{\sigma \cdot \pa{-i\na -K_2} & \bf{T} \\ \bf{T}^* & \sigma \cdot \pa{-i\na -K_1}}
 \end{align*}
 From \eqref{eq:UmatU}, that we consider again, we want $K_2- K_1 = q_1$, so 
 \begin{align*}
-	T(x) e^{i(K_2-K_1)x} &= T(x) e^{iq_1 x} = T_1 +T_2 e^{i(q_1 - q_2)x} +T_3 e^{i(q_1 - q_3)x} \\
+	\bf{T}(x) &:= T(x) e^{i(K_2-K_1)x} = T(x) e^{iq_1 x} = T_1 +T_2 e^{i(q_1 - q_2)x} +T_3 e^{i(q_1 - q_3)x} \\
 & = T_1 +T_2 e^{-ic_1^*x} +T_3 e^{-i\pa{c_1^*+c_2^*}x}
 \end{align*}
 where
 \begin{multline*}
+	a_1^* = q_2 - q_1 = k_\theta \sqrt{3} \mat{1/2 \\ \sqrt{3}/2},\qquad a_2^* = q_3 - q_1 = k_\theta \sqrt{3} \mat{-1/2 \\ \sqrt{3}/2} \\
+	q_1 = -q_2 - q_3
+\end{multline*}
+and
+\begin{align*}
+q_3 = \f 13 \pa{-a_1^* + 2 a_2^*},\qquad q_2 = \f 13 \pa{ 2 a_1^* - a_2^*},\qquad q_1 = \f 13 \pa{-a_1^* - a_2^*}
+\end{align*}
+and
+\begin{multline*}
 c_1^* := q_2 - q_1 = a_1^* = k_\theta \sqrt{3} \mat{1/2 \\ \sqrt{3}/2}, \\
-c_2^* := q_3 - q_2 = -a_1^* + a_2^* = k_\theta \sqrt{3} \mat{-1 \\ 0}, \\
-a_2^* = c_1^* + c_2^*
+c_2^* := q_3 - q_2 = -a_1^* + a_2^* = k_\theta \sqrt{3} \mat{-1 \\ 0}, \qquad a_2^* = c_1^* + c_2^*
 \end{multline*}
 hence
 \begin{align*}
@@ -1188,24 +876,59 @@ K_1 = \f 13 \pa{c_1^* + 2 c_2^*}\qquad K_2 = \f 13 \pa{ -c_1^* + c_2^*},
 \end{align*}
 so that $K_2 - K_1 = \f 13 \pa{-2c_1^* - c_2^*} = q_1$ 
 
+
+
+\section{Treating our model}
+
+
+Our Hamiltonian is
+\begin{equation} \label{eq:def:Sigma_d}
+    \cH_{d, \theta} = \ept^{-1} \cV_d + c_\theta T_d + \ept T_d^{(1)},\qquad \cH_{d,\theta} \p = \frac{E}{\ept} \p
+\end{equation}
+where the three operators $\cV_d$, $T_d$, and $T_d^{(1)}$ are of the form
+\begin{align*}
+\cS_d =  \begin{pmatrix}
+        \bbI_2 & \Sigma_d(\bX) \\ \Sigma_d^*(\bX) & \bbI_2
+    \end{pmatrix} \qquad \mbox{and} \qquad \cV_d = \begin{pmatrix}
+        \bbW_d^+(\bX) & \bbV_d(\bX) \\
+        \bbV_d(\bX)^* & \bbW_d^-(\bX)
+    \end{pmatrix} ,
+\end{align*}
+\[
+    T_d = \begin{pmatrix} v_F \bsigma \cdot ( - \ri \nabla) &  J ( - \ri \nabla \Sigma_d)(\bX) \cdot ( - \ri \nabla) \\
+       -  J ( - \ri \nabla \Sigma_d^*)(\bX) \cdot ( - \ri \nabla) & v_F \bsigma \cdot ( - \ri \nabla) \end{pmatrix},
+\]
+\begin{equation} \label{eq:op_Td1}
+    T_d^{(1)} = - \frac12 {\rm div} \left( \cS_d(\bX) \nabla \bullet \right) + \frac12 \begin{pmatrix}
+        - v_F \bsigma \cdot J (- \ri \nabla) & 0 \\
+        0 & v_F \bsigma \cdot J (- \ri \nabla) \end{pmatrix}.
+\end{equation}
+
+
 \subsection{Application to our effective model}%
 \label{sub:application_to_our_effective_model}
 
 Still with $U$ defined in \eqref{def:U}, we have
 \begin{align*}
-	U^* \mat{\bbW^+ & 0 \\ 0 & \bbW^-} U &= \mat{\bbW^+ & 0 \\ 0 & \bbW^-}
+U^* \mat{0 & \bbV \\ \bbV^* & 0} U &= \mat{0 & \widetilde{\bbV} \\ \widetilde{\bbV}^* & 0},\qquad U^* \mat{\bbW^+ & 0 \\ 0 & \bbW^-} U &= \mat{\bbW^+ & 0 \\ 0 & \bbW^-}
 \end{align*}
-
-
-
-\subsection{From $a^*$ to $c^*$}%
-\label{sub:from_a_to_c_}
-
-The lattice $c^*$ enables to plot the bands diagram. Since $a_1^* = c_1^*$ and $a_2^* = c_1^* + c_2^*$, we have
+and
 \begin{align*}
-\sum_m f_m \f{e^{ima^*x}}{\sqom} = \sum_m f_m \f{e^{i {\tiny{\mat{m_1 + m_2 \\ m_2}}} c^* x}}{\sqom} = \sum_ m f_{m} \f{e^{i\pa{A^{-1}m}c^*x}}{\sqom}= \sum_ m f_{Am} \f{e^{imc^*x}}{\sqom}
+U^* \mat{0 & \Sigma \\ \Sigma^* & 0} U &= \mat{0 & \widetilde{\Sigma} \\ \widetilde{\Sigma}^* & 0}
 \end{align*}
-where $A = \mat{1 & -1 \\ 0 & 1}$.
+\begin{align*}
+	U^* \mat{\sigma \pa{-i\na} & 0 \\ 0 & \sigma \pa{-i\na}} U = \mat{\sigma \pa{-i\na - K_2} & 0 \\ 0 & \sigma \pa{-i\na- K_1}} 
+\end{align*}
+and as presented in Section \ref{sub:magnetic_term}, with $A := -i\na\Sigma$,
+\begin{multline*}
+	U^* \mat{0 & JA (-i\na) \\ JA^* (-i\na)} U = \mat{0 & J \widetilde{A} \cdot(-i\na - K_1) \\  J\widetilde{A}^* \cdot(-i\na - K_2) & 0}
+\end{multline*}
+Moreover,
+\begin{multline*}
+U^* \f 12 \mat{- v_F \sigma\cdot J(-i\na) & 0 \\ 0 & v_F \sigma\cdot J(-i\na)} U  \\
+= \f 12 \mat{- v_F \sigma\cdot J(-i\na - K_2) & 0 \\ 0 & v_F \sigma\cdot J(-i\na - K_1)}
+\end{multline*}
+
 
 
 \section{Magnetic term}%
@@ -1285,6 +1008,66 @@ so
 \begin{align*}
 \pa{\pa{J \widetilde{A}} \cdot \pa{-i\na -K_1}}^* = \pa{J \widetilde{A}^*} \cdot \pa{-i\na -K_2} = \pa{J \widetilde{A}}^* \cdot \pa{-i\na -K_2}
 \end{align*}
+
+\section{Annexes}%
+\label{sec:annexes}
+
+\subsection{$a_M^*$ is not adapted to $K_1$, $K_2$}%
+\label{sub:_a_m_is_not_adapted_to_k_1_k_2_}
+
+In this appendix, we show that the lattice $a_M^*$ is not adapted to be such that $K_1$ and $K_2$ are Dirac points, hence the necessity of using $c^*$.
+
+In TKV, we have
+\begin{multline*}
+	a_1^* = q_2 - q_1 = k_\theta \sqrt{3} \mat{1/2 \\ \sqrt{3}/2},\qquad a_2^* = q_3 - q_1 = k_\theta \sqrt{3} \mat{-1/2 \\ \sqrt{3}/2} \\
+	q_1 = -q_2 - q_3
+\end{multline*}
+To have $q_j$ in terms of $a_j^*$, we compute $a_1^* \pm a_2^*$ and $a_1^* = 2q_2 + q_3$, $a_2^* = q_2 + 2 q_3$ and
+\begin{align*}
+q_3 = \f 13 \pa{-a_1^* + 2 a_2^*},\qquad q_2 = \f 13 \pa{ 2 a_1^* - a_2^*},\qquad q_1 = \f 13 \pa{-a_1^* - a_2^*} \\
+R_{\f{2\pi}{3}} q_1 = q_2,\qquad R_{\f{2\pi}{3}} q_2 = q_3,\qquad R_{\f{2\pi}{3}} q_3 = q_1
+\end{align*}
+(this was triples checked, including with the cartesian coordinates). Moreover,
+\begin{multline*}
+R_{-\f{2\pi}{6}} a_1^* = a_1^* - a_2^*,\qquad R_{-\f{2\pi}{6}} a_2^* = a_1^* \\
+R_{\f{2\pi}{6}} a_1^* = a_2^*,\qquad R_{\f{2\pi}{6}} a_2^* = a_2^* - a_1^*
+\end{multline*}
+If 
+\begin{align*}
+	S := \mat{a_1^* & a_2^*} = k_\theta \sqrt{3} \mat{1/2 & -1/2 \\ \sqrt{3}/2 & \sqrt{3}/2}, \qquad S^{-1} = \f{2}{3 k_\theta} \mat{\sqrt{3}/2 & 1/2 \\ -\sqrt{3}/2 & 1/2}
+\end{align*}
+and
+\begin{align*}
+\cM = \mat{a_1 & a_2} = 2\pi \pa{S^*}^{-1} = \f{4\pi}{3k_\theta} \mat{\sqrt{3}/2 & - \sqrt{3}/2 \\ 1/2 & 1/2}
+\end{align*}
+
+with $U := \mat{e^{-iK_1 x} & 0 \\ 0 & e^{-iK_2 x}}$, and
+\begin{align*}
+T(x) = T_1 e^{-iq_1 x}  +T_2 e^{-iq_2 x}  +T_3 e^{-iq_3 x} 
+\end{align*}
+we compute
+\begin{align}\label{eq:UmatU}
+	U^* \mat{-i\sigma \na & T \\ T^* & -i\sigma \na} U = \mat{\sigma\pa{-i\na - K_1} & T e^{i\pa{K_1 - K_2}x} \\ T^* e^{i\pa{K_2-K_1}x} & \sigma\pa{-i\na - K_2}} 
+\end{align}
+and with $K_1 - K_2 = q_1$,
+\begin{align*}
+T e^{i\pa{K_1 - K_2}x} = T_1 + T_2 e^{i\pa{-q_2+q_1}x} + T_3 e^{i\pa{-q_3+q_1}x} = T_1 + T_2 e^{-i a_1^* x} + T_3 e^{-ia_2^* x}
+\end{align*}
+% moreover,
+% \begin{align*}
+	% R^\text{red}_{-\f{2\pi}{6}} = S^{-1} R_{-\f{2\pi}{6}} S = \mat{1 & 1 \\ -1 & 0}
+% \end{align*}
+ and if $K_1 = \f 13 \pa{\alpha a_1^* + \beta a_2^*}$, then 
+\begin{align*}
+	K_2 &:= R_{-\f{2\pi}{6}} K_1 = \f 13 \pa{\alpha a_1^* + \pa{\beta-\alpha}a_2^*} \\
+K_1 - K_2 &= \f 13 \alpha a_2^* = q_1 = \f 13 \pa{-a_1^* - a_2 ^*}
+\end{align*}
+has no solution !!! We can try
+\begin{align*}
+	K_2 &:= R_{\f{2\pi}{6}} K_1 = \f 13 \pa{-\beta a_1^* + \pa{\alpha + \beta}a_2^*} \\
+K_1 - K_2 &= \f 13 \pa{\pa{\alpha -\beta}a_1^* - \alpha a_2^*} = q_1 = \f 13 \pa{-a_1^* - a_2 ^*}
+\end{align*}
+so $(\alpha,\beta) = (1,2)$ but then $K_1$ is not a Dirac point for this configuration !
 
 
 \bibliographystyle{siam}

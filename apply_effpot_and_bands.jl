@@ -136,10 +136,10 @@ function computes_and_plots_effective_potentials()
 		# plot_block_article(δ𝕍,p;title="δV",k_red_shift=-p.m_q1)
 		# plot_block_article(p.T_BM,p;title="T",k_red_shift=-p.m_q1)
 		# plot_block_article(W_without_mean,p;title="W_plus_without_mean")
-		# plot_block_article(p.𝔸1,p;title="A",other_block=p.𝔸2,k_red_shift=-p.m_q1,meV=false,coef=1/p.vF,vertical_bar=true)
+		plot_block_article(p.𝔸1,p;title="A",other_block=p.𝔸2,k_red_shift=-p.m_q1,meV=false,coef=1/p.vF,vertical_bar=true)
 		# if p.compute_Vint plot_block_article(p.𝕍_Vint,p;title="V_Vint",k_red_shift=-p.m_q1) end
 		# plot_block_article(p.Σ,p;title="Σ",k_red_shift=-p.m_q1,meV=false)
-		plot_block_article(p.W_non_local_plus,p;title="W_nl_plus",k_red_shift=-p.m_q1,vertical_bar=true)
+		# plot_block_article(p.W_non_local_plus,p;title="W_nl_plus",k_red_shift=-p.m_q1,vertical_bar=true)
 	end
 
 
@@ -400,7 +400,7 @@ end
 # Adimentionalized quantities, wAA and wAB independent
 function explore_band_structure_BM_TKV()
 	p = Basis()
-	p.N = 10
+	p.N = 8
 	# @assert mod(p.N,2)==1 # for more symmetries
 	p.a = 4π/sqrt(3)
 	p.dim = 2
@@ -466,8 +466,8 @@ end
 
 function explore_band_structure_Heff()
 	# N = 24 : does it
-	# N = 15; Nz = 108
-	N = 24; Nz = 180
+	N = 15; Nz = 108
+	# N = 24; Nz = 180
 	# N = 20; Nz = 150
 	interlayer_distance = 6.45
 	# N = 32; Nz = 135
@@ -492,7 +492,7 @@ function explore_band_structure_Heff()
 	SΣ = build_offdiag_V(Σc,p)
 	S = Hermitian(I + 1*SΣ)
 	p.ISΣ = Hermitian(inv(sqrt(S)))
-	# p.ISΣ = I
+	p.ISΣ = I
 	# test_hermitianity(S,"S"); test_part_hole_sym_matrix(S,p,"S")
 	
 	# On-diagonal potential
@@ -529,7 +529,7 @@ function explore_band_structure_Heff()
 	p.energy_scale = 250
 	meanW = real(mean_block(EffV.Wplus_tot,p)[1,1])
 	p.energy_center = 0 #meanW*1e3*hartree_to_ev
-	p.energy_center = meanW*1e3*hartree_to_ev
+	# p.energy_center = meanW*1e3*hartree_to_ev
 
 	p.coef_energies_plot = hartree_to_ev*1e3*kθ*p.vF # energies in meV
 	βs = [β]
@@ -537,15 +537,19 @@ function explore_band_structure_Heff()
 
 	compare_to_BM_infos(EffV.𝕍_V,EffV,"V")
 
+	wAA = real(EffV.𝕍[1][1,1])
+	T = T_BM_four(wAA,wAA,EffV)
+	Tc = a2c(T,p)
+
 	# k-dependent part
 	(JA1,JA2) = build_mag_block(EffV;Q=-EffV.q1_red,J=true)
 	JA1c  = a2c(JA1,EffV)
 	JA2c  = a2c(JA2,EffV)
 
-	Kf(K) = p.ISΣ*( Dirac_k(K,p;valley=1,K1=K1,K2=K2) + kθ*β*offdiag_A_k(JA1c,JA2c,JA1c,JA2c,K,p;valley=1,K1=K1,K2=K2) )*p.ISΣ
+	Kf(K) = p.ISΣ*( Dirac_k(K,p;valley=1,K1=K1,K2=K2) )*p.ISΣ #+ 0*kθ*β*offdiag_A_k(JA1c,JA2c,JA1c,JA2c,K,p;valley=1,K1=K1,K2=K2) )*p.ISΣ
 	
 	# Off-diagonal part
-	V(β) = β*p.ISΣ*( build_offdiag_V(Vc,p) + build_ondiag_W(Wc_plus,Wc_minus,p) )*p.ISΣ
+	V(β) = β*p.ISΣ*( w*sqrt(p.cell_area)*build_offdiag_V(Tc,p) + 0*build_ondiag_W(Wc_plus,Wc_minus,p) )*p.ISΣ
 
 	@time σs = spectrum_on_a_path(V(β),Kf,Klist,p;print_progress=true)
 	pl = plot_band_diagram([σs],Klist,Klist_names,p)
