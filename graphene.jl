@@ -25,6 +25,7 @@ mutable struct Params
 	N; Nz; N2d; N3d
 	n_fball # size of the Fermi ball ∈ ℕ
 	x_axis_red; z_axis_red; z_axis_cart
+	sqi
 
 	### Particular parameters
 	M3d # M = (a1,a2), M3d = (a1,a2,L*e3) is the lattice

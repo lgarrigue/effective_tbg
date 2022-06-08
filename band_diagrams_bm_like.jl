@@ -3,7 +3,7 @@ include("common_functions.jl")
 include("misc/create_bm_pot.jl")
 # include("misc/plot.jl")
 include("effective_potentials.jl")
-using LinearAlgebra, JLD, FFTW, Plots
+using LinearAlgebra, JLD, FFTW, Plots, LaTeXStrings
 
 mutable struct Basis
 	# Parameters of the 2d cell
@@ -25,6 +25,7 @@ mutable struct Basis
 	R_four_2d
 	M_four_2d
 	vF
+	sqi
 
 	# Useless parameters
 	Nz; L; dz
@@ -53,6 +54,7 @@ mutable struct Basis
 	energy_unit_plots # ∈ ["eV","Hartree"]
 	plots_article
 	path_plots_article
+	path_bandwidths
 	function Basis()
 		p = new()
 		p.double_dirac = true
@@ -69,6 +71,8 @@ function init_basis(p)
 	p.k_axis = Int.(fftfreq(p.N)*p.N)
 	p.root_path = "band_diagrams_bm_like/"
 	create_dir(p.root_path)
+	p.path_bandwidths = string(p.root_path,"bandwidths/")
+	create_dir(p.path_bandwidths)
 
 	p.folder_plots_matrices = "matrices/"
 	path2 = string(p.root_path,p.folder_plots_matrices)
@@ -110,51 +114,11 @@ reload_a(p) = init_cell_vectors(p;moire=true)
 
 ######################### Main functions, to plot band diagrams
 
-function plot_band_structure(Hv,Kdep,name,p)
-	Γ = [0,0.0]
-	K = p.K_red
-	M = [0,1/2]
-
-	A = [1/3,2/3] # K'
-	B = p.K_red # K
-	C = 2 .*B .- A # Γ1
-	M = C/2
-	D = Γ
-	# Klist = [A,B,C,M,D]; Klist_names = ["A","B","C","M","D"]
-	# Klist = [A,B,C]; Klist_names = ["A","B","C"]
-	# Klist = [K,Γ,M]; Klist_names = ["K","Γ","M"]
-	# Klist = [Γ,K,M]; Klist_names = ["Γ","K","M"]
-	# Klist = [M,Γ,K]; Klist_names = ["M","K","Γ"]
-	A = [-2;-2]; B = [-1;-1]; C = Γ; D = [-2;-1]
-	Klist = [A,B,C,D]; Klist_names = ["A","B","C","D"]
-
-	# Klist = [[0 -1;1 0]*Klist[i] for i=1:length(Klist)]/sqrt(3)
-	# Klist = [Klist[i] .- p.K_red for i=1:length(Klist)] # don't do that
-	σ_on_path = spectrum_on_a_path(Hv,Kdep,Klist,p)
-	pl = plot_band_diagram(σ_on_path,Klist,Klist_names,p)#;K_relative=p.K_red)
-	save_diagram(pl,name,p)
-end
-
-function save_diagram(pl,name,p;post_name)
-
-	s = string(name,"000000000")
-	title = s[1:min(6,length(s))]
-	path_local = string(p.root_path,p.folder_plots_bands,"/")
-	create_dir(path_local)
-	paths_plots = [path_local]
-
-	if p.plots_article push!(paths_plots,p.path_plots_article) end
-	for path in paths_plots
-		savefig(pl,string(path,"band_struct_",title,"_",post_name,".pdf"))
-	end
-end
-
 function do_one_value(HvK,p)
 	(E,Xf) = solve_one(HvK,p)
 	pl = plot_spectrum(E)
 	savefig(pl,"spectrum_K.png")
 end
-
 
 ######################### Coordinates change
 
@@ -232,10 +196,6 @@ function fillM_∇(H,K,i,I,j,J,A1,A2,a,b,p;star=false)
 	KGj = K + [n1,n2]
 	Qj = k_red2cart(KGj,p)
 
-	# m1,m2 = p.k_grid_lin[i]
-	# KGi = K + [n1,n2]
-	# Qi = k_red2cart(KGi,p)
-
 	if !star
 		H[x, y]     = Qj[1]*A1[1][a,b]+Qj[2]*A2[1][a,b]
 		H[x, y+1]   = Qj[1]*A1[2][a,b]+Qj[2]*A2[2][a,b]
@@ -249,23 +209,60 @@ function fillM_∇(H,K,i,I,j,J,A1,A2,a,b,p;star=false)
 	end
 end
 
-function σK(H,i,I,q,v,p)
+function fillM_Δ(H,K,i,I,j,J,V,a,b,p;star=false)
+	x = X(i,I,p)
+	y = X(j,J,p)
+
+	jj = j
+	n1,n2 = p.k_grid_lin[jj]
+	KGj = K + [n1,n2]
+	Qj = k_red2cart(KGj,p)
+	n = norm(Qj)^2
+
+	if !star
+		H[x, y]     = n*V[1][a,b]
+		H[x, y+1]   = n*V[2][a,b]
+		H[x+1, y]   = n*V[3][a,b]
+		H[x+1, y+1] = n*V[4][a,b]
+	else
+		H[y, x]     = n*conj(V[1][a,b])
+		H[y+1,x]    = n*conj(V[2][a,b])
+		H[y,x+1]    = n*conj(V[3][a,b])
+		H[y+1,x+1]  = n*conj(V[4][a,b])
+	end
+end
+
+function σK(H,i,I,q,v,p;c=1,J=false)
 	x = X(i,I,p)
 	Q = k_red2cart(q,p)
-	H[x,x+1] = v*Q[1] - im*Q[2]
-	H[x+1,x] = v*Q[1] + im*Q[2]
+	if !J
+		H[x,x+1] = c*(v*Q[1] - im*Q[2])
+		H[x+1,x] = c*(v*Q[1] + im*Q[2])
+	else
+
+		H[x,x+1] = c*(-v*Q[2] - im*Q[1])
+		H[x+1,x] = c*(-v*Q[2] + im*Q[1])
+	end
+end
+
+function mΔK(H,i,I,q,p)
+	x = X(i,I,p)
+	Q = k_red2cart(q,p)
+	n = norm(Q)^2
+	H[x,x] = n
+	H[x+1,x+1] = n
 end
 
 X(n,I,p) = 2*(n-1)+(I-1)*2*p.N2+1
 
-# Creates [σ(-i∇+k-K1)           0]
-#         [0           σ(-i∇+k-K2)]
-function Dirac_k(K,p;coef_∇=1,valley=1,K1=[0.0,0],K2=[0.0,0])
+# Creates [c1*σ(-i∇+k-K1)           0]
+#         [0              σ(-i∇+k-K2)]
+function Dirac_k(K,p;valley=1,K1=[0.0,0],K2=[0.0,0],coef_1=1,J=false)
 	H = zeros(ComplexF64,4*p.N2, 4*p.N2)
 	for i=1:p.N2
 		n1,n2 = p.k_grid_lin[i]
 		KG = K + [n1,n2]
-		σK(H,i,1,KG-K2,valley,p)
+		σK(H,i,1,KG-K2,valley,p;c=coef_1,J=J)
 		σK(H,i,2,KG-K1,valley,p)
 	end
 	H
@@ -301,18 +298,59 @@ function build_ondiag_W(Wplus,Wminus,p)
 	H
 end
 
-function offdiag_A_k(A1_1,A2_1,A1_2,A2_2,K,p;coef_∇=1,valley=1,K1=[0.0,0],K2=[0.0,0])
+function offdiag_A_k(A1,A2,K,p;coef_∇=1,valley=1,K1=[0.0,0],K2=[0.0,0])
 	H = zeros(ComplexF64,4*p.N2, 4*p.N2)
 	for i=1:p.N2
 		n1,n2 = p.k_grid_lin[i]
 		for j=1:p.N2
 			m1,m2 = p.k_grid_lin[j]
 			c1,c2 = k_inv(n1-m1,n2-m2,p)
-			fillM_∇(H,K-K1,i,1,j,2,A1_1,A2_1,c1,c2,p)
-			fillM_∇(H,K-K2,i,1,j,2,A1_2,A2_2,c1,c2,p;star=true)
+			fillM_∇(H,K-K1,i,1,j,2,A1,A2,c1,c2,p)
+			fillM_∇(H,K-K2,i,1,j,2,A1,A2,c1,c2,p;star=true)
 		end
 	end
 	test_hermitianity(H,"JA")
+	H
+end
+
+function ondiag_mΔ(K,p;K1=[0.0,0],K2=[0.0,0])
+	H = zeros(ComplexF64,4*p.N2, 4*p.N2)
+	for i=1:p.N2
+		n1,n2 = p.k_grid_lin[i]
+		for j=1:p.N2
+			m1,m2 = p.k_grid_lin[j]
+			c1,c2 = k_inv(n1-m1,n2-m2,p)
+			fillM_∇(H,K-K1,i,1,j,2,A1,A2,c1,c2,p)
+			fillM_∇(H,K-K2,i,1,j,2,A1,A2,c1,c2,p;star=true)
+		end
+	end
+	test_hermitianity(H,"JA")
+	H
+end
+
+function ondiag_mΔ_k(K,p;K1=[0.0,0],K2=[0.0,0])
+	H = zeros(ComplexF64,4*p.N2, 4*p.N2)
+	for i=1:p.N2
+		n1,n2 = p.k_grid_lin[i]
+		KG = K + [n1,n2]
+		mΔK(H,i,1,KG-K2,p)
+		mΔK(H,i,2,KG-K1,p)
+	end
+	H
+end
+
+function offdiag_mΔ_k(V,K,p;K1=[0.0,0],K2=[0.0,0])
+	H = zeros(ComplexF64,4*p.N2, 4*p.N2)
+	for i=1:p.N2
+		n1,n2 = p.k_grid_lin[i]
+		for j=1:p.N2
+			m1,m2 = p.k_grid_lin[j]
+			c1,c2 = k_inv(n1-m1,n2-m2,p)
+			fillM_Δ(H,K-K1,i,1,j,2,V,c1,c2,p)
+			fillM_Δ(H,K-K2,i,1,j,2,V,c1,c2,p;star=true)
+		end
+	end
+	test_hermitianity(H,"ΣΔ")
 	H
 end
 
@@ -326,7 +364,6 @@ end
 
 
 interm(V,p) = apply_map_four(X -> [1 -1;0 1]*X,V,p)
-a2c(V,p) = app_block(interm,V,p)
 
 # Creates (-i∇+k)^2 𝕀_{4×4}
 function mΔ(k,p)
@@ -673,8 +710,55 @@ function spectrum_on_a_path(Hv,Kdep,Klist,p;print_progress=false)
 	graphs
 end
 
+fermi_label(p) = floor(Int,p.n_l/2) # the lower one, the upper one is fermi_label +1
+
+function bandwidth(σ,p)
+	nmid = fermi_label(p)
+	diff = σ[:,nmid+1] .- σ[:,nmid]
+	# px("Full diffs ",diff)
+	# px("Verify spectrum ",σ[1,nmid-2]," ",σ[1,nmid-1]," ",σ[1,nmid]," ",σ[1,nmid+1]," ",σ[1,nmid+2])
+	# px("Verify differences ",σ[1,nmid-1]-σ[1,nmid-2]," ",σ[1,nmid]-σ[1,nmid-1]," ",σ[1,nmid+1]-σ[1,nmid]," ",σ[1,nmid+2]-σ[1,nmid+1])
+	# @assert diff[1] < 0.5*diff_verif[1] # verify that we take the right one
+	maximum(diff)
+end
+
+function coef_plot_meV(θ,p)
+	θrad = (π/180)*θ
+	εθ = 2*sin.(θrad/2)
+	p.coef_energies_plot = hartree_to_ev*1e3*εθ
+end
+
+function plot_bandwidths(θs,bw_bm,bw_ours,p)
+	res_fig = 400
+	f = CairoMakie.Figure(resolution=(res_fig+150,res_fig))
+	ax = CairoMakie.Axis(f[1, 1], xlabel = "θ (degrees)", ylabel="Bandwidth (meV)")
+	px("θs ",θs[1]," ",θs[end])
+	ax.xticks = (θs[1]: 0.1 :θs[end])
+	CairoMakie.xlims!(ax,θs[1],θs[end])
+
+	colors = [:black,:red]
+	n = length(θs)
+	bws = [bw_bm,bw_ours]
+	ymax = 0
+	for j=1:2
+		ys = [bws[j][i]*coef_plot_meV(θs[i],p) for i=1:n]
+		if ymax < maximum(ys) ymax = maximum(ys) end
+		points = [CairoMakie.Point2f0(θs[i],ys[i]) for i=1:n]
+		CairoMakie.lines!(points,color=colors[j])
+	end
+	CairoMakie.ylims!(ax,0,ymax)
+
+
+	paths = [p.path_bandwidths]
+	if p.plots_article push!(paths,p.path_plots_article) end
+	for path in paths
+		CairoMakie.save(string(path,"bandwidths.pdf"),f)
+	end
+end
+
 # From the numbers of the band diagram, produces a plot of it
-function plot_band_diagram(σs,Klist,Knames,p;K_relative=[0.0,0.0])
+function plot_band_diagram(σs,θs,Klist,Knames,name,p;K_relative=[0.0,0.0],shifts=zeros(100),post_name="",colors=fill(:black,100))
+	# Prepares the lists to plot
 	n = length(Klist)
 	res = p.resolution_bands
 	n_path_points = res*n
@@ -691,22 +775,57 @@ function plot_band_diagram(σs,Klist,Knames,p;K_relative=[0.0,0.0])
 		push!(starts_x,end_x)
 		end_x += res*dx
 	end
-	pl = Plots.plot(size=(1000,1100),ylims=ylims,legend=false) #:topright)
+
+	# Builds figure
+	res_fig = 700
+	res_fig_x = 300
+	f = CairoMakie.Figure(resolution=(res_fig_x,res_fig))
+	ax = CairoMakie.Axis(f[1, 1], ylabel="meV")
+
+	# CairoMakie.hidedecorations!(ax)
+	# CairoMakie.hidexdecorations!(ax, ticks = false)
+	# CairoMakie.hideydecorations!(ax, grid = false)
+
+	# points_annotations = [CairoMakie.Point2f0(Kxs[i]+shift_text[1],Kys[i]+shift_text[1]) for i=1:n]
+	# CairoMakie.annotations!(Knames, points_annotations,textsize=40)
+
+	end_x = x_list[end]+dx_list[end] # fictitious x point, to loop the path
+	CairoMakie.limits!(ax, x_list[1], end_x, ylims[1], ylims[2]) # x1, x2, y1, y2
+	ax.yticks = (ylims[1] : 50 : ylims[2])
+
+	# pl = Plots.plot(size=(1000,1100),ylims=ylims,legend=false) #:topright)
 	for g=1:length(σs)
 		for l=1:p.n_l
-			Plots.plot!(pl,x_list,σs[g][:,l]*p.coef_energies_plot,xticks=nothing)
+			s = shifts[g]
+			points = [CairoMakie.Point2f0(x_list[i],(σs[g][i,l] + s)*coef_plot_meV(θs[g],p)) for i=1:n_path_points]
+			points = vcat(points,[CairoMakie.Point2f0(end_x,(σs[g][1,l] + s)*coef_plot_meV(θs[g],p))])
+			# Plots.plot!(pl,x_list,σs[g][:,l]*p.coef_energies_plot,xticks=nothing)
+			CairoMakie.lines!(points,color=colors[g])
 		end
 	end
-	colors = [:green,:cyan,:blue,:red,:yellow]
-	if length(colors) < length(Knames)
-		px("NOT ENOUGH COLORS IN plot_band_diagram")
+
+
+	# Vertical lines and ticks
+	list_x_vert_labels = vcat([x_list[(i-1)*res+1] for i=1:n],[x_list[end]+dx_list[end]])
+	m = length(list_x_vert_labels)
+	labels = [LaTeXString(string("\$",Knames[mod1(i,n)],"\$")) for i=1:n+1]
+	
+	pos = [CairoMakie.Point2f0(list_x_vert_labels[i] + (i==m ? -10 : 0),ylims[1]-abs(ylims[1])*0.0) for i=1:m]
+	CairoMakie.text!(labels, position=pos,textsize=20,font ="Arial bold")
+	ax.xticks = (list_x_vert_labels,["" for i=1:m])
+
+	# Saves
+	s = string(name,"000000000")
+	title = s[1:min(6,length(s))]
+	path_local = string(p.root_path,p.folder_plots_bands,"/")
+	create_dir(path_local)
+	paths_plots = [path_local]
+
+	if p.plots_article push!(paths_plots,p.path_plots_article) end
+	for path in paths_plots
+		ext = path == path_local ? "png" : "pdf"
+		CairoMakie.save(string(path,"band_struct_",title,"_",post_name,".",ext),f)
 	end
-	for Ki=1:n
-		x = starts_x[Ki]
-		Plots.plot!(pl,[x], seriestype="vline", label=Knames[Ki], color=colors[Ki])
-		annotate!(x+0.01, ylims[1]+(ylims[2]-ylims[1])/20, Plots.text(Knames[Ki], colors[Ki], :left, 20))
-	end
-	pl
 end
 
 ######################### Symmetry tests
@@ -791,20 +910,41 @@ function plot_heatmap(M,name,p)
 	save(string(path,name,".png"),fig)
 end
 
-function plot_sequence_of_points(Klist,Knames,p;shift_text=[0.0,0.0])
+function plot_sequence_of_points(Klist,Knames,p;shifts_text=0,color=:black,linewidth=1,dots=true)
 	n = length(Klist)
 	Kcart = [k_red2cart(Klist[i],p) for i=1:n]
 	Kxs = [Kcart[i][1] for i=1:n]
 	Kys = [Kcart[i][2] for i=1:n]
+	
+	# Preparation 
 	points = [CairoMakie.Point2f0(Kxs[i],Kys[i]) for i=1:n]
-	CairoMakie.lines!(points)
 
-	points_annotations = [CairoMakie.Point2f0(Kxs[i]+shift_text[1],Kys[i]+shift_text[1]) for i=1:n]
-	CairoMakie.annotations!(Knames, points_annotations,textsize=40)
-	CairoMakie.scatter!(points)
+	# Lines
+	loop = vcat(points,[points[1]])
+	CairoMakie.lines!(loop,color=color,linewidth=linewidth)
+
+	# Annotations
+	st = shifts_text
+	if shifts_text==0 st = [[0.0,0.0] for i=1:n] end
+	points_annotations = [CairoMakie.Point2f0(Kxs[i]+st[i][1],Kys[i]+st[i][2]) for i=1:n]
+	filtered_names = []; filt_pos = []
+	for i=1:n
+		s = Knames[i]
+		if s != ""
+			push!(filtered_names,s)
+			push!(filt_pos,points_annotations[i])
+		end
+	end
+	Knames_tex = [LaTeXString(string("\$",filtered_names[i],"\$")) for i=1:length(filtered_names)]
+	CairoMakie.text!(Knames_tex, position=filt_pos,textsize=30)
+
+	# Points
+	if dots
+		CairoMakie.scatter!(points,color=:black)
+	end
 end
 
-plot_one_vector(v,name,p;shift_text=[0.0,0.0]) = plot_sequence_of_points([[0.0,0],v],["",name],p;shift_text=shift_text)
+plot_one_vector(v,name,p;shift_text=[0.0,0.0],linewidth=1,color=:black) = plot_sequence_of_points([[0.0,0],v],["",name],p;shifts_text=[[0.0,0.0],shift_text],linewidth=linewidth,color=color)
 
 function plot_path(Klist,Knames,p)
 	# Init
@@ -815,24 +955,42 @@ function plot_path(Klist,Knames,p)
 	ax.aspect = CairoMakie.AxisAspect(1)
 
 	CairoMakie.hidedecorations!(ax)
-	CairoMakie.hidexdecorations!(ax, grid = false)
+	CairoMakie.hidexdecorations!(ax, grid  = false)
 	CairoMakie.hideydecorations!(ax, ticks = false)
 
-	lims = 2
+	lims = 4
 	CairoMakie.limits!(ax, -lims, lims, -lims, lims) # x1, x2, y1, y2
 
+	# q1, q2, q3
+	q1 = [-1,-1]/3; q2 = [2,-1]/3; q3 = [-1,2]/3
+	plot_one_vector(q1,"q_1",p;shift_text=[-0.2,-0.2],linewidth=3)
+	plot_one_vector(q2,"q_2",p;shift_text=[0.1,-0.2],linewidth=3)
+	plot_one_vector(q3,"q_3",p;shift_text=[-0.25,-0.25],linewidth=3)
+	
+	# Hexagons
+	hexag = [q3,q3+q2,q2,q2+q1,q1,q3+q1]
+	hex2 = [hexag[i]+[0,1] for i=1:length(hexag)]
+	hex3 = [hexag[i]+[1,0] for i=1:length(hexag)]
+	for hex in [hexag,hex2,hex3]
+		plot_sequence_of_points(hex,["" for i=1:length(hex)],p;linewidth=1,dots=false,color=:grey)
+	end
+
 	# Plot list
-	plot_sequence_of_points(Klist,Knames,p)
+	shifts_text = [[0.0,0.0] for i=1:length(Knames)]
+	for i=1:length(Knames)
+		if Knames[i]=="K_2" shifts_text[i] = [-0.2;-0.3] end
+		if Knames[i]=="K_1" shifts_text[i] = [-0.3;0] end
+		if Knames[i]=="Γ"   shifts_text[i] = [0.1;-0.2] end
+		if Knames[i]=="M"   shifts_text[i] = [0;0] end
+		if Knames[i]=="Γ'"   shifts_text[i] = [-0.3;-0.1] end
+	end
+	plot_sequence_of_points(Klist,Knames,p;color=:blue,linewidth=5,shifts_text=shifts_text)
 
 	# a1*,a2*
-	plot_one_vector([1.0,0.0],"a1*",p)
-	plot_one_vector([0.0,1.0],"a2*",p)
+	plot_one_vector([1.0,0.0],"a_{1,M}^*",p;shift_text=[0.1,-0.1],color=:orange,linewidth=2)
+	plot_one_vector([0.0,1.0],"a_{2,M}^*",p;shift_text=[0.1,-0.1],color=:orange,linewidth=2)
 
-	# q1, q2, q3
-	plot_one_vector([-2,-1]/3,"q1",p)
-	plot_one_vector([1,-1]/3,"q2",p)
-	plot_one_vector([1,2]/3,"q3",p;shift_text=[-0.2,0])
-
+	# Saves
 	path_local = "band_diagrams_bm_like/"
 	paths_plots = [path_local]
 
@@ -840,6 +998,7 @@ function plot_path(Klist,Knames,p)
 	for path in paths_plots
 		save(string(path,"path_bands_diagram.pdf"),f)
 	end
+
 	px("Path plotted")
 end
 
@@ -892,7 +1051,6 @@ function k_inv_new_1d(m,p)
 	end
 	return nothing
 end
-
 
 # Creates [0  𝕍]
 #         [𝕍* 0]

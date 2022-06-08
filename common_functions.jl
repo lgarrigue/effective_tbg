@@ -58,6 +58,7 @@ function init_cell_vectors(p;moire=true) # needs a. a_{i,M} = J a_i
 	a2_unit = [1/2; sqrt(3)/2]
 
 	p.cell_area = sqrt(3)*0.5*p.a^2
+	p.sqi = 1/sqrt(p.cell_area)
 	p.a1,p.a2 = p.a.*(a1_unit,a2_unit) # not used
 
 	if moire
@@ -110,9 +111,9 @@ end
 
 # Runs after init_cell_vectors
 function init_cell_infinitesimals(p;moire=true) # needs a, N, Nz ; only micro quantities !
-	p.k_axis = Int.(fftfreq(p.N)*p.N)
+	p.k_axis = myfloat2int.(fftfreq(p.N)*p.N)
 	p.k_grid = axis2grid(p.k_axis)
-	p.kz_axis = Int.(fftfreq(p.Nz)*p.Nz)
+	p.kz_axis = myfloat2int.(fftfreq(p.Nz)*p.Nz)
 	p.N2d = p.N^2; p.N3d = p.N2d*p.Nz
 	p.dS = p.cell_area/p.N^2
 	p.Vol = p.cell_area*p.L
@@ -258,13 +259,14 @@ function get_wAA_wC_from_fun(v_dir,p)
 	u1_f = myfft(p.u1_dir,p.Vol)
 	u1v_f = myfft(u1v_dir,p.Vol)
 	C_Vu1_u1 = build_Cm(u1v_f,u1_f,p)
-	wAA,wC = Tuple(real.([C_Vu1_u1[1,1],C_Vu1_u1[end,2]]))
+	wAA,wC = Tuple(real.([C_Vu1_u1[1,1],C_Vu1_u1[end,2]])).*p.sqi
 	(wAA,wC)
 end
 
-function get_wAA_wC(v_dir,p,vint_dir=-1)
+function get_wAA_wC_from_monolayer(v_dir,p,vint_dir=-1)
+	px("##### wAA from monolayer functions")
 	(wAA,wC) = get_wAA_wC_from_fun(v_dir,p)
-	c = 1e3*hartree_to_ev/sqrt(p.cell_area)
+	c = 1e3*hartree_to_ev
 	px("wAA_v = ",c*wAA," meV ; wC_v = ",c*wC," meV")
 	if vint_dir!=-1
 		(wAA_vint,wC_vint) = get_wAA_wC_from_fun(vint_dir,p)
@@ -272,6 +274,7 @@ function get_wAA_wC(v_dir,p,vint_dir=-1)
 		px("wAA_vint = ",c*wAA_vint," meV ; wC_vint = ",c*wC_vint," meV")
 		px("wAA = ",c*wAA," meV ; wC = ",c*wC," meV")
 	end
+	px("#####")
 	(wAA,wC)
 end
 
@@ -503,7 +506,7 @@ end
 ######################## Plot
 
 function plot2d(f,p;axis=nothing,size=(100,200))
-	heatmap(f,axis=axis,size=size)
+	Plots.heatmap(f,axis=axis,size=size)
 end
 
 function plot_spectrum(E)
@@ -555,3 +558,19 @@ end
 
 # if the directory path doesn't exist, it creates it, otherwise does nothing
 create_dir(path) = if !isdir(path) mkdir(path) end
+
+function reduce_N_matrix(V,N) # V is M×M, frequency-sorted, and we want to get the N×N subset of values of V, where N<M
+	M = size(V,1)
+	cf = typeof(V[1,1])
+	A = zeros(cf,N,N)
+	@assert length(size(V))==2
+	@assert N ≤ M
+	kN = myfloat2int.(fftfreq(N)*N)
+	kM = myfloat2int.(fftfreq(M)*M)
+	for i=1:N, j=1:N
+		kiN = kN[i]; kjN = kN[j]
+		IM = k_inv_1d(kiN,M); JM = k_inv_1d(kjN,M)
+		A[i,j] = V[IM,JM]
+	end
+	A
+end

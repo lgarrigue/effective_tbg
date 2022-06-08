@@ -14,12 +14,42 @@ function import_and_computes(N,Nz,compute_Vint,d)
 	import_u1_u2_V_φ(N,Nz,p)
 	import_Vint(p)
 	init_EffPot(p)
-	optimize_gauge_and_create_T_BM_with_θ_α(false,p)
-	optimize_gauge_and_create_T_BM_with_α(true,p)
+	(m,α,Topt) = optimize_gauge_and_create_T_BM_with_α(p.compute_Vint ? "V" : "V_V",p)
 	build_blocks_potentials(p)
+
+	p.wAA = get_wAA_from_Eff(p)
+	Tsca = T_BM_four(p.wAA,p.wAA,p)/p.sqi
+	V = compute_Vint ? p.𝕍 : p.𝕍_V
+	px("Distance between V and optimized T_BM ",relative_distance_blocks(V,Topt))
+	px("Distance between V and wAA-computed T_BM ",relative_distance_blocks(V,Tsca))
+	p.T_BM = Tsca
 	build_block_𝔸(p)
 	p
 end
+
+function reduce_N(p,N) # takes an EffPotentials and reduces eff.N -> N for the effective potentials
+	p.N = N
+	init_cell_infinitesimals(p)
+	p.Σ = reduced_N_block(p.Σ,N)
+	p.𝕍 = reduced_N_block(p.𝕍,N)
+	p.𝕍_V = reduced_N_block(p.𝕍_V,N)
+	p.𝕍_Vint = reduced_N_block(p.𝕍_Vint,N)
+	p.W_V_plus = reduced_N_block(p.W_V_plus,N)
+	p.Wplus_tot = reduced_N_block(p.Wplus_tot,N)
+	p.W_V_minus = reduced_N_block(p.W_V_minus,N)
+	p.Wminus_tot = reduced_N_block(p.Wminus_tot,N)
+	p.𝔸1 = reduced_N_block(p.𝔸1,N)
+	p.𝔸2 = reduced_N_block(p.𝔸2,N)
+	p.J𝔸1 = reduced_N_block(p.J𝔸1,N)
+	p.J𝔸2 = reduced_N_block(p.J𝔸2,N)
+	p.W_non_local_plus = reduced_N_block(p.W_non_local_plus,N)
+	p.W_non_local_minus = reduced_N_block(p.W_non_local_minus,N)
+	p.T_BM = reduced_N_block(p.T_BM,N)
+	# for B in [p.Σ,p.𝕍,p.𝕍_V,p.𝕍_Vint,p.W_V_plus,p.Wplus_tot,p.W_V_minus,p.Wminus_tot,p.𝔸1,p.𝔸2,p.J𝔸1,p.J𝔸2,p.W_non_local_plus,p.W_non_local_minus,p.T_BM]
+		# B = reduced_N_block(B,N)
+	# end
+end
+
 
 ################## EffPotentials, parameters of graphene honeycomb structures
 
@@ -43,10 +73,13 @@ mutable struct EffPotentials
 	a1_micro; a2_micro
 	a1_star_micro; a2_star_micro
 	q1; q2; q3; q1_red; q2_red; q3_red
+	sqi
+	wAA
 
 	# Quantities computed and exported by graphene.jl
 	v_f; u1_f; u2_f; u1v_f; u2v_f; prods_f; Vint_f
 	v_dir; u1_dir; u2_dir; u1v_dir; u2v_dir; prods_dir; Vint_dir
+	u1Vint_f; u2Vint_f
 	vF # Fermi velocity
 	non_local_coef
 	non_local_φ1_f
@@ -80,6 +113,7 @@ mutable struct EffPotentials
 		p.add_non_local_W = true
 		p.article_path = "../../bm/ab_initio_model/pics/"
 		p.vF = 0.380
+
 		p
 	end
 end
@@ -94,12 +128,17 @@ function init_EffPot(p)
 	p.m_q1 = -[1/3,1/3]
 end
 
+function update_plots_res(n,p)
+	p.plots_res = n
+	init_EffPot(p)
+end
+
 # multiplies all potentials by γ
 function multiply_potentials(γ,p)
 	p.Σ *= γ
 	p.𝕍_V *= γ; p.𝕍_Vint *= γ; p.𝕍 *= γ
 	p.W_V_plus *= γ; p.Wplus_tot *= γ; p.W_V_minus *= γ; p.Wminus_tot *= γ; p.W_Vint_matrix *= γ
-	p.𝔸1 *= γ; p.𝔸2 *= γ; p.𝔹1 *= γ; p.𝔹2 *= γ
+	p.𝔸1 *= γ; p.𝔸2 *= γ
 	p.J𝔸1 *= γ; p.J𝔸2 *= γ
 end
 
@@ -201,31 +240,26 @@ create_Σ(u1,u2,p) = [build_Cm(u1,u1,p), build_Cm(u1,u2,p),
 create_V_V(u1,u2,p) = [build_Cm(p.u1v_f,p.u1_f,p), build_Cm(p.u1v_f,p.u2_f,p),
 		       build_Cm(p.u2v_f,p.u1_f,p), build_Cm(p.u2v_f,p.u2_f,p)]
 
+create_V_Vint(u1,u2,p) = [build_Cm(p.u1Vint_f,u1,p), build_Cm(p.u1Vint_f,u2,p),
+			  build_Cm(p.u2Vint_f,u1,p), build_Cm(p.u2Vint_f,u2,p)]
+
+create_V(u1,u2,p) = create_V_V(u1,u2,p) .+ create_V_Vint(u1,u2,p)
+
 function build_blocks_potentials(p)
+	# Σ
 	p.Σ = create_Σ(p.u1_f,p.u2_f,p)
 
-	# Computes blocks without Vint
+	# V
 	p.𝕍_V = create_V_V(p.u1_f,p.u2_f,p)
+	p.𝕍_Vint = create_V_Vint(p.u1_f,p.u2_f,p)
+	p.𝕍 = p.𝕍_V .+ p.𝕍_Vint
+
+	# W
 	p.W_V_plus = [build_Cm(p.v_f,p.prods_f[1],p), build_Cm(p.v_f,p.prods_f[2],p),
 		      build_Cm(p.v_f,p.prods_f[3],p), build_Cm(p.v_f,p.prods_f[4],p)]
 	p.W_V_minus = [build_Cm(p.v_f,p.prods_f[1],p;η=-1), build_Cm(p.v_f,p.prods_f[2],p;η=-1),
 		       build_Cm(p.v_f,p.prods_f[3],p;η=-1), build_Cm(p.v_f,p.prods_f[4],p;η=-1)]
-
-	# Computes blocks with Vint
-	u1Vint_f = zeros(ComplexF64,p.N,p.N)
-	u2Vint_f = zeros(ComplexF64,p.N,p.N)
-	if p.compute_Vint
-		u1Vint_f = myfft(p.u1_dir.*p.Vint_dir,p.Vol)
-		u2Vint_f = myfft(p.u2_dir.*p.Vint_dir,p.Vol)
-	end
 	compute_W_Vint_term(p)
-	p.𝕍_Vint = [build_Cm(p.u1v_f,u1Vint_f,p), build_Cm(p.u1v_f,u2Vint_f,p),
-		    build_Cm(p.u2v_f,u1Vint_f,p), build_Cm(p.u2v_f,u2Vint_f,p)]
-
-	# Sums the blocks with and without Vint
-	p.𝕍 = p.𝕍_V .+ p.𝕍_Vint
-
-	# Adds the other terms for W
 	compute_non_local_W(p)
 	p.Wplus_tot = add_cst_block(p.W_V_plus,p.W_Vint_matrix/sqrt(p.cell_area),p)
 	p.Wminus_tot = add_cst_block(p.W_V_minus,p.W_Vint_matrix/sqrt(p.cell_area),p)
@@ -266,8 +300,7 @@ function compute_non_local_F_term(η,j,s,p) # η ∈ {±}, j,s ∈ {1,2}
 	F
 end
 
-W_non_local_terms(η,i,j,p) = p.non_local_coef*(1/p.cell_area)*
-sum(cyclic_conv(conj_four(compute_non_local_F_term(η,i,s,p),p),compute_non_local_F_term(η,j,s,p),p.dS) for s=1:2)
+W_non_local_terms(η,i,j,p) = p.non_local_coef*(1/p.cell_area)*sum(cyclic_conv(conj_four(compute_non_local_F_term(η,i,s,p),p),compute_non_local_F_term(η,j,s,p),p.dS) for s=1:2)
 
 # returns W_nl^{η}_{j,j'} in Fourier
 W_non_local_plus_minus(η,p) = [W_non_local_terms(η,1,1,p), W_non_local_terms(η,1,2,p), W_non_local_terms(η,2,1,p), W_non_local_terms(η,2,2,p)] # η ∈ {±}
@@ -305,6 +338,7 @@ conj_block(B) = conj.([B[1],B[2],B[3],B[4]])
 # hermitian_block(B) = [conj.(B[1]),conj.(B[3]),conj.(B[2]),conj.(B[4])]
 U_B_U_star(B) = [B[1],cis(2π/3).*B[2],cis(4π/3).*B[3],B[4]]
 anti_transpose(B) = [B[4],B[2],B[3],B[1]]
+reduced_N_block(B,N) = [reduce_N_matrix(B[i],N) for i=1:4]
 
 # Rotations on magnetic blocks, as a vector
 function rot_block(θ,B1,B2,p)
@@ -385,63 +419,63 @@ function compare_to_BM_infos(A,p,name)
 	px("Distances blocks 1 and 2 between ",name," and optimally rescaled T_BM: ",d1," ",d2," obtained with α=",α)
 end
 
-function optimize_gauge_and_create_T_BM_with_θ_α(V_V_or_Σ,p) # does u1 -> u1 e^{iθx}, u2 -> u2 e^{iθx} so that it fixed the gauge
-	# This optimizing procedure is not very precise !
-	γ(θ) = V_V_or_Σ ? create_V_V(p.u1_f*cis(θ),p.u2_f*cis(-θ),p) : create_Σ(p.u1_f*cis(θ),p.u2_f*cis(-θ),p)
-	# γ(θ) = V_V_or_Σ ? create_V_V(p.u1_f*cis(3π/4),p.u2_f*cis(-3π/4),p) : create_Σ(p.u1_f*cis(3π/4),p.u2_f*cis(-3π/4),p)
-	comp(x) = x
-	function f(λ) 
-		T = T_BM_four(comp(λ[1]),comp(λ[1]),p)
-		relative_distance_blocks(γ(λ[2]),T)
-	end
-	start = V_V_or_Σ ? [1.6e-4,1] : [1e-3,1]
-	res = optimize(f,start)
-	λ = res.minimizer
-	θ = λ[2]
-	α = comp(λ[1])
-	px("Optimized by changing gauge, angle ξ=",θ*180/π,"°")
+get_create(pot) = pot == "V" ? create_V : (pot == "V_V" ? create_V_V : create_Σ)
 
-	p.T_BM = T_BM_four(α,α,p)
+# Should not be used :
+# function optimize_gauge_and_create_T_BM_with_θ_α(pot,p) # does u1 -> u1 e^{iθx}, u2 -> u2 e^{iθx} so that it fixed the gauge
+	# @assert pot in ["V","V_V","Σ"]
+	# This optimizing procedure is not very precise !
+	# create = get_create(pot)
+	# γ(θ) = create(p.u1_f*cis(θ),p.u2_f*cis(-θ),p)
+	# γ(θ) = V_V_or_Σ ? create_V_V(p.u1_f*cis(3π/4),p.u2_f*cis(-3π/4),p) : create_Σ(p.u1_f*cis(3π/4),p.u2_f*cis(-3π/4),p)
+	# comp(x) = x
+	# function f(λ) 
+		# T = T_BM_four(comp(λ[1]),comp(λ[1]),p)
+		# relative_distance_blocks(γ(λ[2]),T)
+	# end
+	# start = (pot in ["V","V_V"]) ? [1.6e-4,1] : [1e-3,1]
+	# res = optimize(f,start)
+	# λ = res.minimizer
+	# θ = λ[2]
+	# α = comp(λ[1])
+	# px("Optimized by changing gauge, angle ξ=",θ*180/π,"°")
+
+	# p.T_BM = T_BM_four(α,α,p)
 	# px("MIN with α and θ",res.minimum," with ",α)
 
-	change_gauge_wavefunctions(θ,p)
-end
+	# change_gauge_wavefunctions(θ,p)
 
-function optimize_gauge_and_create_T_BM_with_α(V_V_or_Σ,p)
-	A = V_V_or_Σ ? create_V_V(p.u1_f,p.u2_f,p) : create_Σ(p.u1_f,p.u2_f,p)
-	(m,α,p.T_BM) = compare_to_BM(A,p)
+	# Test
+	# v = create(p.u1_f,p.u2_f,p)
+	# relative_distance_blocks(γ(λ[2]),T)
+# end
+
+function optimize_gauge_and_create_T_BM_with_α(pot,p)
+	@assert pot in ["V","V_V","Σ"]
+	create = get_create(pot)
+	A = create(p.u1_f,p.u2_f,p)
+	(m,α,T) = compare_to_BM(A,p)
+	(m,α,T)
 	# px("MIN with only α ",m," with ",α)
 end
 
 ################## Get wAA wAB
 
-function wAA_wAB(p)
-	ω = cis(2π/3)
-	C_Vu1_u1 = build_Cm(p.u1v_f,p.u1_f,p)
-	C_Vu2_u1 = build_Cm(p.u2v_f,p.u1_f,p)
+print_wAA(p) = px("wAA",p.compute_Vint ? "" : "_v"," = ",p.wAA*hartree_to_ev*1e3," meV")
 
-	p.Vint_dir = myifft(p.Vint_f,p.Vol)
-
-	px("Fourier modes u1 V u1")
-	# print_low_fourier_modes(C_Vu1_u1,p,hartree_to_ev/sqrt(p.cell_area))
-	wC = C_Vu1_u1[2,end]*hartree_to_ev/sqrt(p.cell_area)
-	px("wC ",wC)
-
-	wAA = (1/(3*sqrt(p.cell_area)))*(C_Vu1_u1[1,1]+    C_Vu1_u1[2,1]+  C_Vu1_u1[1,2])
-	wAB = (1/(3*sqrt(p.cell_area)))*(C_Vu2_u1[1,1]+ω^2*C_Vu2_u1[2,1]+ω*C_Vu2_u1[1,2])
-
-	wAA = (1/(3*sqrt(p.cell_area)))*(p.𝕍_V[1][1,1]+    p.𝕍_V[1][2,1]+  p.𝕍_V[1][1,2])
-	wAB = (1/(3*sqrt(p.cell_area)))*(C_Vu2_u1[1,1]+ω^2*C_Vu2_u1[2,1]+ω*C_Vu2_u1[1,2])
-
-	px("wAA from 0,0 only ",hartree_to_ev*p.𝕍[1][1,1]/sqrt(p.cell_area))
-
-	C_u1_u1 = build_Cm(p.u1_f,p.u1_f,p) 
-	# C_u1_u2 = build_Cm(p.u1_f,p.u2_f,p) 
-	px("Fourier modes u1 u1")
-	print_low_fourier_modes(C_u1_u1,p)
-	# px("u1 u2")
-	# print_low_fourier_modes(C_u1_u2,p)
-	(wAA,wAB)
+function get_wAA_from_Eff(p)
+	px("##### wAA from effective potentials")
+	wAA_v = real(p.𝕍_V[1][1,1])*p.sqi; wAA = wAA_v
+	c = 1e3*hartree_to_ev
+	px("wAA_v = ",c*wAA_v)
+	if p.compute_Vint
+		wAA_vint = real(p.𝕍_Vint[1][1,1])*p.sqi
+		wAA = real(p.𝕍[1][1,1])*p.sqi
+		px("wAA_vint = ",c*wAA_vint," meV")
+		px("wAA = ",c*wAA," meV")
+	end
+	px("#####")
+	wAA
 end
 
 function analyze(x)
@@ -498,7 +532,7 @@ rescale_A_block(V,p;shift=false) = [rescale_A(V[i],p;shift=shift) for i=1:4]
 
 ################## Symmetry tests
 
-relative_distance_blocks(B,C) = sum(distance(B[i],C[i]) for i=1:4)
+relative_distance_blocks(B,C) = sum(distance(B[i],C[i]) for i=1:4)/4
 
 function test_particle_hole_block(B,p;name="B")
 	PB_four = hermitian_block(B) # parity ∘ conj in direct becomes just conj in Fourier
@@ -641,19 +675,30 @@ function import_u1_u2_V_φ(N,Nz,p)
 
 	p.prods_dir = [abs2.(p.u1_dir), conj.(p.u1_dir).*p.u2_dir, conj.(p.u2_dir).*p.u1_dir, abs2.(p.u2_dir)]
 	p.prods_f = [myfft(p.prods_dir[i],p.Vol) for i=1:length(p.prods_dir)]
+
+	p.u1Vint_f = zeros(ComplexF64,p.N,p.N)
+	p.u2Vint_f = zeros(ComplexF64,p.N,p.N)
 end
 
 function import_Vint(p)
 	if p.compute_Vint
 		path = "graphene/exported_functions/"
 		f = string(path,"N",p.N,"_Nz",p.Nz,"_d",p.interlayer_distance,"_Vint.jld")
-		d = load(f,"d")
-		a = load(f,"a"); L = load(f,"L"); @assert a==p.a && L==p.L && p.interlayer_distance==d
+		d = load(f,"d"); a = load(f,"a"); L = load(f,"L")
+		# px("L ",p.L," ",L)
+		@assert a==p.a 
+		@assert L==p.L
+		@assert p.interlayer_distance==d
 
 		Vint_f = load(f,"Vint_f")
 		p.Vint_f = zeros(ComplexF64,p.N,p.N,p.Nz)
 		p.Vint_f[1,1,:] = sqrt(p.cell_area)*Vint_f
 		p.Vint_dir = myifft(p.Vint_f,p.Vol)
+
+		if p.compute_Vint
+			p.u1Vint_f = myfft(p.u1_dir.*p.Vint_dir,p.Vol)
+			p.u2Vint_f = myfft(p.u2_dir.*p.Vint_dir,p.Vol)
+		end
 	end
 end
 
@@ -834,14 +879,15 @@ function plot_block_article(B_four,p;title="plot_full",other_block=-1,k_red_shif
 
 	ismag = other_block!=-1
 	# Plots functions
-	res = 700
-	X,Y = vertical_bar ? (floor(Int,res/3),floor(Int,1.0*res)) : (floor(Int,1.2*res),floor(Int,res/8))
+	res_bar = vertical_bar ? 700 : 1200
+	X,Y = vertical_bar ? (floor(Int,res_bar/3),floor(Int,1.0*res_bar)) : (floor(Int,1.2*res_bar),floor(Int,res_bar/4))
 	fig_colors = CairoMakie.Figure(resolution=(X,Y),fontsize = vertical_bar ? 22 : 35) # creates colorbar
 	# colormap ∈ [:heat,:viridis]
 	clm = :Spectral
 	# clm = :linear_bmy_10_95_c78_n256
 	hm(fi,f) = Makie.heatmap(fi,p.plots_x_axis_cart,p.plots_x_axis_cart,f,colormap=clm,colorrange=joint_limits)
 
+	res = 700
 	for I=1:n
 		fig = CairoMakie.Figure(resolution=(res,res))
 		ff1,ax1 = hm(fig[1,1],ars[I][1])
@@ -849,7 +895,7 @@ function plot_block_article(B_four,p;title="plot_full",other_block=-1,k_red_shif
 		ff3,ax3 = hm(fig[2,1],ars[I][3])
 		ff4,ax4 = hm(fig[2,2],ars[I][4])
 
-		for ff in [ff1,ff2,ff4]
+		for ff in [ff1,ff2,ff3,ff4]
 			CairoMakie.hidedecorations!(ff, grid = false)
 		end
 		fact = 1
@@ -858,7 +904,7 @@ function plot_block_article(B_four,p;title="plot_full",other_block=-1,k_red_shif
 		# arrows!(ff1,[0],[0],[1],[4], arrowsize = 10)
 		sh = [1,0]
 		if funs[I]==abs
-			CairoMakie.text!(ff1,[L"\epsilon_{\theta}^{-1} a_{M,1}",L"\epsilon_{\theta}^{-1} a_{M,2}"],position = Tuple.(fact*[p.a1.-1.3*sh,p.a2.-7*sh]),textsize=35)
+			CairoMakie.text!(ff1,[L"\epsilon_{\theta}^{-1} a_{1,M}",L"\epsilon_{\theta}^{-1} a_{2,M}"],position = Tuple.(fact*[p.a1.-1.3*sh,p.a2.-7*sh]),textsize=40)
 		end
 
 		titl = string(title,"_",titles[I],"_cart")

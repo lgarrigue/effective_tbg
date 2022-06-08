@@ -8,6 +8,42 @@ include("graphene.jl")
 # L=100, ecut/kd^2 = 40 ; tol_scf = 1e-6 -> wAA = 130.9 ; 1e-5 -> 130.9 ; 1e-4 -> 130.9 ; 1e-3 -> 130.6 ; 1e-2 -> 130.6 but other quantities like u1 are not as precise
 # L=60, ecut/kd^2 = 40, tol_scf = ;; kgrid = [8,8,1] -> wAA = 122.9 ; [7,7,1] -> 122.8 ; [6,6,1] -> 123.1 ; [5,5,1] -> 123.1 ; [4,4,1] -> 123.2 ; [3,3,1] -> 123.6
 
+
+# kgrid = [5,5,1]; tol = 1e-4
+# (ecut/kd^2,L) (N,Nz) -> wAA_v
+#
+# (25,100) (24,432) -> 145.0
+# (25,120) (24,500) -> 145.3
+# (25,140) (24,576) -> 145.5
+# (25,160) (24,675) -> 145.6
+# (25,180) (24,750) -> 145.8
+#
+# (25,120) (24,500) -> 145.3
+# (30,120) (24,540) -> 143.7
+# (35,120) (25,600) -> 143.0
+# (40,120) (25,625) -> 142.0
+# (41,120) (27,625) -> 141.9
+# (45,120) (27,675) -> killed
+#
+# (25,100) (24,432) -> 145.0
+# (35,100) (25,486) -> 142.9
+# (40,100) (25,540) -> 141.77
+# (45,100) (27,576) -> 141.75
+# (50,100) (30,576) -> killed
+#
+# (40, 40) (25,216) -> 140.8
+# (40, 60) (25,320) -> 141.3
+# (40, 80) (25,432) -> 141.7
+# (40,100) (25,540) -> 141.77
+# (40,120) (25,625) -> 142.0
+#
+# (50, 60) (30,360) -> 141.14
+# (50, 80) (30,480) -> 141.34
+# (50,100) (30,576) -> killed
+#
+# (35,160) (25,800) -> killed
+# (41,115) (27,600) -> 141.8 <---
+
 # Quantities converged for ecut/kd^2 ≃ 40, L ≃ 125 (not really); tol_scf ≃ 1e-3; kgrid=[5,5,1]
 function produce_bloch_functions_and_potentials()
 	p = Params()
@@ -18,17 +54,20 @@ function produce_bloch_functions_and_potentials()
 	p.i_state = 4 # u1 will be the i^th eigenmode, u1 the (i+1)^th, u0 the (i-1)^th
 
 	# Changeable monolayers parameters
-	p.L = 40 # periodicity in z (both for mono and bilayer computations)
+	p.L = 115 # periodicity in z (both for mono and bilayer computations)
 	# p.L = 
-	p.ecut = 5*norm_K_cart(p.a)^2; px("ecut ",p.ecut) # DFTK's ecut, convergence of u's for ecut ≃ 15
+	ecut_sur_kd2 = 41
+	p.ecut = ecut_sur_kd2*norm_K_cart(p.a)^2; px("ecut ",p.ecut) # DFTK's ecut, convergence of u's for ecut ≃ 15
 	p.kgrid = [5,5,1] # for computing the KS potential
 	p.tol_scf = 1e-4
+	px("(ecut/kD^2,L)=(",ecut_sur_kd2,",",p.L,")")
 
 	# Params Vint
-	compute_Vint = false
+	compute_Vint = true
 	p.Nint = 3
-	# d_list = vcat([0.01],(1:1:11))#,[6.45])
-	d_list = [6.45]
+	d_list = vcat([0.01],(0.1:0.1:11))#,[6.45])
+	d_list = (7.7:0.1:11)#,[6.45])
+	# d_list = [6.45]
 
 	# Misc
 	p.plots_cutoff = 3 # Fourier cutoff for plots
@@ -58,7 +97,7 @@ function produce_bloch_functions_and_potentials()
 	# plot_mean_V(p)
 	
 	p.interlayer_distance = 6.45
-	(wAA,wC) = get_wAA_wC(p.v_monolayer_dir,p)
+	(wAA,wC) = get_wAA_wC_from_monolayer(p.v_monolayer_dir,p)
 
 	px("norm u Four ",norm(p.u1_fc))
 
@@ -192,3 +231,5 @@ nothing
 # U = \mat{e^{i\theta} & 0 \\ 0 & e^{-i\theta}}
 # U^* H U = \mat{W^+ & e^{-i2\theta} V \\ e^{i2\theta} V^* & W^-}
 # and doing ϕ1 -> ϕ1 e^{i\theta}, we recover H
+#
+# d : reprendre à 5.2
