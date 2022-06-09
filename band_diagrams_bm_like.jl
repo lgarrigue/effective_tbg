@@ -180,32 +180,10 @@ function fillM(H,i,I,j,J,M,a,b,p;star=false)
 		H[x+1, y]   = M[3][a,b]
 		H[x+1, y+1] = M[4][a,b]
 	else
-		H[y, x]     = conj(M[1])[a,b]
-		H[y+1,x]    = conj(M[2])[a,b]
-		H[y,x+1]    = conj(M[3])[a,b]
-		H[y+1,x+1]  = conj(M[4])[a,b]
-	end
-end
-
-function fillM_∇(H,K,i,I,j,J,A1,A2,a,b,p;star=false)
-	x = X(i,I,p)
-	y = X(j,J,p)
-
-	jj = j
-	n1,n2 = p.k_grid_lin[jj]
-	KGj = K + [n1,n2]
-	Qj = k_red2cart(KGj,p)
-
-	if !star
-		H[x, y]     = Qj[1]*A1[1][a,b]+Qj[2]*A2[1][a,b]
-		H[x, y+1]   = Qj[1]*A1[2][a,b]+Qj[2]*A2[2][a,b]
-		H[x+1, y]   = Qj[1]*A1[3][a,b]+Qj[2]*A2[3][a,b]
-		H[x+1, y+1] = Qj[1]*A1[4][a,b]+Qj[2]*A2[4][a,b]
-	else
-		H[y, x]     = conj(Qj[1]*A1[1][a,b]+Qj[2]*A2[1][a,b])
-		H[y+1,x]    = conj(Qj[1]*A1[2][a,b]+Qj[2]*A2[2][a,b])
-		H[y,x+1]    = conj(Qj[1]*A1[3][a,b]+Qj[2]*A2[3][a,b])
-		H[y+1,x+1]  = conj(Qj[1]*A1[4][a,b]+Qj[2]*A2[4][a,b])
+		H[y, x]     = conj(M[1][a,b])
+		H[y+1,x]    = conj(M[2][a,b])
+		H[y,x+1]    = conj(M[3][a,b])
+		H[y+1,x+1]  = conj(M[4][a,b])
 	end
 end
 
@@ -230,6 +208,51 @@ function fillM_Δ(H,K,i,I,j,J,V,a,b,p;star=false)
 		H[y,x+1]    = n*conj(V[3][a,b])
 		H[y+1,x+1]  = n*conj(V[4][a,b])
 	end
+end
+
+function fillM_∇(H,K,i,I,j,J,A1,A2,a,b,p;star=false)
+	x = X(i,I,p)
+	y = X(j,J,p)
+
+	jj = j
+	n1,n2 = p.k_grid_lin[jj]
+	KGj = K + [n1,n2]
+	Qj = k_red2cart(KGj,p)
+
+	if !star
+		H[x, y]     = Qj[1]*A1[1][a,b]+Qj[2]*A2[1][a,b]
+		H[x, y+1]   = Qj[1]*A1[2][a,b]+Qj[2]*A2[2][a,b]
+		H[x+1, y]   = Qj[1]*A1[3][a,b]+Qj[2]*A2[3][a,b]
+		H[x+1, y+1] = Qj[1]*A1[4][a,b]+Qj[2]*A2[4][a,b]
+	else
+		H[y, x]     = conj(Qj[1]*A1[1][a,b]+Qj[2]*A2[1][a,b])
+
+		# H[y+1,x]    = conj(Qj[1]*A1[2][a,b]+Qj[2]*A2[2][a,b])
+		# H[y,x+1]    = conj(Qj[1]*A1[3][a,b]+Qj[2]*A2[3][a,b])
+		#
+		H[y,x+1]    = conj(Qj[1]*A1[2][a,b]+Qj[2]*A2[2][a,b])
+		H[y+1,x]    = conj(Qj[1]*A1[3][a,b]+Qj[2]*A2[3][a,b])
+
+		H[y,x+1]    = conj(Qj[1]*A1[3][a,b]+Qj[2]*A2[3][a,b])
+	end
+end
+
+function offdiag_A_k(A1,A2,K,p;coef_∇=1,valley=1,K1=[0.0,0],K2=[0.0,0],name="",test=true)
+	H = zeros(ComplexF64,4*p.N2, 4*p.N2)
+	for i=1:p.N2
+		n1,n2 = p.k_grid_lin[i]
+		for j=1:p.N2
+			m1,m2 = p.k_grid_lin[j]
+			c1,c2 = k_inv(n1-m1,n2-m2,p)
+			fillM_∇(H,K-K1,i,1,j,2,A1,A2,c1,c2,p)
+			fillM_∇(H,K-K2,i,1,j,2,A1,A2,c1,c2,p;star=true)
+		end
+	end
+	# H = H+H'
+	if test
+		test_hermitianity(H,string(name,"A"))
+	end
+	H
 end
 
 function σK(H,i,I,q,v,p;c=1,J=false)
@@ -279,11 +302,11 @@ function build_offdiag_V(V,p)
 			fillM(H,i,1,j,2,V,c1,c2,p;star=true)
 		end
 	end
-	# test_hermitianity(H,"V")
+	test_hermitianity(H,"V")
 	H
 end
 
-function build_ondiag_W(Wplus,Wminus,p)
+function build_ondiag_W(Wplus,Wminus,p;test=true)
 	H = zeros(ComplexF64,4*p.N2, 4*p.N2)
 	for i=1:p.N2
 		n1,n2 = p.k_grid_lin[i]
@@ -294,39 +317,12 @@ function build_ondiag_W(Wplus,Wminus,p)
 			fillM(H,i,2,j,2,Wminus,c1,c2,p)
 		end
 	end
-	# test_hermitianity(H,"W")
+	if test
+		test_hermitianity(H,"W")
+	end
 	H
 end
 
-function offdiag_A_k(A1,A2,K,p;coef_∇=1,valley=1,K1=[0.0,0],K2=[0.0,0])
-	H = zeros(ComplexF64,4*p.N2, 4*p.N2)
-	for i=1:p.N2
-		n1,n2 = p.k_grid_lin[i]
-		for j=1:p.N2
-			m1,m2 = p.k_grid_lin[j]
-			c1,c2 = k_inv(n1-m1,n2-m2,p)
-			fillM_∇(H,K-K1,i,1,j,2,A1,A2,c1,c2,p)
-			fillM_∇(H,K-K2,i,1,j,2,A1,A2,c1,c2,p;star=true)
-		end
-	end
-	test_hermitianity(H,"JA")
-	H
-end
-
-function ondiag_mΔ(K,p;K1=[0.0,0],K2=[0.0,0])
-	H = zeros(ComplexF64,4*p.N2, 4*p.N2)
-	for i=1:p.N2
-		n1,n2 = p.k_grid_lin[i]
-		for j=1:p.N2
-			m1,m2 = p.k_grid_lin[j]
-			c1,c2 = k_inv(n1-m1,n2-m2,p)
-			fillM_∇(H,K-K1,i,1,j,2,A1,A2,c1,c2,p)
-			fillM_∇(H,K-K2,i,1,j,2,A1,A2,c1,c2,p;star=true)
-		end
-	end
-	test_hermitianity(H,"JA")
-	H
-end
 
 function ondiag_mΔ_k(K,p;K1=[0.0,0],K2=[0.0,0])
 	H = zeros(ComplexF64,4*p.N2, 4*p.N2)
@@ -336,10 +332,11 @@ function ondiag_mΔ_k(K,p;K1=[0.0,0],K2=[0.0,0])
 		mΔK(H,i,1,KG-K2,p)
 		mΔK(H,i,2,KG-K1,p)
 	end
+	# test_hermitianity(H,"-Δ")
 	H
 end
 
-function offdiag_mΔ_k(V,K,p;K1=[0.0,0],K2=[0.0,0])
+function offdiag_mΔ_k(V,K,p;K1=[0.0,0],K2=[0.0,0],test=true)
 	H = zeros(ComplexF64,4*p.N2, 4*p.N2)
 	for i=1:p.N2
 		n1,n2 = p.k_grid_lin[i]
@@ -350,7 +347,16 @@ function offdiag_mΔ_k(V,K,p;K1=[0.0,0],K2=[0.0,0])
 			fillM_Δ(H,K-K2,i,1,j,2,V,c1,c2,p;star=true)
 		end
 	end
-	test_hermitianity(H,"ΣΔ")
+	if test
+		test_hermitianity(H,"-ΣΔ")
+	end
+	H
+end
+
+function offdiag_second_order(A1,A2,Σ,K,p;coef_∇=1,valley=1,K1=[0.0,0],K2=[0.0,0],name="")
+	H = offdiag_A_k(A1,A2,K,p;coef_∇=coef_∇,valley=valley,K1=K1,K2=K2,name=name,test=false)
+	+ offdiag_mΔ_k(Σ,K,p;K1=K1,K2=K2,test=false)
+	test_hermitianity(H,string(name,"div Σ ∇"))
 	H
 end
 
@@ -467,152 +473,20 @@ end
 
 # Creates [Vp  0 ]
 #         [0   Vm]
-function V_ondiag_matrix(Vp0,Vm0,p)
-	Vp = lin2mat(Vp0); Vm = lin2mat(Vm0)
-	n = p.Mfull
-	H = zeros(ComplexF64,n,n)
-	for n_lin=1:n
-		(α,ni1,ni2) = lin2coord(n_lin,p)
-		(n1,n2) = k_axis(ni1,ni2,p)
-		for m_lin=1:n
-			(β,mi1,mi2) = lin2coord(m_lin,p)
-			(m1,m2) = k_axis(mi1,mi2,p)
 
-			c = 0
-			Pi1,Pi2 = k_inv(n1-m1,n2-m2,p)
-			if α ≤ 2 && β ≤ 2
-				c = Vp[α,β][Pi1,Pi2]
-			elseif α ≥ 3 && β ≥ 3
-				c = Vm[α-2,β-2][Pi1,Pi2]
-			end
-			H[n_lin,m_lin] = c
-		end
-	end
-	# test_hermitianity(H,"ondiag V matrix")
-	# save_H(H,"potential_ondiag_V",p)
-	# test_part_hole_sym_matrix(Hk,p,"Hvk")
-	# display([H[mod1(x,p.Mfull),mod1(y,p.Mfull)] for x=1:30, y=1:30])
-	Hermitian(H)
-end
 
 ######################### Magnetic potential/derivation operators
 
 # Creates [0          𝔸⋅(-i∇+k)]
 #         [𝔸*⋅(-i∇+k)         0]
-function A_offdiag_matrix(Aa1,Aa2,k,p)
-	A1 = lin2mat(Aa1); A2 = lin2mat(Aa2)
-	n = p.Mfull
-	H = zeros(ComplexF64,n,n)
-	K_cart = k[1]*p.a1_star + k[2]*p.a2_star
-	k1 = K_cart[1]; k2 = K_cart[2]
-	for n_lin=1:n
-		(α,ni1,ni2) = lin2coord(n_lin,p)
-		(n1,n2) = k_axis(ni1,ni2,p)
-		for m_lin=1:n
-			(β,mi1,mi2) = lin2coord(m_lin,p)
-			(m1,m2) = k_axis(mi1,mi2,p)
-
-			c = 0
-			Pi1,Pi2 = k_inv(n1-m2,  n2-m2,p)
-			Ki1,Ki2 = k_inv(-n1+m1,-n2+m2,p)
-
-			m1 *= p.coef_derivations
-			m2 *= p.coef_derivations
-
-			if α ≥ 3 && β ≤ 2
-				c = (m1*p.a1_star[1]+m2*p.a2_star[1]+k1)*conj(A1[β,α-2][Ki1,Ki2])
-				+ (m1*p.a1_star[2]+m2*p.a2_star[2]+k2)*conj(A2[β,α-2][Ki1,Ki2])
-			elseif α ≤ 2 && β ≥ 3
-				c = (m1*p.a1_star[1]+m2*p.a2_star[1]+k1)*A1[α,β-2][Pi1,Pi2]
-				+ (m1*p.a1_star[2]+m2*p.a2_star[2]+k2)*A2[α,β-2][Pi1,Pi2]
-			end
-			H[n_lin,m_lin] = c
-		end
-	end
-	# test_hermitianity(H,"A∇")
-	# test_part_hole_sym_matrix(H,p,"A∇")
-	# save_H(H,"potential_V",p)
-	# display([H[mod1(x,p.Mfull),mod1(y,p.Mfull)] for x=1:30, y=1:30])
-	Hermitian(H)
-end
 
 # Creates [0            V(-i∇+k)^2]
 #         [V^*(-i∇+k)^2          0]
-function VΔ_offdiag_matrix(V0,k,p)
-	V = lin2mat(V0)
-	n = p.Mfull
-	H = zeros(ComplexF64,n,n)
-	K_cart = k[1]*p.a1_star + k[2]*p.a2_star
-	for n_lin=1:n
-		(α,ni1,ni2) = lin2coord(n_lin,p)
-		(n1,n2) = k_axis(ni1,ni2,p)
-		for m_lin=1:n
-			(β,mi1,mi2) = lin2coord(m_lin,p)
-			(m1,m2) = k_axis(mi1,mi2,p)
-			c = 0
-			Pi1,Pi2 = k_inv(n1-m2,  n2-m2,p)
-			Ki1,Ki2 = k_inv(-n1+m1,-n2+m2,p)
-			if α ≥ 3 && β ≤ 2
-				c = conj(V[β,α-2][Ki1,Ki2])
-			elseif α ≤ 2 && β ≥ 3
-				c = V[α,β-2][Pi1,Pi2]
-			end
-			r = norm((m1*p.a1_star+m2*p.a2_star)*p.coef_derivations + K_cart)^2
-			H[n_lin,m_lin] = r*c
-		end
-	end
-	# test_hermitianity(H,"ΣΔ")
-	# test_part_hole_sym_matrix(H,p,"ΣΔ")
-	# save_H(H,"potential_V",p)
-	# display([H[mod1(x,p.Mfull),mod1(y,p.Mfull)] for x=1:30, y=1:30])
-	Hermitian(H)
-end
 
 # Creates σ(-i∇+k)
-function free_Dirac_k_monolayer(κ,p)
-	n = p.Mfull
-	H = zeros(ComplexF64,n,n)
-	kC = vec2C(κ[1]*p.a1_star + κ[2]*p.a2_star)
-	for ck_lin=1:p.N2
-		(mi1,mi2) = lin_k2coord_ik(ck_lin,p)
-		(m1,m2) = k_axis(mi1,mi2,p)
-		vC = vec2C(m1*p.a1_star + m2*p.a2_star)*p.coef_derivations + kC
-		(c1,c2) = coords_ik2full_i(mi1,mi2,p)
-		H[c1,c2] = conj(vC); H[c2,c1] = vC
-	end
-	# display(H)
-	# test_hermitianity(H,"Kinetic Dirac part")
-	# save_H(H,p,"free_dirac")
-	# rhm = heatmap(real.(H))
-	# ihm = heatmap(imag.(H))
-	# ahm = heatmap(abs.(H))
-	# pl = plot(rhm,ihm,ahm,size=(1000,700))
-	# savefig(pl,"free_dirac.png")
-	Hermitian(H)
-end
+
 
 # Creates (-i∇+k)^2 𝕀_2×2
-function free_Schro_k_monolayer(κ,p)
-	n = p.Mfull
-	H = zeros(ComplexF64,n,n)
-	kC = κ[1]*p.a1_star + κ[2]*p.a2_star
-	for ck_lin=1:p.N2
-		(mi1,mi2) = lin_k2coord_ik(ck_lin,p)
-		(m1,m2) = k_axis(mi1,mi2,p)
-		v = norm((m1*p.a1_star + m2*p.a2_star)*p.coef_derivations + kC)^2
-		(c1,c2) = coords_ik2full_i(mi1,mi2,p)
-		H[c1,c1] = v; H[c2,c2] = v
-	end
-	display(H)
-	# test_hermitianity(H,"Kinetic Dirac part")
-	# save_H(H,p,"free_dirac")
-	# rhm = heatmap(real.(H))
-	# ihm = heatmap(imag.(H))
-	# ahm = heatmap(abs.(H))
-	# pl = plot(rhm,ihm,ahm,size=(1000,700))
-	# savefig(pl,"free_dirac.png")
-	Hermitian(H)
-end
 
 ######################### Add weights
 
@@ -728,12 +602,12 @@ function coef_plot_meV(θ,p)
 	p.coef_energies_plot = hartree_to_ev*1e3*εθ
 end
 
-function plot_bandwidths(θs,bw_bm,bw_ours,p)
+function plot_bandwidths(θs,bw_bm,bw_ours,p;def_ticks=true)
 	res_fig = 400
 	f = CairoMakie.Figure(resolution=(res_fig+150,res_fig))
 	ax = CairoMakie.Axis(f[1, 1], xlabel = "θ (degrees)", ylabel="Bandwidth (meV)")
 	px("θs ",θs[1]," ",θs[end])
-	ax.xticks = (θs[1]: 0.1 :θs[end])
+	if def_ticks ax.xticks = (θs[1]: 0.1 :θs[end]) end
 	CairoMakie.xlims!(ax,θs[1],θs[end])
 
 	colors = [:black,:red]
@@ -757,12 +631,12 @@ function plot_bandwidths(θs,bw_bm,bw_ours,p)
 end
 
 # From the numbers of the band diagram, produces a plot of it
-function plot_band_diagram(σs,θs,Klist,Knames,name,p;K_relative=[0.0,0.0],shifts=zeros(100),post_name="",colors=fill(:black,100))
+function plot_band_diagram(σs,θs,Klist,Knames,name,p;K_relative=[0.0,0.0],shifts=zeros(100),energy_center=0,post_name="",colors=fill(:black,100))
 	# Prepares the lists to plot
 	n = length(Klist)
 	res = p.resolution_bands
 	n_path_points = res*n
-	ylims = p.energy_center-p.energy_scale,p.energy_center+p.energy_scale
+	ylims = energy_center-p.energy_scale,energy_center+p.energy_scale
 	lengths_paths = [norm(k_red2cart(Klist[mod1(i+1,n)]-K_relative,p) .- k_red2cart(Klist[i]-K_relative,p)) for i=1:n]
 	lengths_paths /= sum(lengths_paths)
 	dx_list = lengths_paths/res

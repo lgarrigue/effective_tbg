@@ -64,14 +64,14 @@ function produce_bloch_functions_and_potentials()
 
 	# Params Vint
 	compute_Vint = true
-	p.Nint = 3
+	p.Nint = 4
 	d_list = vcat([0.01],(0.1:0.1:11))#,[6.45])
-	d_list = (7.7:0.1:11)#,[6.45])
-	# d_list = [6.45]
+	# d_list = (7.7:0.1:11)#,[6.45])
+	d_list = [6.45]
 
 	# Misc
 	p.plots_cutoff = 3 # Fourier cutoff for plots
-	p.export_plots_article = false
+	p.export_plots_article = true
 	p.alleviate = false
 
 	# Init

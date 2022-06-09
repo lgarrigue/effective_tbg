@@ -169,7 +169,8 @@ function div_A(m,n,p)
 end
 
 # 2 × 2 matrix, magnetic ∈ {1,2}, f and g are in Fourier
-function build_magnetic(g,f,magnetic_term,p;η=1,Q=[0.0,0.0],coef_∇=1) # η ∈ {-1,+1}, (-i∇ + Q) ((g,f))^{+-}, Q in reduced
+# η ∈ {-1,+1}, (-i∇ + Q) ((g,f))^{+-}, Q in reduced
+function build_magnetic(g,f,magnetic_term,p;η=1,Q=[0.0,0.0],coef_∇=1) 
 	C = build_Cm(g,f,p;η=η)
 	P = zeros(ComplexF64,p.N,p.N)
 	q = Q[1]*p.a1_star .+ Q[2]*p.a2_star
@@ -200,19 +201,37 @@ end
 function build_block_𝔸(p)
 	p.𝔸1,p.𝔸2 = build_mag_block(p;Q=-p.q1_red)
 	(p.J𝔸1,p.J𝔸2) = rot_block(π/2,p.𝔸1,p.𝔸2,p)
+	# px("dist  ",distance(p.𝔸1[2][2,1],p.J𝔸2[2][2,1]))
+	px("dist  ",distance(p.𝔸2[2][end,2],-p.J𝔸1[2][end,2]))
 end
 
-function build_mag_block(p;Q=[0.0,0.0],J=false,coef=1,coef_∇=1) # (-i∇ + Q) ((u_j,u_{j'}))^{+-}, Q in reduced
-	𝔸1 = coef.*[build_magnetic(p.u1_f,p.u1_f,1,p;Q=Q,coef_∇=coef_∇), build_magnetic(p.u1_f,p.u2_f,1,p;Q=Q,coef_∇=coef_∇),
-		    build_magnetic(p.u2_f,p.u1_f,1,p;Q=Q,coef_∇=coef_∇), build_magnetic(p.u2_f,p.u2_f,1,p;Q=Q,coef_∇=coef_∇)]
-	𝔸2 = coef.*[build_magnetic(p.u1_f,p.u1_f,2,p;Q=Q,coef_∇=coef_∇), build_magnetic(p.u1_f,p.u2_f,2,p;Q=Q,coef_∇=coef_∇),
-		    build_magnetic(p.u2_f,p.u1_f,2,p;Q=Q,coef_∇=coef_∇), build_magnetic(p.u2_f,p.u2_f,2,p;Q=Q,coef_∇=coef_∇)]
-	if !J
-		return (𝔸1,𝔸2) 
-	else
-		(J𝔸1,J𝔸2) = rot_block(π/2,𝔸1,𝔸2,p)
-		return (J𝔸1,J𝔸2)
+function divAK(A1,A2,p;coef_∇=1,K=[0.0,0.0]) # A1 and A2 are 4×4 block functions gives (-i∇+K) ⋅ A
+	M = []
+	for g=1:4
+		F = zeros(ComplexF64,p.N,p.N)
+		for x=1:p.N, y=1:p.N
+			q = (coef_∇*p.k_axis[x]+K[1])*p.a1_star + (coef_∇*p.k_axis[y]+K[2])*p.a2_star
+			F[x,y] = q[1]*A1[g][x,y] + q[2]*A2[g][x,y]
+		end
+		push!(M,F)
 	end
+	M
+end
+
+function build_mag_block(p;Q=[0.0,0.0]) # (-i∇ + Q) ((u_j,u_{j'}))^{+-}, Q in reduced
+	𝔸1 = [build_magnetic(p.u1_f,p.u1_f,1,p;Q=Q), build_magnetic(p.u1_f,p.u2_f,1,p;Q=Q),
+	      build_magnetic(p.u2_f,p.u1_f,1,p;Q=Q), build_magnetic(p.u2_f,p.u2_f,1,p;Q=Q)]
+
+	𝔸2 = [build_magnetic(p.u1_f,p.u1_f,2,p;Q=Q), build_magnetic(p.u1_f,p.u2_f,2,p;Q=Q),
+	      build_magnetic(p.u2_f,p.u1_f,2,p;Q=Q), build_magnetic(p.u2_f,p.u2_f,2,p;Q=Q)]
+
+	(𝔸1,𝔸2)
+end
+
+function test_div_JA(p) # tests that -i div J A = q_1 J A, q1 in cartesian coordinates
+	div = divAK(p.J𝔸1,p.J𝔸2,p)
+	qJA = divAK(p.J𝔸1,p.J𝔸2,p;coef_∇=0,K=p.q1_red)
+	px("-i div JA = q1 JA : ",relative_distance_blocks(div,qJA))
 end
 
 function change_gauge_wavefunctions(θ,p)
