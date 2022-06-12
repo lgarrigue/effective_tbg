@@ -1,4 +1,5 @@
 # using Plots#, LaTeXStrings
+using DelimitedFiles
 px = println
 
 import Base.+  
@@ -52,6 +53,8 @@ function a_star_from_a(a1,a2)
 end
 
 length_a_to_length_a_star(a) = 4π/(a*sqrt(3))
+
+kD(p) = 4π/(3*p.a)
 
 function init_cell_vectors(p;moire=true) # needs a. a_{i,M} = J a_i
 	a1_unit = [1/2;-sqrt(3)/2]
@@ -573,4 +576,11 @@ function reduce_N_matrix(V,N) # V is M×M, frequency-sorted, and we want to get 
 		A[i,j] = V[IM,JM]
 	end
 	A
+end
+
+function write_matrix(m,n)
+	name = string("matrix",n,".csv")
+	# f = open(name, "a+")
+	# CSV.write(f,real.(m))
+	writedlm(name,m)
 end

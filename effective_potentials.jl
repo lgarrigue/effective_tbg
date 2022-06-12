@@ -202,7 +202,7 @@ function build_block_𝔸(p)
 	p.𝔸1,p.𝔸2 = build_mag_block(p;Q=-p.q1_red)
 	(p.J𝔸1,p.J𝔸2) = rot_block(π/2,p.𝔸1,p.𝔸2,p)
 	# px("dist  ",distance(p.𝔸1[2][2,1],p.J𝔸2[2][2,1]))
-	px("dist  ",distance(p.𝔸2[2][end,2],-p.J𝔸1[2][end,2]))
+	# px("dist  ",distance(p.𝔸2[2][end,2],-p.J𝔸1[2][end,2]))
 end
 
 function divAK(A1,A2,p;coef_∇=1,K=[0.0,0.0]) # A1 and A2 are 4×4 block functions gives (-i∇+K) ⋅ A
@@ -228,10 +228,75 @@ function build_mag_block(p;Q=[0.0,0.0]) # (-i∇ + Q) ((u_j,u_{j'}))^{+-}, Q in 
 	(𝔸1,𝔸2)
 end
 
-function test_div_JA(p) # tests that -i div J A = q_1 J A, q1 in cartesian coordinates
+function test_div_JA(K1r,K2r,p) # tests that -i div J A = q_1 J A, q1 in cartesian coordinates
 	div = divAK(p.J𝔸1,p.J𝔸2,p)
-	qJA = divAK(p.J𝔸1,p.J𝔸2,p;coef_∇=0,K=p.q1_red)
+	qJA = divAK(p.J𝔸1,p.J𝔸2,p;coef_∇=0,K=K1r-K2r) #p.q1_red)
 	px("-i div JA = q1 JA : ",relative_distance_blocks(div,qJA))
+	q1 = k_red2cart(p.q1_red,p); K1 = k_red2cart(K1r,p); K2 = k_red2cart(K2r,p)
+	px("q1 = K1-K2 ",distance(q1,K1-K2))
+end
+
+function test_JA(p)
+	q1 = k_red2cart(p.q1_red,p)
+	c = 0
+	s = 0
+	n = 0
+	Nt = 0
+	for k=1:4
+		A1 = p.J𝔸1[k]; A2 = p.J𝔸2[k]
+		for mix=1:p.N, miy=1:p.N, nix=1:p.N, niy=1:p.N
+			# if nix==2 && niy==2
+			mx = p.k_axis[mix]
+			my = p.k_axis[miy]
+			nx = p.k_axis[nix]
+			ny = p.k_axis[niy]
+			c1,c2 = k_inv(mix-nix,miy-niy,p)
+
+			Ix = mx-nx; Iy = my-ny
+			if Ix in p.k_axis && Iy in p.k_axis # ma*⋅A_m = q1⋅A_m is true only for m ∈ k_axis !!!!!
+				# px("la ",mix-niy-Ix," ",miy-niy-Iy) # not 0
+				dK = Ix*p.a1_star+Iy*p.a2_star
+				KA  = dK[1]*A1[c1,c2] + dK[2]*A2[c1,c2]
+				q1A = q1[1]*A1[c1,c2] + q1[2]*A2[c1,c2]
+				c0 = abs(KA-q1A)
+				c += c0
+				if c0/abs(KA)>1e-3
+					n += 1
+					# px(c0/abs(q1A)," -- ",mx," ",my," ; ",nx," ",ny," ### ",c1," ",c2," ; ",mx-nx," ",my-ny)
+				end
+				s += abs(q1A)
+				Nt += 1
+			end
+		end
+		# end
+	end
+	px("Ratio ",c/s," ; ",n/Nt)
+end
+
+function test_JA_solo(p)
+	q1 = k_red2cart(p.q1_red,p)
+	c = 0
+	s = 0
+	n = 0
+	Nt = 0
+	for k=1:4
+		A1 = p.J𝔸1[k]; A2 = p.J𝔸2[k]
+		for mix=1:p.N, miy=1:p.N
+			mx,my = [p.k_axis[x] for x in [mix,miy]]
+			dK = mx*p.a1_star+my*p.a2_star
+			KA  = dK[1]*A1[mix,miy] + dK[2]*A2[mix,miy]
+			q1A = q1[1]*A1[mix,miy] + q1[2]*A2[mix,miy]
+			c0 = abs(KA-q1A)
+			c += c0
+			if abs(c0)/abs(KA)>1e-3
+				n += 1
+				px("lala")
+			end
+			s += abs(KA)
+			Nt += 1
+		end
+	end
+	px("Ratio solo ",c/s," ; ",n/Nt)
 end
 
 function change_gauge_wavefunctions(θ,p)

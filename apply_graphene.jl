@@ -55,7 +55,6 @@ function produce_bloch_functions_and_potentials()
 
 	# Changeable monolayers parameters
 	p.L = 115 # periodicity in z (both for mono and bilayer computations)
-	# p.L = 
 	ecut_sur_kd2 = 41
 	p.ecut = ecut_sur_kd2*norm_K_cart(p.a)^2; px("ecut ",p.ecut) # DFTK's ecut, convergence of u's for ecut ≃ 15
 	p.kgrid = [5,5,1] # for computing the KS potential
@@ -64,7 +63,7 @@ function produce_bloch_functions_and_potentials()
 
 	# Params Vint
 	compute_Vint = true
-	p.Nint = 4
+	p.Nint = 3 # everything is very not dependent of Nint, one can take just 3 (even 2)
 	d_list = vcat([0.01],(0.1:0.1:11))#,[6.45])
 	# d_list = (7.7:0.1:11)#,[6.45])
 	d_list = [6.45]
@@ -136,7 +135,7 @@ function produce_bloch_functions_and_potentials()
 	if compute_Vint
 		for d in d_list
 			p.interlayer_distance = d # distance between the two layers
-			px("Computes Vint for d=",d)
+			px("Computes Vint for d=",d, "Nint=",p.Nint)
 			px("Computes the Kohn-Sham potential of the bilayer at each disregistry (long step): ",p.Nint,"×",p.Nint,"=",p.Nint^2," steps")
 			# p.V_bilayer_Xs_fc = randn(p.N,p.N,p.Nz)
 			compute_V_bilayer_Xs(p)
@@ -148,11 +147,6 @@ function produce_bloch_functions_and_potentials()
 			computes_δ_Vint(Vint_Xs_fc,p.Vint_f,p)
 			# Plots, exports, tests
 			p.Vint_dir = real.(myifft(p.Vint_f,p.L))
-
-			p.Vint_dir .-= p.Vint_dir[floor(Int,p.Nz/2)]
-			p.Vint_f = myfft(p.Vint_dir,p.L)
-			px("DONT DO THAT !!!!!!!!!!!!! FORBIDDEN FOR VINT, PROBLEM")
-
 			test_z_parity(p.Vint_dir,1,p;name="Vint")
 			export_Vint(p)
 			plot_Vint(p)

@@ -904,6 +904,58 @@ and with $A = -i\na \Sigma$,
 \begin{align*}
 	- \frac12 {\rm div} \left( \cS_d(\bX) \nabla \bullet \right) = \f 12 \mat{ -\Delta & -\Sigma \Delta \\ - \Sigma^* \Delta & - \Delta} + \f 12 \mat{0 & A \cdot \pa{-i\na} \\ A^* \cdot \pa{-i\na} & 0}
 \end{align*}
+We have $-i \div e^{iK_2 x} \circ = -i\div + K_2$ and $-i\na e^{-iK_1 x} \circ = -i\na - K_1$ so
+\begin{align*}
+	e^{iK_2 x} (-i \div) \Sigma (-i\na) e^{-iK_1 x} &= \pa{-i \div - K_2} e^{i (K_2 - K_1) x} \Sigma \pa{-i\na - K_1} \\
+&= \pa{-i \div - K_2} \widetilde{\Sigma} \pa{-i\na - K_1}
+\end{align*}
+and
+\begin{multline*}
+	U^* \mat{0 & (-i \div) \Sigma (-i\na) \\ (-i \div) \Sigma^* (-i\na) & 0} U \\
+	= \mat{0 &\pa{-i \div - K_2} \widetilde{\Sigma} \pa{-i\na - K_1} \\ \pa{-i \div - K_1} \widetilde{\Sigma}^* \pa{-i\na - K_2} & 0}
+\end{multline*}
+
+
+
+Now $e_m^a := e^a \otimes \f{e^{i ma^* x}}{\sqom}$,
+\begin{align*}
+H_{ij}^{ab} := \ps{e_i^a, H e^b_j}\qquad \pa{H^*}^{ab}_{ij} = \overline{H^{ba}_{ji}}
+\end{align*}
+and we want the Hermitian operator
+\begin{align*}
+	\mat{0 & H \\ H^* & 0}
+\end{align*}
+\begin{align*}
+\pa{H^*}^t = \overline{H}, \qquad \pa{\pa{H^*}^t}^{ab}_{ij} = \overline{H^{ab}_{ij}}
+\end{align*}
+
+
+For $H = V$, we have
+\begin{align*}
+H_{ij}^{ab} := V^{ab}_{i-j} \qquad \pa{H^*}^{ab}_{ij} = \overline{V^{ba}_{j-i}},\qquad \overline{H}^{ab}_{ij} = \overline{V^{ab}_{i-j}}
+\end{align*}
+and in the code we implement $\overline{H^{ab}_{ij}}$.
+
+
+
+Let us assume that $-i\div A = q_1 \cdot A$, so in Fourier space this is written
+\begin{align}\label{eq:div_Fourier}
+	ma^* \cdot A_m = q_1 \cdot A_m
+\end{align}
+but be careful, this relation is true only for $m \in \{-N/2,\dots,N/2\}$ !!!! Now $e_m^a := e^a \otimes \f{e^{i ma^* x}}{\sqom}$,
+\begin{align*}
+H_{ij}^{ab} := \ps{e_i^a, A \cdot \pa{-i\na - K_2} e^b_j} = A_{i-j}^{ab} \cdot (ja^* -K_2)
+\end{align*}
+where
+\begin{align*}
+	\pa{H^*}^{ab}_{ij} &= \overline{H^{ba}_{ji}} = \overline{\ps{e^b_j, A\pa{-i\na -K_2} e^a_i}} =\ps{e_i^a, A^* \cdot \pa{-i\na -K_1}e^b_j} \\
+&= \overline{A^{ba}_{j-i}}(ja^* -K_1) \underset{\substack{\refeq{eq:div_Fourier}}}{=} \; \overline{A^{ba}_{j-i}} \cdot \pa{ia^* -K_2} = \overline{H^{ba}_{ji}}
+\end{align*}
+and
+\begin{align*}
+\overline{H}^{ab}_{ij} = \overline{A_{i-j}^{ab}} \cdot (ja^* -K_2) = \overline{A_{i-j}^{ab}} \cdot (ia^* -K_1)
+\end{align*}
+and the last inequality is true only when $i-j \in \{-N/2,\dots,N/2\}$ !!!
 
 
 \subsection{Application to our effective model}%
@@ -978,7 +1030,20 @@ and since $\widetilde{A}^* = e^{-iq_1 x} A^*$, then $-i\div J \pa{\widetilde{A}^
 \div A = \sum_m \pa{A_m^1 \pa{m a^*}_1 + A_m^2 \pa{m a^*}_2} \f{e^{ima^*x}}{\sqom}
 \end{align*}
 
-With $A$ a $4 \times 4$ matrix, computing $\ps{v, A u} = \ps{\mat{v_1 \\ v_2},\mat{A_{11} & A_{12} \\ A_{21} & A_{22}} \mat{u_1\\u_2}}$, we compute that $A^*$ is indeed the hermitian conjugate for any $x$. We remark also that $J A J = - \pa{A^{-1}}^T$
+With $A$ a $4 \times 4$ matrix, computing $\ps{v, A u} = \ps{\mat{v_1 \\ v_2},\mat{A_{11} & A_{12} \\ A_{21} & A_{22}} \mat{u_1\\u_2}}$, we compute that $A^{*_m}$, the pointwise dual of $A$ at each $x$, is indeed the hermitian conjugate for any $x$. More precisely,
+\begin{align*}
+\ps{u,v} = \int_X \ps{u,v}_{mat}
+\end{align*}
+so
+\begin{align*}
+\ps{u,V v} = \int_X \ps{u(x),V(x) v(x)}_{mat} = \int_X \ps{V(x)^{*_m} u(x),v(x)}_{mat} = \ps{V^{*_m} u,v}
+\end{align*}
+and
+\begin{align*}
+\boxed{V^* = V^{*_m}}
+\end{align*}
+
+We remark also that $J A J = - \pa{A^{-1}}^T$
 The action of $J$ is on the composants of $A$, not on $u$ !!! So we have 
 \begin{align*}
 A = \mat{A^{(1)} \\ A^{(2)}} =: \mat{C \\ B} = \mat{\mat{C_{11} & C_{12} \\ C_{21} & C_{22}} \\ \mat{B_{11} & B_{12} \\ B_{21} & B_{22}}}
@@ -1031,6 +1096,35 @@ so
 \begin{align*}
 \pa{\pa{J \widetilde{A}} \cdot \pa{-i\na -K_1}}^* = \pa{J \widetilde{A}^*} \cdot \pa{-i\na -K_2} = \pa{J \widetilde{A}}^* \cdot \pa{-i\na -K_2}
 \end{align*}
+
+We can compute (double checked) that for a 1-component potential $V$, $\ps{u, V v} = \ps{\overline{V} u,v}$ hence $V^{*_f} = \overline{V}$ and $\pa{V^{*_f}}_m = \overline{V}_{-m}$
+
+Next, 
+\begin{align*}
+	\ps{u, A\cdot (-i\na) v} &= \int \overline{\overline{A}u} \cdot (-i\na)v = \int v \overline{(-i\na) \overline{A} u} \\
+&= \ps{\pa{-i \div \overline{A}} u,v} + \ps{\overline{A}\cdot (-i\na) u,v}
+\end{align*}
+hence
+\begin{align*}
+\pa{A\cdot (-i\na)}^{*_f} = -i \div \overline{A} + \overline{A} \cdot(-i\na)
+\end{align*}
+and $-i \div A = q_1 \cdot A$ implies $-i\div \overline{A} = -q_1 \cdot \overline{A}$.
+Now for a $4 \times 4$ matrix function $V$, we have
+\begin{align*}
+	\ps{e_i \otimes e_I, V^{*_f *_m} e_j \otimes e_J} &= \pa{V^{*_f *_m}}^{IJ}_{i-j} = \ps{V e_i \otimes e_I, e_j \otimes e_J} \\
+&= \overline{\ps{e_j \otimes e_J, V e_i \otimes e_I}} = \overline{V^{JI}_{j-i}}
+\end{align*}
+hence
+\begin{align*}
+\pa{V^{*_f *_m}}^{IJ}_{m} = \overline{V^{JI}_{-m}}, \qquad V^{*_f *_m} = V^*
+\end{align*}
+
+We have
+\begin{align*}
+\ps{e_p, -i\div \pa{\Sigma \pa{-i\na} e_m}} = \ps{\pa{-i\na} e_p,\Sigma \pa{-i\na} e_m} = pa^* \cdot ma^* \Sigma_{p-m}
+\end{align*}
+
+
 
 \section{Annexes}%
 \label{sec:annexes}

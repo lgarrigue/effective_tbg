@@ -170,22 +170,8 @@ end
 
 ######################### New functions
 
-function fillM(H,i,I,j,J,M,a,b,p;star=false)
-	x = X(i,I,p)
-	y = X(j,J,p)
 
-	if !star
-		H[x, y]     = M[1][a,b]
-		H[x, y+1]   = M[2][a,b]
-		H[x+1, y]   = M[3][a,b]
-		H[x+1, y+1] = M[4][a,b]
-	else
-		H[y, x]     = conj(M[1][a,b])
-		H[y+1,x]    = conj(M[2][a,b])
-		H[y,x+1]    = conj(M[3][a,b])
-		H[y+1,x+1]  = conj(M[4][a,b])
-	end
-end
+X(n,I,p) = 2*(n-1)+(I-1)*2*p.N2+1
 
 function fillM_Δ(H,K,i,I,j,J,V,a,b,p;star=false)
 	x = X(i,I,p)
@@ -210,31 +196,92 @@ function fillM_Δ(H,K,i,I,j,J,V,a,b,p;star=false)
 	end
 end
 
+function fillM(H,i,I,j,J,M,a,b,p;star=false)
+	x = X(i,I,p)
+	y = X(j,J,p)
+
+	if !star
+		H[x, y]     = M[1][a,b]
+		H[x, y+1]   = M[2][a,b]
+		H[x+1, y]   = M[3][a,b]
+		H[x+1, y+1] = M[4][a,b]
+	else
+		H[y, x]     = conj(M[1][a,b])
+		H[y+1,x]    = conj(M[2][a,b])
+		H[y,x+1]    = conj(M[3][a,b])
+		H[y+1,x+1]  = conj(M[4][a,b])
+	end
+end
+
 function fillM_∇(H,K,i,I,j,J,A1,A2,a,b,p;star=false)
 	x = X(i,I,p)
 	y = X(j,J,p)
 
-	jj = j
+	jj = star ? i : j
+	# jj = j
 	n1,n2 = p.k_grid_lin[jj]
 	KGj = K + [n1,n2]
 	Qj = k_red2cart(KGj,p)
 
 	if !star
-		H[x, y]     = Qj[1]*A1[1][a,b]+Qj[2]*A2[1][a,b]
-		H[x, y+1]   = Qj[1]*A1[2][a,b]+Qj[2]*A2[2][a,b]
-		H[x+1, y]   = Qj[1]*A1[3][a,b]+Qj[2]*A2[3][a,b]
-		H[x+1, y+1] = Qj[1]*A1[4][a,b]+Qj[2]*A2[4][a,b]
+		H[x,y]     = Qj[1]*A1[1][a,b]+Qj[2]*A2[1][a,b]
+		H[x,y+1]   = Qj[1]*A1[2][a,b]+Qj[2]*A2[2][a,b]
+		H[x+1,y]   = Qj[1]*A1[3][a,b]+Qj[2]*A2[3][a,b]
+		H[x+1,y+1] = Qj[1]*A1[4][a,b]+Qj[2]*A2[4][a,b]
 	else
-		H[y, x]     = conj(Qj[1]*A1[1][a,b]+Qj[2]*A2[1][a,b])
-
-		# H[y+1,x]    = conj(Qj[1]*A1[2][a,b]+Qj[2]*A2[2][a,b])
-		# H[y,x+1]    = conj(Qj[1]*A1[3][a,b]+Qj[2]*A2[3][a,b])
-		#
-		H[y,x+1]    = conj(Qj[1]*A1[2][a,b]+Qj[2]*A2[2][a,b])
-		H[y+1,x]    = conj(Qj[1]*A1[3][a,b]+Qj[2]*A2[3][a,b])
-
+		H[y,x]      = conj(Qj[1]*A1[1][a,b]+Qj[2]*A2[1][a,b])
+		H[y+1,x]    = conj(Qj[1]*A1[2][a,b]+Qj[2]*A2[2][a,b])
 		H[y,x+1]    = conj(Qj[1]*A1[3][a,b]+Qj[2]*A2[3][a,b])
+		H[y+1,x+1]  = conj(Qj[1]*A1[4][a,b]+Qj[2]*A2[4][a,b])
 	end
+end
+
+function fill_divΣ∇(H,Σ,K1,K2,i,I,j,J,a,b,p;star=false)
+	x = X(i,I,p)
+	y = X(j,J,p)
+
+	n1,n2 = p.k_grid_lin[i]
+	KGi = K2 + [n1,n2]
+	Qi = k_red2cart(KGi,p)
+
+	m1,m2 = p.k_grid_lin[j]
+	KGj = K1 + [m1,m2]
+	Qj = k_red2cart(KGj,p)
+
+	n = Qi⋅Qj
+
+	if !star
+		H[x, y]     = n*Σ[1][a,b]
+		H[x, y+1]   = n*Σ[2][a,b]
+		H[x+1, y]   = n*Σ[3][a,b]
+		H[x+1, y+1] = n*Σ[4][a,b]
+	else
+		H[y,x]      = n*conj(Σ[1][a,b])
+		H[y+1,x]    = n*conj(Σ[2][a,b])
+		H[y,x+1]    = n*conj(Σ[3][a,b])
+		H[y+1,x+1]  = n*conj(Σ[4][a,b])
+	end
+end
+
+function offdiag_div_Σ_∇(Σ,K,p;coef_∇=1,valley=1,K1=[0.0,0],K2=[0.0,0],name="",test=true)
+	H = zeros(ComplexF64,4*p.N2, 4*p.N2)
+	for i=1:p.N2
+		n1,n2 = p.k_grid_lin[i]
+		for j=1:p.N2
+			m1,m2 = p.k_grid_lin[j]
+			I1 = n1-m1; I2 = n2-m2
+			c1,c2 = k_inv(I1,I2,p)
+			if I1 in p.k_axis && I2 in p.k_axis
+				fill_divΣ∇(H,Σ,K-K1,K-K2,i,1,j,2,c1,c2,p)
+				fill_divΣ∇(H,Σ,K-K1,K-K2,i,1,j,2,c1,c2,p;star=true) # WHY NOT K-K1,K-K2 ?
+			end
+		end
+	end
+	# H = H+H'
+	if test
+		test_hermitianity(H,string(name,"div Σ ∇"))
+	end
+	H
 end
 
 function offdiag_A_k(A1,A2,K,p;coef_∇=1,valley=1,K1=[0.0,0],K2=[0.0,0],name="",test=true)
@@ -243,9 +290,13 @@ function offdiag_A_k(A1,A2,K,p;coef_∇=1,valley=1,K1=[0.0,0],K2=[0.0,0],name=""
 		n1,n2 = p.k_grid_lin[i]
 		for j=1:p.N2
 			m1,m2 = p.k_grid_lin[j]
-			c1,c2 = k_inv(n1-m1,n2-m2,p)
-			fillM_∇(H,K-K1,i,1,j,2,A1,A2,c1,c2,p)
-			fillM_∇(H,K-K2,i,1,j,2,A1,A2,c1,c2,p;star=true)
+			I1 = n1-m1; I2 = n2-m2
+			c1,c2 = k_inv(I1,I2,p)
+			if I1 in p.k_axis && I2 in p.k_axis
+				fillM_∇(H,K-K2,i,1,j,2,A1,A2,c1,c2,p)
+				fillM_∇(H,K-K1,i,1,j,2,A1,A2,c1,c2,p;star=true)
+				# fillM_∇(H,K-K2,i,1,j,2,A1,A2,c1,c2,p;star=true)
+			end
 		end
 	end
 	# H = H+H'
@@ -276,33 +327,40 @@ function mΔK(H,i,I,q,p)
 	H[x+1,x+1] = n
 end
 
-X(n,I,p) = 2*(n-1)+(I-1)*2*p.N2+1
 
 # Creates [c1*σ(-i∇+k-K1)           0]
 #         [0              σ(-i∇+k-K2)]
-function Dirac_k(K,p;valley=1,K1=[0.0,0],K2=[0.0,0],coef_1=1,J=false)
+function Dirac_k(K,p;valley=1,K1=[0.0,0],K2=[0.0,0],coef_1=1,J=false,test=false)
 	H = zeros(ComplexF64,4*p.N2, 4*p.N2)
 	for i=1:p.N2
 		n1,n2 = p.k_grid_lin[i]
 		KG = K + [n1,n2]
-		σK(H,i,1,KG-K2,valley,p;c=coef_1,J=J)
-		σK(H,i,2,KG-K1,valley,p)
+		σK(H,i,1,KG-K1,valley,p;c=coef_1,J=J)
+		σK(H,i,2,KG-K2,valley,p)
+	end
+	if test
+		test_hermitianity(H,"σ(-i∇)")
 	end
 	H
 end
 
-function build_offdiag_V(V,p)
+function build_offdiag_V(V,p;test=false)
 	H = zeros(ComplexF64,4*p.N2, 4*p.N2)
 	for i=1:p.N2
 		n1,n2 = p.k_grid_lin[i]
 		for j=1:p.N2
 			m1,m2 = p.k_grid_lin[j]
-			c1,c2 = k_inv(n1-m1,n2-m2,p)
-			fillM(H,i,1,j,2,V,c1,c2,p)
-			fillM(H,i,1,j,2,V,c1,c2,p;star=true)
+			I1 = n1-m1; I2 = n2-m2
+			c1,c2 = k_inv(I1,I2,p)
+			if I1 in p.k_axis && I2 in p.k_axis
+				fillM(H,i,1,j,2,V,c1,c2,p)
+				fillM(H,i,1,j,2,V,c1,c2,p;star=true)
+			end
 		end
 	end
-	test_hermitianity(H,"V")
+	if test
+		test_hermitianity(H,"V")
+	end
 	H
 end
 
@@ -329,8 +387,8 @@ function ondiag_mΔ_k(K,p;K1=[0.0,0],K2=[0.0,0])
 	for i=1:p.N2
 		n1,n2 = p.k_grid_lin[i]
 		KG = K + [n1,n2]
-		mΔK(H,i,1,KG-K2,p)
-		mΔK(H,i,2,KG-K1,p)
+		mΔK(H,i,1,KG-K1,p)
+		mΔK(H,i,2,KG-K2,p)
 	end
 	# test_hermitianity(H,"-Δ")
 	H
@@ -343,8 +401,8 @@ function offdiag_mΔ_k(V,K,p;K1=[0.0,0],K2=[0.0,0],test=true)
 		for j=1:p.N2
 			m1,m2 = p.k_grid_lin[j]
 			c1,c2 = k_inv(n1-m1,n2-m2,p)
-			fillM_Δ(H,K-K1,i,1,j,2,V,c1,c2,p)
-			fillM_Δ(H,K-K2,i,1,j,2,V,c1,c2,p;star=true)
+			fillM_Δ(H,K-K2,i,1,j,2,V,c1,c2,p)
+			fillM_Δ(H,K-K1,i,1,j,2,V,c1,c2,p;star=true)
 		end
 	end
 	if test
@@ -353,12 +411,7 @@ function offdiag_mΔ_k(V,K,p;K1=[0.0,0],K2=[0.0,0],test=true)
 	H
 end
 
-function offdiag_second_order(A1,A2,Σ,K,p;coef_∇=1,valley=1,K1=[0.0,0],K2=[0.0,0],name="")
-	H = offdiag_A_k(A1,A2,K,p;coef_∇=coef_∇,valley=valley,K1=K1,K2=K2,name=name,test=false)
-	+ offdiag_mΔ_k(Σ,K,p;K1=K1,K2=K2,test=false)
-	test_hermitianity(H,string(name,"div Σ ∇"))
-	H
-end
+
 
 
 ######################### Derivation operators
@@ -485,7 +538,6 @@ end
 
 # Creates σ(-i∇+k)
 
-
 # Creates (-i∇+k)^2 𝕀_2×2
 
 ######################### Add weights
@@ -593,7 +645,7 @@ function bandwidth(σ,p)
 	# px("Verify spectrum ",σ[1,nmid-2]," ",σ[1,nmid-1]," ",σ[1,nmid]," ",σ[1,nmid+1]," ",σ[1,nmid+2])
 	# px("Verify differences ",σ[1,nmid-1]-σ[1,nmid-2]," ",σ[1,nmid]-σ[1,nmid-1]," ",σ[1,nmid+1]-σ[1,nmid]," ",σ[1,nmid+2]-σ[1,nmid+1])
 	# @assert diff[1] < 0.5*diff_verif[1] # verify that we take the right one
-	maximum(diff)
+	maximum(σ[:,nmid+1])-minimum(σ[:,nmid])
 end
 
 function coef_plot_meV(θ,p)
@@ -629,6 +681,9 @@ function plot_bandwidths(θs,bw_bm,bw_ours,p;def_ticks=true)
 		CairoMakie.save(string(path,"bandwidths.pdf"),f)
 	end
 end
+
+# w in meV, result in degrees
+α2θ(α,w,p) = (180/π)*2*asin(w*1e-3*ev_to_hartree/(2*kD(p)*p.vF*α))
 
 # From the numbers of the band diagram, produces a plot of it
 function plot_band_diagram(σs,θs,Klist,Knames,name,p;K_relative=[0.0,0.0],shifts=zeros(100),energy_center=0,post_name="",colors=fill(:black,100))
@@ -839,23 +894,28 @@ function plot_path(Klist,Knames,p)
 	q1 = [-1,-1]/3; q2 = [2,-1]/3; q3 = [-1,2]/3
 	plot_one_vector(q1,"q_1",p;shift_text=[-0.2,-0.2],linewidth=3)
 	plot_one_vector(q2,"q_2",p;shift_text=[0.1,-0.2],linewidth=3)
-	plot_one_vector(q3,"q_3",p;shift_text=[-0.25,-0.25],linewidth=3)
+	plot_one_vector(q3,"q_3",p;shift_text=[0,0.1],linewidth=3)
 	
 	# Hexagons
+	hexs = []
 	hexag = [q3,q3+q2,q2,q2+q1,q1,q3+q1]
-	hex2 = [hexag[i]+[0,1] for i=1:length(hexag)]
-	hex3 = [hexag[i]+[1,0] for i=1:length(hexag)]
-	for hex in [hexag,hex2,hex3]
+	push!(hexs,hexag)
+	push!(hexs,[hexag[i]+[1,0] for i=1:length(hexag)])
+	push!(hexs,[hexag[i]+[0,1] for i=1:length(hexag)])
+	push!(hexs,[hexag[i]+[1,0] for i=1:length(hexag)])
+	push!(hexs,[hexag[i]+[-1,1] for i=1:length(hexag)])
+	push!(hexs,[hexag[i]+[-1,0] for i=1:length(hexag)])
+	for hex in hexs
 		plot_sequence_of_points(hex,["" for i=1:length(hex)],p;linewidth=1,dots=false,color=:grey)
 	end
 
 	# Plot list
 	shifts_text = [[0.0,0.0] for i=1:length(Knames)]
 	for i=1:length(Knames)
-		if Knames[i]=="K_2" shifts_text[i] = [-0.2;-0.3] end
+		if Knames[i]=="K_2" shifts_text[i] = [-0.3;-0.3] end
 		if Knames[i]=="K_1" shifts_text[i] = [-0.3;0] end
 		if Knames[i]=="Γ"   shifts_text[i] = [0.1;-0.2] end
-		if Knames[i]=="M"   shifts_text[i] = [0;0] end
+		if Knames[i]=="M"   shifts_text[i] = [-0.2;0] end
 		if Knames[i]=="Γ'"   shifts_text[i] = [-0.3;-0.1] end
 	end
 	plot_sequence_of_points(Klist,Knames,p;color=:blue,linewidth=5,shifts_text=shifts_text)
@@ -879,7 +939,6 @@ end
 ######################### Low level functions
 
 init_vec(p) = fill2d(zeros(ComplexF64,p.N,p.N),4)
-
 
 ######################### Archive of another implementation, not used
 

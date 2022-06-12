@@ -52,7 +52,7 @@ function computes_and_plots_effective_potentials()
 	update_plots_res(50,p)
 	p.plots_n_motifs = 6
 	produce_plots = false
-	p.plot_for_article = true
+	p.plot_for_article = false
 	px("N ",N,", Nz ",Nz," d ",p.interlayer_distance)
 
 	# Imports untwisted quantities
@@ -396,12 +396,13 @@ function explore_band_structure_BM_TKV()
 	p.energy_scale = 1.5
 	p.solver = "Exact"
 	p.coef_derivations = 1
-	p.plots_article = false
+	p.plots_article = true
 
-	for q in [p.q1,p.q2,p.q3] q ./= norm(q) end
-	update_a(p.q2-p.q1,p.q3-p.q2,p)
+	# px("norm ",norm(p.a1_star))
+	# for q in [p.a1_star,p.a2_star] q ./= norm(q) end
+	# update_a(p.q2-p.q1,p.q3-p.q2,p)
 
-	K1 = [1,2]/3; K2 = [-1,1]/3
+	K2 = [-1,2]/3; K1 = [-2,1]/3
 	Γ = [0.0,0.0]; Γ2 = 2*K1-K2; M = Γ2/2
 
 	Klist = [K2,K1,Γ2,M,Γ]
@@ -409,7 +410,7 @@ function explore_band_structure_BM_TKV()
 	# plot_path(Klist,Klist_names,p)
 	# Klist = [K2,Γ,M]; Klist_names = ["K2","Γ","M"]
 	valleys = [1;-1]
-	Kf = [k -> Dirac_k(k,p;valley=valleys[i],K1=K1,K2=K2) for i=1:2]
+	Kf(k) = Dirac_k(k,p;valley=1,K1=K1,K2=K2)
 
 	output = "BM"
 	αEgβ = true # α = β or α = 0
@@ -433,16 +434,13 @@ function explore_band_structure_BM_TKV()
 		β = βs[i]
 		α = αEgβ ? β : 0
 		print("(α,β)=(",α,",",β,")")
-		T0 = T_BM_four(α,β,p)
-		T = a2c(T0,p)
-		TBMs = [T,app_block((M,p)->conj.(M),T,p)]
-		Ts = [TBMs[1],app_block(parity_four,TBMs[2],p)]
-		Ts_full = [build_offdiag_V(Ts[i],p) for i=1:2]#*sqrt(p.cell_area)
-		σs = [spectrum_on_a_path(Ts_full[i],Kf[i],Klist,p) for i=1]
+		T = T_BM_four(α,β,p)
+		T_full = build_offdiag_V(T,p)
+		σ = spectrum_on_a_path(T_full,Kf,Klist,p)
 
 		θ = θs[i]
 		title = output=="BM" ? θ : β
-		pl = plot_band_diagram([σs[1]],Klist,Klist_names,p;post_name="bm",title=title)
+		plot_band_diagram([σ],[θ],Klist,Klist_names,"",p;post_name="bm")
 	end
 	p
 end
@@ -457,14 +455,14 @@ function explore_band_structure_Heff()
 	N = 27; Nz = 600 # <---
 	interlayer_distance = 6.45
 	# do_BM = false
-	# job = "bandwidths"
-	job = "diagram"
+	job = "bandwidths"
+	# job = "diagram"
 
 	# Imports u1, u2, V, Vint, v_fermi and computes the effective potentials
 	compute_Vint = true
 	EffV = import_and_computes(N,Nz,compute_Vint,interlayer_distance)
 
-	reduce_N(EffV,9) # Because the initial dimensions are too high to compute
+	reduce_N(EffV,12) # Because the initial dimensions are too high to compute
 
 	p = Basis()
 	p.N = EffV.N
@@ -476,7 +474,7 @@ function explore_band_structure_Heff()
 
 
 	p.resolution_bands = 10
-	if job=="bandwidths" p.resolution_bands = 10 end
+	if job=="bandwidths" p.resolution_bands = 8 end
 	p.folder_plots_bands = "eff"
 	p.energy_scale = 1.5
 	p.solver = "Exact"
@@ -486,12 +484,12 @@ function explore_band_structure_Heff()
 	# update_a(p.q2-p.q1,p.q3-p.q2,p) # norm(qj) = kD = 4π/(3a)
 
 	# K1 = [1,2]/3; K2 = [-1,1]/3
-	K1 = [-1,2]/3; K2 = [-2,1]/3
+	K2 = [-1,2]/3; K1 = [-2,1]/3
 	Γ = [0.0,0.0]; Γ2 = 2*K1-K2; M = Γ2/2
 
 	Klist = [K2,K1,Γ2,M,Γ]; Klist_names = ["K_2","K_1","Γ'","M","Γ"]
 	if job=="bandwidths" Klist = [K1,M,Γ]; Klist_names = ["K_1","M","Γ"] end
-	# if job!="bandwidths" plot_path(Klist,Klist_names,p) end
+	# plot_path(Klist,Klist_names,p)
 	# Klist = [K2,Γ,M]; Klist_names = ["K2","Γ","M"]
 	valleys = [1;-1]
 
@@ -523,10 +521,20 @@ function explore_band_structure_Heff()
 	# p.energy_center = mW*hartree_to_ev*1e3
 	p.energy_scale = 250
 
-	test_div_JA(EffV)
-	offdiag_A_k(EffV.J𝔸1,EffV.J𝔸2,K1,p;K1=K1,K2=K2,name="J",test=true)
+	test_div_JA(K1,K2,EffV)
+	Ja = offdiag_A_k(EffV.J𝔸1,EffV.J𝔸2,K1/4,p;K1=K1,K2=K2,name="J",test=true)
 	build_ondiag_W(EffV.Wplus_tot,EffV.Wminus_tot,p;test=true)
-	return nothing
+	Σmat = offdiag_div_Σ_∇(EffV.Σ,K1,p;K1=K1,K2=K2,test=true)
+	Vmat = build_offdiag_V(EffV.𝕍,p;test=true)
+	Dirac_k(K1,p;valley=1,K1=K1,K2=K2,coef_1=1,J=false,test=true)
+
+	# SJa = (Ja .+ Ja')/2
+	# diff = (Ja .- Ja')/2
+	# fpl_diff(fun) = Plots.heatmap(fun.(diff),aspect_ratio=:equal)
+	# fpl_Ja(fun) = Plots.heatmap(fun.(Ja),aspect_ratio=:equal)
+	# Plots.plot(fpl_diff(abs),"diff.png")
+	# Plots.plot(fpl_Ja(abs),"Ja.png")
+	# display(fpl_diff(abs))
 
 	# Kinetic operators
 	Kf_pure(K) = p.vF*Dirac_k(K,p;K1=K1,K2=K2)
@@ -535,9 +543,9 @@ function explore_band_structure_Heff()
 				+ c*offdiag_A_k(EffV.J𝔸1,EffV.J𝔸2,K,p;K1=K1,K2=K2,name="J",test=false)
 				+ (1/2)*ε*(p.vF*Dirac_k(K,p;K1=K1,K2=K2,coef_1=-1,J=true)
 					   + ondiag_mΔ_k(K,p;K1=K1,K2=K2)
-					   + offdiag_second_order(EffV.𝔸1,EffV.𝔸2,EffV.Σ,K,p;coef_∇=1,valley=1,K1=K1,K2=K2)
+					   + offdiag_div_Σ_∇(EffV.Σ,K,p;K1=K1,K2=K2,test=false)
 					   )
-				# VVERIFIER QUE TOUT EST BIEN HERMITIEN !!!!!!!!!!!!!!
+				# VERIFIER QUE TOUT EST BIEN HERMITIEN !!!!!!!!!!!!!!
 				)*p.ISΣ
 
 	# Constant operator
@@ -559,14 +567,14 @@ function explore_band_structure_Heff()
 	end
 
 	true_bw = true
-	θs_magic_bm = [1.174] # wAA = 110 meV
+	θs_magic_bm = [1.175] # wAA = 110 meV
 	# θs_magic_bm = [1.3425,0.561]#,0.337] # wAA = 126 meV
-	θs_magic_ours = [1.150,0.463] # ,0.445]
-	θs = vcat((1.171:0.0005:1.175))
+	θs_magic_ours = [1.151,0.458] # ,0.445]
+	θs = vcat((1.168:0.001:1.182))
 	# θs = [θs_magic_bm[1],θs_magic_ours[1]]
-	# θs = vcat((0.556:0.0005:0.565))
+	# θs = vcat((0.46:0.0005:0.462))
 	if true_bw
-		θs = vcat((0.4:0.01:1.5),θs_magic_bm,θs_magic_ours)
+		θs = vcat((0.4:0.01:1.4),θs_magic_bm,θs_magic_ours)
 	end
 	sort!(θs)
 
@@ -583,14 +591,19 @@ function explore_band_structure_Heff()
 			bw_ours[i] = bandwidth(σ_ours,p)
 			px("θ ",θ," bandwidths ",bw_bm[i]*coef_plot_meV(θ,p)," ",bw_ours[i]*coef_plot_meV(θ,p)," meV")
 		end
-		# plot_bandwidths(θs,bw_bm,bw_ours,p;def_ticks=true_bw)
+		plot_bandwidths(θs,bw_bm,bw_ours,p;def_ticks=true_bw)
 	end
 	if job=="bandwidths"
 		compute_bandwidths(θs)
 	elseif job=="diagram"
 		# for θ in [θs_magic_bm[2]]#,θs_magic_ours[2]]
 			σ_ours = bands("ours",θs_magic_ours[1])
+			# θ = α2θ(0.605,110,p)
+			# px("θ0 ",θ)
+			# σ_bm = bands("bm",θ)
 			σ_bm = bands("bm",θs_magic_bm[1])
+			# σ_ours = σ_bm
+			# σ_bm = σ_ours
 			σs = [σ_bm,σ_ours]
 			θs = [θs_magic_bm[1],θs_magic_ours[1]]
 			nmid = fermi_label(p)
@@ -601,7 +614,7 @@ function explore_band_structure_Heff()
 
 			bw_bm = bandwidth(σ_bm,p)*coef_plot_meV(θs_magic_bm[1],p)
 			bw_ours = bandwidth(σ_ours,p)*coef_plot_meV(θs_magic_ours[1],p)
-			px(" bandwidths BM: ",bw_bm," OURS: ",bw_ours)
+			px("Minimal bandwidths BM: ",bw_bm," OURS: ",bw_ours)
 		# end
 	end
 
@@ -609,7 +622,7 @@ function explore_band_structure_Heff()
 end
 
 # p = computes_and_plots_effective_potentials()
-explore_band_structure_Heff()
+Ja = explore_band_structure_Heff()
 # explore_band_structure_BM_TKV()
 # study_in_d()
 nothing

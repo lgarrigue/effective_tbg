@@ -205,8 +205,8 @@ function scf_graphene_monolayer(p)
 	p.v_monolayer_dir = DFTK.total_local_potential(p.scfres.ham)[:,:,:,1]
 	# px("Vmono en 0 ",p.v_monolayer_dir[1,1,1])
 	# p.v_monolayer_dir .-= 5
-	p.v_monolayer_fc = myfft(p.v_monolayer_dir,p.Vol)
 	substract_by_far_value(p.v_monolayer_dir,p)
+	p.v_monolayer_fc = myfft(p.v_monolayer_dir,p.Vol)
 	# p.v_monolayer_fb = r_to_G(basis,kpt,p.v_monolayer_dir)
 
 	# Test potential energy
