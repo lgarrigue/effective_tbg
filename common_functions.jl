@@ -309,7 +309,8 @@ end
 function apply_map_four_back(L,u,p) # res_{Lm} = u_m
 	a = zeros(typeof(u[1]),p.N,p.N)
 	for K=1:p.N, P=1:p.N
-		k0 = p.k_axis[K]; p0 = p.k_axis[P]
+		k0 = p.k_axis[K]
+                p0 = p.k_axis[P]
 		c = L([k0,p0]); k1 = c[1]; p1 = c[2]
 		(k2,p2) = k_inv(k1,p1,p)
 		a[k2,p2] = u[K,P]
@@ -478,8 +479,8 @@ ki2ki(k,N) = mod1(k,N)
 
 # action of a matrix on a vector k, given in coordinates ki ∈ [1,...,N], returns coordinates in ki
 function mat_on_ki(Q,ki,p) 
-	k = fun2d(ki2k_nat,ki,p.N)
-	fun2d(k_nat2ki,Q*k,p.N)
+    k = fun2d(ki2k_nat,ki,p.N)
+    fun2d(k_nat2ki,Q*k,p.N)
 end
 
 ######################## Fourier transforms
@@ -495,7 +496,7 @@ function red_arr2fun_red_1d(ψ_four,vol)
 	k_axis = fftfreq(N)*N
 	f(x) = 0
 	for i=1:N
-		g(x) = ψ_four[i] * cis(2π*k_axis[i]*x)/sqrt(vol)
+		g(x) = ψ_four[i]*cis(2π*k_axis[i]*x)/sqrt(vol)
 		f = f + g
 	end
 	f

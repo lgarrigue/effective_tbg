@@ -1,10 +1,6 @@
 include("band_diagrams_bm_like.jl")
 using DelimitedFiles, CairoMakie, LaTeXStrings
 
-using AbstractPlotting.MakieLayout
-using AbstractPlotting
-using AbstractPlotting: px
-
 #################### Second step : compute the effective potentials 𝕍, 𝕎, 𝔸, etc. Very rapid
 
 function computes_and_plots_effective_potentials()
@@ -462,7 +458,7 @@ function explore_band_structure_Heff()
 	compute_Vint = true
 	EffV = import_and_computes(N,Nz,compute_Vint,interlayer_distance)
 
-	reduce_N(EffV,12) # Because the initial dimensions are too high to compute
+	reduce_N(EffV,11) # Because the initial dimensions are too high to compute
 
 	p = Basis()
 	p.N = EffV.N
@@ -473,7 +469,7 @@ function explore_band_structure_Heff()
 	init_basis(p)
 
 
-	p.resolution_bands = 10
+	p.resolution_bands = 50
 	if job=="bandwidths" p.resolution_bands = 8 end
 	p.folder_plots_bands = "eff"
 	p.energy_scale = 1.5
@@ -502,11 +498,13 @@ function explore_band_structure_Heff()
 	multiply_potentials(p.sqi,EffV)
 
 	# Build T
-	EffV.wAA = 0.11*ev_to_hartree
-	T = T_BM_four(EffV.wAA,EffV.wAA,EffV)
-	print_wAA(EffV)
-	# T = p.sqi*EffV.T_BM
-	Tm = build_offdiag_V(T,p)
+        function BM(w)
+            EffV.wAA = w*ev_to_hartree
+            T = T_BM_four(EffV.wAA,EffV.wAA,EffV) # <---
+            # print_wAA(EffV)
+            # T = p.sqi*EffV.T_BM
+            build_offdiag_V(T,p)
+        end
 
 	# Build SΣ
 	SΣ = build_offdiag_V(EffV.Σ,p)
@@ -559,62 +557,98 @@ function explore_band_structure_Heff()
 		p.coef_energies_plot = hartree_to_ev*1e3*εθ
 
 		px("Computes band diagram, (N,d,θ)=(",p.N,",",interlayer_distance,",",θ,")")
-		ours = ours_or_bm=="ours"
-		V = (1/εθ)*(ours ? cst_op_ours : Tm)
-		kin = ours ? k -> Kf_ours(k,cθ,εθ) : Kf_pure
+		V = cst_op_ours
+                if ours_or_bm == "110"
+                    V = BM(0.110)
+                elseif ours_or_bm == "126"
+                    V = BM(0.126)
+                end
+
+                V *= 1/εθ
+		kin = ours_or_bm=="ours" ? k -> Kf_ours(k,cθ,εθ) : Kf_pure
 		σ = spectrum_on_a_path(V,kin,Klist,p;print_progress=true)
 		σ
 	end
 
 	true_bw = true
-	θs_magic_bm = [1.175] # wAA = 110 meV
-	# θs_magic_bm = [1.3425,0.561]#,0.337] # wAA = 126 meV
-	θs_magic_ours = [1.151,0.458] # ,0.445]
-	θs = vcat((1.168:0.001:1.182))
+	θs_min_bw_bm_110 = [1.175] # wAA = 110 meV
+	θs_min_bw_bm_126 = [1.345,0.563]#,0.337] # wAA = 126 meV
+	θs_min_bw_ours = [1.151,0.458] # ,0.445]
+        θs_min_fv_bm_110 = [1.129,0.528]
+        θs_min_fv_bm_126 = [1.293,0.604,0.486]
+        θs_min_fv_ours = [1.129]
+	θs = vcat((0.4:0.05:0.5))
 	# θs = [θs_magic_bm[1],θs_magic_ours[1]]
 	# θs = vcat((0.46:0.0005:0.462))
 	if true_bw
-		θs = vcat((0.4:0.01:1.4),θs_magic_bm,θs_magic_ours)
+            θs = vcat((0.4:0.005:1.4),θs_min_bw_bm_110,θs_min_bw_bm_126,θs_min_bw_ours,θs_min_fv_bm_110,θs_min_fv_bm_126)
 	end
 	sort!(θs)
 
-	function compute_bandwidths(θs)
-		bw_bm = zeros(length(θs)); bw_ours = zeros(length(θs))
-		for i=1:length(θs)
-			θ = θs[i]
-			σ_ours = bands("ours",θ)
-			σ_bm = bands("bm",θ)
-			# σ_ours = σ_bm
-			# σ_bm = σ_ours
+        function compute_bandwidths_and_velocity(θs)
+            bw = [copy(zeros(length(θs))) for i=1:3]
+            bg = [copy(zeros(length(θs))) for i=1:3]
+            fv = [copy(zeros(length(θs))) for i=1:3]
+            for i=1:length(θs)
+                θ = θs[i]
+                type = "all"
+                if type == "all"
+                    σ_ours = bands("ours",θ)
+                    σ_bm_110 = bands("110",θ)
+                    σ_bm_126 = bands("126",θ)
+                elseif type == "ours"
+                    σ_ours = bands("ours",θ)
+                    σ_bm_110 = σ_ours
+                    σ_bm_126 = σ_ours
+                elseif type == "110"
+                    σ_bm_110 = bands("110",θ)
+                    σ_ours = σ_bm_110
+                    σ_bm_126 = σ_bm_110
+                elseif type == "126"
+                    σ_bm_126 = bands("126",θ)
+                    σ_ours = σ_bm_126
+                    σ_bm_110 = σ_bm_126
+                end
 
-			bw_bm[i] = bandwidth(σ_bm,p)
-			bw_ours[i] = bandwidth(σ_ours,p)
-			px("θ ",θ," bandwidths ",bw_bm[i]*coef_plot_meV(θ,p)," ",bw_ours[i]*coef_plot_meV(θ,p)," meV")
-		end
-		plot_bandwidths(θs,bw_bm,bw_ours,p;def_ticks=true_bw)
-	end
+                σs = [σ_ours,σ_bm_110,σ_bm_126]
+                for j=1:3
+                    (bw[j][i],bg[j][i],fv[j][i]) = bandwidth_bandgap_fermivelocity(σs[j],Klist,p)
+                end
+
+                px("θ = ",θ)
+                px("Bandwidths ",bw[1][i]*coef_plot_meV(θ,p)," ",bw[2][i]*coef_plot_meV(θ,p)," ",bw[3][i]*coef_plot_meV(θ,p)," meV")
+                px("Band gaps ", bg[1][i]*coef_plot_meV(θ,p)," ",bg[2][i]*coef_plot_meV(θ,p)," ",bg[3][i]*coef_plot_meV(θ,p)," meV")
+                px("Fermi velocities ",fv[1][i]," ",fv[2][i]," ",fv[3][i])
+            end
+            plot_bandwidths_bandgaps_fermivelocities(θs,bw,bg,fv,p;def_ticks=true_bw)
+        end
 	if job=="bandwidths"
-		compute_bandwidths(θs)
+		compute_bandwidths_and_velocity(θs)
 	elseif job=="diagram"
 		# for θ in [θs_magic_bm[2]]#,θs_magic_ours[2]]
-			σ_ours = bands("ours",θs_magic_ours[1])
-			# θ = α2θ(0.605,110,p)
-			# px("θ0 ",θ)
-			# σ_bm = bands("bm",θ)
-			σ_bm = bands("bm",θs_magic_bm[1])
+			θ0 = α2θ(0.605,110,p)
+			# θ0 = α2θ(0.586,110,p) # <--- vanishing of bands, α,β = 0,w
+			px("θ0 ",θ0)
+			θs = [θs_min_bw_ours[1],θs_min_fv_bm_110[1]]
+			# θs = [θs_min_fv_bm_110[1],θs_min_fv_bm_110[1]]
+			# θs = [θs_min_bw_ours[1],θs_min_bw_bm_110[1]]
+
+
+			σ_ours = bands("ours",θs[1])
+			# σ_bm = bands("110",θs[2])
+			# σ_bm = bands("110",θs_magic_bm[1])
 			# σ_ours = σ_bm
-			# σ_bm = σ_ours
+			σ_bm = σ_ours
 			σs = [σ_bm,σ_ours]
-			θs = [θs_magic_bm[1],θs_magic_ours[1]]
 			nmid = fermi_label(p)
 			moy = (σ_ours[1,nmid] + σ_ours[1,nmid+1])/2
 			shifts = [0,-moy]
-			plot_band_diagram([σs[1]],[θs[1]],Klist,Klist_names,"",p;post_name="bm",colors=[:black])
-			plot_band_diagram([σs[2]],[θs[2]],Klist,Klist_names,"",p;post_name="eff",colors=[:red],energy_center=myfloat2int(moy*coef_plot_meV(θs[2],p)))
+			plot_band_diagram([σs[1]],[θs[1]],Klist,Klist_names,"",p;post_name="bm_min_bw",colors=[:black])
+			plot_band_diagram([σs[2]],[θs[2]],Klist,Klist_names,"",p;post_name="eff_min_bw",colors=[:red],zero_central_energies=true,energy_center=myfloat2int(moy*coef_plot_meV(θs[2],p)))
 
-			bw_bm = bandwidth(σ_bm,p)*coef_plot_meV(θs_magic_bm[1],p)
-			bw_ours = bandwidth(σ_ours,p)*coef_plot_meV(θs_magic_ours[1],p)
-			px("Minimal bandwidths BM: ",bw_bm," OURS: ",bw_ours)
+			# bw_bm = bandwidth(σ_bm,p)*coef_plot_meV(θs_magic_bm[1],p)
+			# bw_ours = bandwidth(σ_ours,p)*coef_plot_meV(θs_magic_ours[1],p)
+			# px("Minimal bandwidths BM: ",bw_bm," OURS: ",bw_ours)
 		# end
 	end
 

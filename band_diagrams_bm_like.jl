@@ -636,16 +636,24 @@ function spectrum_on_a_path(Hv,Kdep,Klist,p;print_progress=false)
 	graphs
 end
 
-fermi_label(p) = floor(Int,p.n_l/2) # the lower one, the upper one is fermi_label +1
+fermi_label(p) = floor(Int,p.n_l/2) # the label of the lower Fermi band, the upper one is fermi_label +1
 
-function bandwidth(σ,p)
-	nmid = fermi_label(p)
-	diff = σ[:,nmid+1] .- σ[:,nmid]
-	# px("Full diffs ",diff)
-	# px("Verify spectrum ",σ[1,nmid-2]," ",σ[1,nmid-1]," ",σ[1,nmid]," ",σ[1,nmid+1]," ",σ[1,nmid+2])
-	# px("Verify differences ",σ[1,nmid-1]-σ[1,nmid-2]," ",σ[1,nmid]-σ[1,nmid-1]," ",σ[1,nmid+1]-σ[1,nmid]," ",σ[1,nmid+2]-σ[1,nmid+1])
-	# @assert diff[1] < 0.5*diff_verif[1] # verify that we take the right one
-	maximum(σ[:,nmid+1])-minimum(σ[:,nmid])
+function bandwidth_bandgap_fermivelocity(σ,Klist,p)
+    nmid = fermi_label(p)
+    # Bandwidth
+    bw = maximum(σ[:,nmid+1])-minimum(σ[:,nmid])
+
+    # Bandgap
+    bg = max(0,minimum(σ[:,nmid+2])-maximum(σ[:,nmid+1]))
+
+    # Fermi velocity
+    K1 = k_red2cart(Klist[1],p)
+    K2 = k_red2cart(Klist[2],p)
+    dk = norm(K1-K2)/p.resolution_bands
+    nmid = fermi_label(p)
+    fv = abs( (σ[2,nmid+1] - σ[1,nmid+1])/dk )
+
+    (bw,bg,fv)
 end
 
 function coef_plot_meV(θ,p)
@@ -654,44 +662,74 @@ function coef_plot_meV(θ,p)
 	p.coef_energies_plot = hartree_to_ev*1e3*εθ
 end
 
-function plot_bandwidths(θs,bw_bm,bw_ours,p;def_ticks=true)
-	res_fig = 400
-	f = CairoMakie.Figure(resolution=(res_fig+150,res_fig))
-	ax = CairoMakie.Axis(f[1, 1], xlabel = "θ (degrees)", ylabel="Bandwidth (meV)")
-	px("θs ",θs[1]," ",θs[end])
-	if def_ticks ax.xticks = (θs[1]: 0.1 :θs[end]) end
-	CairoMakie.xlims!(ax,θs[1],θs[end])
+function plot_bandwidths_bandgaps_fermivelocities(θs,bw,bg,fv,p;def_ticks=true)
+    labels = ["Fermi velocity","Band gap","Bandwidth"]
+    # filenames = ["bandwidth","bandgap","fermi_velocity"]
+    quantities = [fv,bg,bw]
+    fig = CairoMakie.Figure(resolution=(600,1000))
+    for fi=1:3
+        ylab = labels[fi]
+        if fi!=1
+            ylab = string(ylab," (meV)")
+        end
+        ax = CairoMakie.Axis(fig[fi,1], xlabel = "θ (degrees)", ylabel=ylab)
+        if fi in [1,2]
+            hidexdecorations!(ax, grid = false)
+        end
+        px("θs ",θs[1]," ",θs[end])
+        if def_ticks ax.xticks = (θs[1]: 0.1 :θs[end]) end
+        CairoMakie.xlims!(ax,θs[1],θs[end])
 
-	colors = [:black,:red]
-	n = length(θs)
-	bws = [bw_bm,bw_ours]
-	ymax = 0
-	for j=1:2
-		ys = [bws[j][i]*coef_plot_meV(θs[i],p) for i=1:n]
-		if ymax < maximum(ys) ymax = maximum(ys) end
-		points = [CairoMakie.Point2f0(θs[i],ys[i]) for i=1:n]
-		CairoMakie.lines!(points,color=colors[j])
-	end
-	CairoMakie.ylims!(ax,0,ymax)
+        colors = [:red,:black,:blue]
+        n = length(θs)
+        ymax = 0
 
+        function cf(fi,i)
+            coef = 1
+            if fi in [2,3]
+                coef = coef_plot_meV(θs[i],p)
+            elseif fi==1
+                coef = 1/0.380 # fermi velocity of the monolayer, in Hartree
+            end
+            coef
+        end
 
-	paths = [p.path_bandwidths]
-	if p.plots_article push!(paths,p.path_plots_article) end
-	for path in paths
-		CairoMakie.save(string(path,"bandwidths.pdf"),f)
-	end
+        for j=1:3
+            ys = [quantities[fi][j][i]*cf(fi,i) for i=1:n]
+            if ymax < maximum(ys) ymax = maximum(ys) end
+            points = [CairoMakie.Point2f0(θs[i],ys[i]) for i=1:n]
+            CairoMakie.lines!(points,color=colors[j])
+        end
+        CairoMakie.ylims!(ax,0,max(ymax,0.01)) # max to avoid plotting problems
+    end
+
+    paths = [p.path_bandwidths]
+    if p.plots_article push!(paths,p.path_plots_article) end
+    for path in paths
+        CairoMakie.save(string(path,"thetas.pdf"),fig)
+    end
 end
 
 # w in meV, result in degrees
 α2θ(α,w,p) = (180/π)*2*asin(w*1e-3*ev_to_hartree/(2*kD(p)*p.vF*α))
 
+function energy_center_zero(σs,p)
+    l = fermi_label(p)
+    σs2 = copy(σs)
+    for g=1:length(σs)
+        σs2[g] = σs[g] .- σs[g][1,l]
+    end
+    σs2
+end
+
 # From the numbers of the band diagram, produces a plot of it
-function plot_band_diagram(σs,θs,Klist,Knames,name,p;K_relative=[0.0,0.0],shifts=zeros(100),energy_center=0,post_name="",colors=fill(:black,100))
+function plot_band_diagram(σs,θs,Klist,Knames,name,p;K_relative=[0.0,0.0],shifts=zeros(100),energy_center=0,zero_central_energies=false,post_name="",colors=fill(:black,100)) # zero_central_energies : if true, the central energies will be at 0 artificially
 	# Prepares the lists to plot
 	n = length(Klist)
 	res = p.resolution_bands
 	n_path_points = res*n
-	ylims = energy_center-p.energy_scale,energy_center+p.energy_scale
+        center = zero_central_energies ? 0 : energy_center
+	ylims = center-p.energy_scale,center+p.energy_scale
 	lengths_paths = [norm(k_red2cart(Klist[mod1(i+1,n)]-K_relative,p) .- k_red2cart(Klist[i]-K_relative,p)) for i=1:n]
 	lengths_paths /= sum(lengths_paths)
 	dx_list = lengths_paths/res
@@ -723,12 +761,13 @@ function plot_band_diagram(σs,θs,Klist,Knames,name,p;K_relative=[0.0,0.0],shif
 	ax.yticks = (ylims[1] : 50 : ylims[2])
 
 	# pl = Plots.plot(size=(1000,1100),ylims=ylims,legend=false) #:topright)
-	for g=1:length(σs)
+        σss = zero_central_energies ? energy_center_zero(σs,p) : σs
+	for g=1:length(σss)
 		for l=1:p.n_l
 			s = shifts[g]
-			points = [CairoMakie.Point2f0(x_list[i],(σs[g][i,l] + s)*coef_plot_meV(θs[g],p)) for i=1:n_path_points]
-			points = vcat(points,[CairoMakie.Point2f0(end_x,(σs[g][1,l] + s)*coef_plot_meV(θs[g],p))])
-			# Plots.plot!(pl,x_list,σs[g][:,l]*p.coef_energies_plot,xticks=nothing)
+			points = [CairoMakie.Point2f0(x_list[i],(σss[g][i,l] + s)*coef_plot_meV(θs[g],p)) for i=1:n_path_points]
+			points = vcat(points,[CairoMakie.Point2f0(end_x,(σss[g][1,l] + s)*coef_plot_meV(θs[g],p))])
+			# Plots.plot!(pl,x_list,σss[g][:,l]*p.coef_energies_plot,xticks=nothing)
 			CairoMakie.lines!(points,color=colors[g])
 		end
 	end
@@ -746,6 +785,7 @@ function plot_band_diagram(σs,θs,Klist,Knames,name,p;K_relative=[0.0,0.0],shif
 	# Saves
 	s = string(name,"000000000")
 	title = s[1:min(6,length(s))]
+        title = ""
 	path_local = string(p.root_path,p.folder_plots_bands,"/")
 	create_dir(path_local)
 	paths_plots = [path_local]
@@ -753,7 +793,7 @@ function plot_band_diagram(σs,θs,Klist,Knames,name,p;K_relative=[0.0,0.0],shif
 	if p.plots_article push!(paths_plots,p.path_plots_article) end
 	for path in paths_plots
 		ext = path == path_local ? "png" : "pdf"
-		CairoMakie.save(string(path,"band_struct_",title,"_",post_name,".",ext),f)
+		CairoMakie.save(string(path,"band_struct",title,"_",post_name,".",ext),f)
 	end
 end
 
