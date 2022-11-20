@@ -666,6 +666,7 @@ end
 
 plot_one_vector(v,name,p;shift_text=[0.0,0.0],linewidth=1,color=:black) = plot_sequence_of_points([[0.0,0],v],["",name],p;shifts_text=[[0.0,0.0],shift_text],linewidth=linewidth,color=color)
 
+# Plots the path in momentum space used for computing the band diagrams
 function plot_path(Klist,Knames,p)
     # Init
     res = 1000

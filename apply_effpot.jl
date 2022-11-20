@@ -24,7 +24,7 @@ function computes_and_plots_effective_potentials()
     compare_to_BM_infos(p.Σ,p,"Σ")
 
     # Prints some info
-    get_low_Fourier_coefs(p) # print low Fourier modes of the effective potentials
+    # get_low_Fourier_coefs(p) # print low Fourier modes of the effective potentials
     W_without_mean = print_infos_W(p) # prints some information about W
 
     ####################### Tests symmetries
