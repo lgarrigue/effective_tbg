@@ -676,7 +676,7 @@ function test_mirror_sym(p)
     px("Test Φ2(-z)=-Φ2(z) ",distance(parity_z(p.u2_fc,p),-p.u2_fc))
 
     px("Test G Φ0 =  Φ0 ",distance(Gu0,Tu0))
-    px("Test G Φ1 = ",p.gauge_param==1 ? " " : "-","Φ2 ",distance(Gu1,-p.gauge_param*Tu2))
+    px("Test G Φ1 = ",p.gauge_param==1 ? "-" : " ","Φ2 ",distance(Gu1,-p.gauge_param*Tu2))
     px("Test G v  =   v ",distance(p.v_monolayer_fc,M_four(p.v_monolayer_fc,p)))
 end
 
