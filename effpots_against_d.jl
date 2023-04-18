@@ -23,7 +23,7 @@ function save_fig(list_d,meas,measures,id_graph,labels,colors,p,fine,graphs_V)
         maxY2 = 1e2
         X = 6.45
         CairoMakie.vlines!(ax,[X],color = :black)
-        CairoMakie.text!(string("d=",X), position=(X+0.2,minY2*1.1), textsize =15)
+        CairoMakie.text!(string("d=",X), position=(X+0.2,minY2*1.1), fontsize =15)
         CairoMakie.ylims!(ax,minY2,maxY2)
     end
     lin = []

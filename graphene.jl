@@ -220,7 +220,7 @@ function scf_graphene_monolayer(p)
     # Extracts Kohn-Sham orbitals
     for i=1:occupation
         ui = p.scfres.ψ[i_kpt][:, i]
-        ui_dir = G_to_r(basis,kpt,ui)
+        ui_dir = ifft(basis,kpt,ui)
     end
 end
 
@@ -255,7 +255,6 @@ function scf_graphene_bilayer(sx,sy,p)
     c2_moins = p.C2 .- D
     C = ElementPsp(:C, psp=load_psp("hgh/pbe/c-q4"))
     positions = [c1_plus,c2_plus,c1_moins,c2_moins]
-    n_extra_states = 1
 
     if D==0 px("CANNOT DO DFT WITH d=0") end
     # Builds model
@@ -271,7 +270,7 @@ function scf_graphene_bilayer(sx,sy,p)
         @assert p.x_axis_red == first.(DFTK.r_vectors(basis))[:,1,1]
     end
     # Does SCF
-    scfres = self_consistent_field(basis;tol=p.tol_scf,n_ep_extra=n_extra_states,eigensolver=lobpcg_hyper,maxiter=100,callback=x->nothing)
+    scfres = self_consistent_field(basis;tol=p.tol_scf,eigensolver=lobpcg_hyper,maxiter=100,callback=x->nothing)
     # Extracts the Kohn-Sham potential
     Vks_dir = DFTK.total_local_potential(scfres.ham)[:,:,:,1] # select first spin component
     substract_by_far_value(Vks_dir,p)
@@ -305,11 +304,11 @@ function get_dirac_eigenmodes(p)
     p.ref_gauge = ref_vec/norm(ref_vec) 
     for i=1:n_eigenmodes
         ui = us_K[i]
-        ui_dir = G_to_r(basis,p.K_kpt,ui)
+        ui_dir = ifft(basis,p.K_kpt,ui)
         λ = sum(conj(ui_dir).*p.ref_gauge)
         c = λ/abs(λ)
         ui_dir *= c
-        us_K[i] = r_to_G(basis,p.K_kpt,ui_dir)
+        us_K[i] = fft(basis,p.K_kpt,ui_dir)
     end
 
     # Extracts relevant states
@@ -328,9 +327,9 @@ end
 # Creates u0 u1 and u2 in direct and Fourier cube representations
 function update_u1_u2(p)
     # Computes them in direct space
-    p.u0_dir = G_to_r(p.basis,p.K_kpt,p.u0_fb)
-    p.u1_dir = G_to_r(p.basis,p.K_kpt,p.u1_fb)
-    p.u2_dir = G_to_r(p.basis,p.K_kpt,p.u2_fb)
+    p.u0_dir = ifft(p.basis,p.K_kpt,p.u0_fb)
+    p.u1_dir = ifft(p.basis,p.K_kpt,p.u1_fb)
+    p.u2_dir = ifft(p.basis,p.K_kpt,p.u2_fb)
     # Computes them in the Fourier cube
     p.u0_fc = myfft(p.u0_dir,p.Vol)
     p.u1_fc = myfft(p.u1_dir,p.Vol)
@@ -578,8 +577,8 @@ function extract_nonlocal(p)
     @assert sum(abs.(vecs[:,1].-conj.(vecs)[:,2]))/sum(abs.(vecs[:,1])) < 1e-8
     p.non_local_φ1_fb = vecs[:,1]
     p.non_local_φ2_fb = vecs[:,2]
-    non_local_φ1_dir = G_to_r(p.basis,p.K_kpt,p.non_local_φ1_fb)
-    non_local_φ2_dir = G_to_r(p.basis,p.K_kpt,p.non_local_φ2_fb)
+    non_local_φ1_dir = ifft(p.basis,p.K_kpt,p.non_local_φ1_fb)
+    non_local_φ2_dir = ifft(p.basis,p.K_kpt,p.non_local_φ2_fb)
     p.non_local_φ1_fc = myfft(non_local_φ1_dir,p.Vol)
     p.non_local_φ2_fc = myfft(non_local_φ2_dir,p.Vol)
     # px("Non local coef ",p.non_local_coef)

@@ -980,7 +980,7 @@ function plot_block_article(B_four,p;title="plot_full",other_block=-1,k_red_shif
         # arrows!(ff1,[0],[0],[1],[4], arrowsize = 10)
         sh = [1,0]
         if funs[I]==abs
-            CairoMakie.text!(ff1,[L"\epsilon_{\theta}^{-1} a_{1,M}",L"\epsilon_{\theta}^{-1} a_{2,M}"],position = Tuple.(fact*[p.a1.-1.3*sh,p.a2.-7*sh]),textsize=40)
+            CairoMakie.text!(ff1,[L"\epsilon_{\theta}^{-1} a_{1,M}",L"\epsilon_{\theta}^{-1} a_{2,M}"],position = Tuple.(fact*[p.a1.-1.3*sh,p.a2.-7*sh]),fontsize=40)
         end
 
         titl = string(title,"_",titles[I],"_cart")

@@ -428,7 +428,7 @@ function LOBPCG(A, X, D, B=I, precon=((Y, X, R)->R), tol=1e-10, maxiter=100;
 end
 
 # D has to be the diagonal of A
-function lobpcg_hyper(A, X0,D; maxiter=10, prec=((Y, X, R)->R), # X0 is an horizontal concatenation of column vectors, initial vectors
+function DFTK.lobpcg_hyper(A, X0,D; maxiter=10, prec=((Y, X, R)->R), # X0 is an horizontal concatenation of column vectors, initial vectors
                       tol=20size(A, 2)*eps(real(eltype(X0))),
                       largest=false, n_conv_check=nothing, kwargs...)
     @assert !largest "Only seeking the smallest eigenpairs is implemented."

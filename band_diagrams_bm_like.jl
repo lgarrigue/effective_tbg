@@ -72,7 +72,7 @@ mutable struct Basis
     function Basis()
         p = new()
         p.vF = 0.380
-        p.plots_article = false
+        p.plots_article = true
         p.path_plots_article = "plots_article/"
         p
     end
@@ -653,9 +653,9 @@ function plot_sequence_of_points(Klist,Knames,p;shifts_text=0,color=:black,linew
         end
     end
     Knames_tex = [LaTeXString(string("\$",filtered_names[i],"\$")) for i=1:length(filtered_names)]
-    # CairoMakie.text!(Knames_tex, position=filt_pos,textsize=30)
+    # CairoMakie.text!(Knames_tex, position=filt_pos,fontsize=30)
     for i=1:length(filtered_names)
-        CairoMakie.text!(Knames_tex[i], position=filt_pos[i],textsize=30)
+        CairoMakie.text!(Knames_tex[i], position=filt_pos[i],fontsize=30)
     end
 
     # Points
@@ -776,7 +776,7 @@ function plot_band_diagram(σs,θs,name,p;K_relative=[0.0,0.0],shifts=zeros(100)
     labels = [LaTeXString(string("\$",p.Klist_names[mod1(i,n)],"\$")) for i=1:n+1]
 
     pos = [CairoMakie.Point2f0(list_x_vert_labels[i] + (i==m ? -10 : 0),ylims[1]-abs(ylims[1])*0.0) for i=1:m]
-    CairoMakie.text!(labels, position=pos,textsize=20,font ="Arial bold")
+    CairoMakie.text!(labels, position=pos,fontsize=20,font ="Arial bold")
     ax.xticks = (list_x_vert_labels,["" for i=1:m])
 
     # Saves

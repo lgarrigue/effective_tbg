@@ -14,14 +14,14 @@ function produce_bloch_functions_and_potentials()
     p.gauge_param = 1 # gauge_param ∈ ±1, so that <Φ1,(-i∇_x)Φ2> = gauge_param*vF*[1,-i]. Take 1 to be coherent with the bands diagram implementation
     # L : periodicity in z (both for mono and bilayer computations)
     # ecut_over_kd2 : ecut/(kd^2)
-    ecut_over_kd2 = 41; p.L = 115
     ecut_over_kd2 = 20; p.L = 50
+    ecut_over_kd2 = 41; p.L = 115
 
     p.kgrid = [5,5,1] # for computing the Kohn-Sham potential
     p.tol_scf = 1e-4
 
     # Parameters on Vint
-    compute_Vint = false
+    compute_Vint = true
     p.Nint = 3 # resolution (in axis X and Y) of the disregistries grid for computing Vint. Everything is very not dependent of Nint, one can take just 3 (even 2)
     # d_list = [6.45] # list of values of d (interlayer distance) for which we compute Vint
     d_list = vcat([6.45],[0.01],(0.1:0.1:11)) # computes different Vint to prepare the study of effective potentials measures against d
